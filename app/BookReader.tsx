@@ -10,6 +10,7 @@ export type ReaderFile = {
 };
 
 type TocEntry = { href: string; label: string; depth: number };
+type ReadingMode = "pages" | "scroll";
 
 function flattenToc(items: NavItem[], depth = 0): TocEntry[] {
   return items.flatMap((item) => [
@@ -40,9 +41,16 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
   const [toc, setToc] = useState<TocEntry[]>([]);
   const [fontSize, setFontSize] = useState(100);
   const [progress, setProgress] = useState("");
+  const [readingMode, setReadingMode] = useState<ReadingMode | null>(null);
 
   useEffect(() => {
-    if (!isEpub || !viewerRef.current) return;
+    const saved = localStorage.getItem("reading-room-reader-mode") as ReadingMode | null;
+    if (saved === "pages" || saved === "scroll") setReadingMode(saved);
+    else setReadingMode(window.matchMedia("(max-width: 700px)").matches ? "scroll" : "pages");
+  }, [file.id]);
+
+  useEffect(() => {
+    if (!isEpub || !viewerRef.current || !readingMode) return;
     const controller = new AbortController();
     let disposed = false;
 
@@ -61,8 +69,9 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
         const rendition = book.renderTo(viewerRef.current, {
           width: "100%",
           height: "100%",
-          flow: "paginated",
-          spread: "auto",
+          manager: readingMode === "scroll" ? "continuous" : undefined,
+          flow: readingMode === "scroll" ? "scrolled" : "paginated",
+          spread: readingMode === "scroll" ? "none" : "auto",
           minSpreadWidth: 980,
         });
         renditionRef.current = rendition;
@@ -78,7 +87,7 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
         await rendition.display(saved);
         rendition.on("relocated", (location: Location) => {
           const page = location.start.displayed;
-          setProgress(page?.total ? `Page ${page.page} of ${page.total}` : "");
+          setProgress(readingMode === "scroll" ? "Scroll to continue" : page?.total ? `Page ${page.page} of ${page.total}` : "");
           if (location.start.cfi) localStorage.setItem(`reading-room-position-${file.id}`, location.start.cfi);
         });
         const navigation = await book.loaded.navigation;
@@ -99,7 +108,7 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
       renditionRef.current = null;
       bookRef.current = null;
     };
-  }, [file.id, isEpub]);
+  }, [file.id, isEpub, readingMode]);
 
   useEffect(() => {
     renditionRef.current?.themes.fontSize(`${fontSize}%`);
@@ -115,12 +124,18 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
     return () => window.removeEventListener("keydown", onKey);
   }, [isEpub, onClose]);
 
+  function chooseReadingMode(mode: ReadingMode) {
+    localStorage.setItem("reading-room-reader-mode", mode);
+    setReadingMode(mode);
+  }
+
   return (
     <section className="reader-shell" aria-label={`Reading ${title}`}>
       <header className="reader-header">
         <div><span>THE READING ROOM</span><h1>{title}</h1></div>
         <div className="reader-actions">
           {isEpub && toc.length > 0 && <label><span>Chapter</span><select defaultValue="" onChange={(event) => event.target.value && renditionRef.current?.display(event.target.value)}><option value="" disabled>Contents</option>{toc.map((item, index) => <option key={`${item.href}-${index}`} value={item.href}>{`${"— ".repeat(item.depth)}${item.label}`}</option>)}</select></label>}
+          {isEpub && readingMode && <div className="reader-modes" aria-label="Reading mode"><button className={readingMode === "pages" ? "active" : ""} aria-pressed={readingMode === "pages"} onClick={() => chooseReadingMode("pages")}>Pages</button><button className={readingMode === "scroll" ? "active" : ""} aria-pressed={readingMode === "scroll"} onClick={() => chooseReadingMode("scroll")}>Scroll</button></div>}
           {isEpub && <div className="font-controls" aria-label="Text size"><button onClick={() => setFontSize((size) => Math.max(75, size - 10))} aria-label="Decrease text size">A−</button><button onClick={() => setFontSize((size) => Math.min(160, size + 10))} aria-label="Increase text size">A+</button></div>}
           <a href={file.url} target="_blank" rel="noreferrer">Open in Drive ↗</a>
           <button className="reader-close" onClick={onClose} aria-label="Close reader">×</button>
@@ -129,7 +144,7 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
 
       {isEpub ? <>
         <div className="epub-stage"><div className="epub-viewer" ref={viewerRef}></div>{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download EPUB</a>}</div>}</div>
-        <footer className="reader-footer"><button onClick={() => renditionRef.current?.prev()}>← Previous</button><span>{progress || "Use the arrow keys to turn pages"}</span><button onClick={() => renditionRef.current?.next()}>Next →</button></footer>
+        <footer className="reader-footer"><button onClick={() => renditionRef.current?.prev()}>← {readingMode === "scroll" ? "Previous section" : "Previous"}</button><span>{progress || (readingMode === "scroll" ? "Scroll to continue" : "Use the arrow keys to turn pages")}</span><button onClick={() => renditionRef.current?.next()}>{readingMode === "scroll" ? "Next section" : "Next"} →</button></footer>
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
     </section>
   );
