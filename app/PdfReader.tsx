@@ -91,8 +91,18 @@ function PdfPage({ pdf, pageNumber, mode, onVisible }: { pdf: PDFDocumentProxy; 
 const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId, format, mode, onStatus, onProgress }, ref) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
+  const [isMobile, setIsMobile] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const total = pdf?.numPages || 0;
+  const spreadSize = mode === "pages" && !isMobile ? 2 : 1;
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 700px)");
+    const update = () => setIsMobile(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -129,9 +139,10 @@ const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId
 
   useEffect(() => {
     if (!total) return;
-    onProgress(`Page ${pageNumber} of ${total}`);
+    const lastVisiblePage = Math.min(pageNumber + spreadSize - 1, total);
+    onProgress(lastVisiblePage > pageNumber ? `Pages ${pageNumber}–${lastVisiblePage} of ${total}` : `Page ${pageNumber} of ${total}`);
     localStorage.setItem(`reading-room-pdf-page-${fileId}`, String(pageNumber));
-  }, [fileId, onProgress, pageNumber, total]);
+  }, [fileId, onProgress, pageNumber, spreadSize, total]);
 
   useEffect(() => {
     if (mode !== "scroll") return;
@@ -144,10 +155,10 @@ const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId
     if (mode === "scroll") scrollRef.current?.querySelector(`[data-page="${nextPage}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  useImperativeHandle(ref, () => ({ previous: () => goTo(pageNumber - 1), next: () => goTo(pageNumber + 1) }), [mode, pageNumber, total]);
+  useImperativeHandle(ref, () => ({ previous: () => goTo(pageNumber - spreadSize), next: () => goTo(pageNumber + spreadSize) }), [mode, pageNumber, spreadSize, total]);
 
   if (!pdf) return null;
-  if (mode === "pages") return <div className="pdf-pages"><PdfPage pdf={pdf} pageNumber={pageNumber} mode="pages" onVisible={() => {}} /></div>;
+  if (mode === "pages") return <div className={`pdf-pages ${spreadSize === 1 ? "single-spread" : ""}`}><PdfPage pdf={pdf} pageNumber={pageNumber} mode="pages" onVisible={() => {}} />{spreadSize === 2 && pageNumber < pdf.numPages && <PdfPage pdf={pdf} pageNumber={pageNumber + 1} mode="pages" onVisible={() => {}} />}</div>;
   return <div className="pdf-scroll" ref={scrollRef}>{Array.from({ length: pdf.numPages }, (_, index) => <PdfPage key={index + 1} pdf={pdf} pageNumber={index + 1} mode="scroll" onVisible={setPageNumber} />)}</div>;
 });
 
