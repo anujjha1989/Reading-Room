@@ -1,0 +1,1 @@
+ALTER TABLE `reading_state` ADD `bookmarks` text DEFAULT '[]' NOT NULL;

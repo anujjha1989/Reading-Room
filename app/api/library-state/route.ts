@@ -12,11 +12,21 @@ type StateInput = {
   lastOpened?: number | null;
   progressLabel?: string;
   position?: string;
+  bookmarks?: Array<{ id?: string; position?: string; label?: string; createdAt?: number }>;
   status?: "unread" | "reading" | "finished";
 };
 
 function cleanText(value: unknown, limit: number) {
   return typeof value === "string" ? value.slice(0, limit) : "";
+}
+
+function cleanBookmarks(value: StateInput["bookmarks"]) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 100).flatMap((item) => {
+    const position = cleanText(item?.position, 1000);
+    if (!position) return [];
+    return [{ id: cleanText(item?.id, 80) || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, position, label: cleanText(item?.label, 120) || "Saved place", createdAt: typeof item?.createdAt === "number" ? Math.max(0, Math.floor(item.createdAt)) : Date.now() }];
+  });
 }
 
 export async function GET() {
@@ -25,7 +35,10 @@ export async function GET() {
   const states = await getDb().select().from(readingState)
     .where(eq(readingState.userEmail, user.email))
     .orderBy(desc(readingState.updatedAt));
-  return Response.json({ states });
+  return Response.json({ states: states.map((state) => {
+    try { return { ...state, bookmarks: cleanBookmarks(JSON.parse(state.bookmarks)) }; }
+    catch { return { ...state, bookmarks: [] }; }
+  }) });
 }
 
 export async function POST(request: Request) {
@@ -50,21 +63,25 @@ export async function POST(request: Request) {
     lastOpened: typeof input.lastOpened === "number" ? Math.max(0, Math.floor(input.lastOpened)) : null,
     progressLabel: cleanText(input.progressLabel, 120) || null,
     position: cleanText(input.position, 1000) || null,
+    bookmarks: JSON.stringify(cleanBookmarks(input.bookmarks)),
     status,
     updatedAt: Date.now(),
   };
 
+  const update = {
+    fileId: value.fileId,
+    favorite: value.favorite,
+    lastOpened: value.lastOpened,
+    progressLabel: value.progressLabel,
+    position: value.position,
+    status: value.status,
+    updatedAt: value.updatedAt,
+    ...(input.bookmarks === undefined ? {} : { bookmarks: value.bookmarks }),
+  };
+
   await getDb().insert(readingState).values(value).onConflictDoUpdate({
     target: [readingState.userEmail, readingState.bookId],
-    set: {
-      fileId: value.fileId,
-      favorite: value.favorite,
-      lastOpened: value.lastOpened,
-      progressLabel: value.progressLabel,
-      position: value.position,
-      status: value.status,
-      updatedAt: value.updatedAt,
-    },
+    set: update,
   });
   return Response.json({ saved: true });
 }

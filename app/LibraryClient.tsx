@@ -1,7 +1,7 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import BookReader, { type ReaderFile, type ReaderLocation } from "./BookReader";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type FocusEvent } from "react";
+import BookReader, { type ReaderBookmark, type ReaderFile, type ReaderLocation } from "./BookReader";
 
 type RawBook = {
   id: string; title: string; originalTitle?: string; author?: string; series?: string; incomplete?: boolean; workKey?: string;
@@ -17,8 +17,10 @@ type SortMode = "title" | "author" | "series" | "added" | "opened";
 type ReadingStatus = "unread" | "reading" | "finished";
 type SavedState = {
   bookId: string; fileId?: string | null; favorite: boolean; lastOpened?: number | null;
-  progressLabel?: string | null; position?: string | null; status: ReadingStatus; updatedAt: number;
+  progressLabel?: string | null; position?: string | null; status: ReadingStatus; bookmarks?: ReaderBookmark[]; updatedAt: number;
 };
+
+type FilterChoice = { value: string; count: number };
 
 const FORMAT_ORDER = ["EPUB", "PDF", "CBZ", "CBR", "MOBI", "FDX", "DOCX", "DOC", "RTF", "TXT"];
 const palettes = [
@@ -49,6 +51,10 @@ function cleanTitle(value: string) {
     .replace(/\s*[\[(](?:v?\d+(?:\.\d+)?|\d+\s*(?:pages?|p))[\])]/gi, " ")
     .replace(/\s+[-–—]\s+(?:scan|digital|webrip|fiche).*$/i, "")
     .replace(/\s*\[(?:hipotter\d*|dcp|empire|minutemen|zone-empire)\]\s*/gi, " ")
+    .replace(/\s*\((?:18|19|20)\d{2}\)\s*/g, " ")
+    .replace(/\s*\(\s*\d+(?:\s+\d+)*\s*$/g, "")
+    .replace(/\s*\(\s*v?\d*(?:\.\d*)?\s*$/i, "")
+    .replace(/\s*[-–—]\s*by\s*$/i, "")
     .replace(/[._]+/g, " ").replace(/\s+/g, " ").replace(/^[-–—\s]+|[-–—\s]+$/g, "").trim();
 }
 
@@ -65,6 +71,13 @@ function metadataFor(row: RawBook) {
   const rawTitle = TITLE_CORRECTIONS[row.id] || row.title || row.originalTitle || "Untitled";
   let title = cleanTitle(rawTitle);
   let author = cleanTitle(row.author || "");
+  if (!author) {
+    const authorSuffix = title.match(/^(.*?)\s*[-–—]\s*([^–—-]+)$/);
+    if (authorSuffix && looksLikePerson(authorSuffix[2])) {
+      title = cleanTitle(authorSuffix[1]);
+      author = cleanTitle(authorSuffix[2]);
+    }
+  }
   const parts = title.split(/\s+[-–—]\s+/).map((part) => part.trim()).filter(Boolean);
   if (parts.length > 1 && author) {
     const first = parts[0];
@@ -84,11 +97,32 @@ function metadataFor(row: RawBook) {
   return { title: title || "Untitled", author, category, series };
 }
 
+function authorAliases(authors: string[]) {
+  const aliases = new Map<string, string>();
+  const unique = [...new Set(authors.filter(Boolean))];
+  for (const author of unique) aliases.set(author, author);
+  for (const author of unique) {
+    const key = normalized(author);
+    const firstName = key.split(" ")[0];
+    const better = unique.filter((candidate) => {
+      const candidateKey = normalized(candidate);
+      return candidateKey.split(" ")[0] === firstName
+        && candidateKey.startsWith(key)
+        && candidateKey.length > key.length
+        && candidateKey.length - key.length <= 2;
+    }).sort((a, b) => normalized(b).length - normalized(a).length)[0];
+    if (better) aliases.set(author, better);
+  }
+  return aliases;
+}
+
 function groupBooks(rows: RawBook[]): Book[] {
   const grouped = new Map<string, Book>();
   const titleIndex = new Map<string, string>();
-  for (const row of rows) {
-    const metadata = metadataFor(row);
+  const prepared = rows.map((row) => ({ row, metadata: metadataFor(row) }));
+  const aliases = authorAliases(prepared.map(({ metadata }) => metadata.author));
+  for (const { row, metadata: rawMetadata } of prepared) {
+    const metadata = { ...rawMetadata, author: aliases.get(rawMetadata.author) || rawMetadata.author };
     const isScript = /(^|\/)scripts?(\/|$)|screenplay|black list/i.test(`${row.source}/${row.path || ""}`);
     const isComic = /^(?:CBR|CBZ)$/i.test(row.format);
     const titleKey = normalized(metadata.title);
@@ -128,6 +162,38 @@ function groupBooks(rows: RawBook[]): Book[] {
       searchText: normalized([book.title, book.author, book.series, ...collections, book.category, book.path].filter(Boolean).join(" ")),
     };
   }).sort((a, b) => Number(Boolean(a.incomplete)) - Number(Boolean(b.incomplete)) || normalized(a.title).localeCompare(normalized(b.title)));
+}
+
+function countedChoices(items: Book[], read: (book: Book) => string[]) {
+  const counts = new Map<string, number>();
+  for (const book of items) for (const value of new Set(read(book).filter(Boolean))) counts.set(value, (counts.get(value) || 0) + 1);
+  return [...counts.entries()].map(([value, count]) => ({ value, count })).sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true }));
+}
+
+function SearchableFilter({ label, value, allLabel, choices, onChange }: {
+  label: string; value: string; allLabel: string; choices: FilterChoice[]; onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const filteredChoices = useMemo(() => {
+    const term = normalized(query);
+    return term ? choices.filter((choice) => normalized(choice.value).includes(term)).slice(0, 120) : choices.slice(0, 120);
+  }, [choices, query]);
+  const closeIfFocusLeaves = (event: FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+  };
+  return <div className="filter-picker" onBlur={closeIfFocusLeaves}>
+    <span>{label}</span>
+    <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => { setOpen((current) => !current); setQuery(""); }}>{value}<b aria-hidden="true">⌄</b></button>
+    {open && <div className="filter-picker-menu">
+      <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }} placeholder={`Search ${label.toLowerCase()}…`} aria-label={`Search ${label.toLowerCase()}`} />
+      <div role="listbox" aria-label={label}>
+        <button type="button" className={value === allLabel ? "active" : ""} onClick={() => { onChange(allLabel); setOpen(false); }}>{allLabel}</button>
+        {filteredChoices.map((choice) => <button type="button" role="option" aria-selected={value === choice.value} className={value === choice.value ? "active" : ""} key={choice.value} onClick={() => { onChange(choice.value); setOpen(false); }}><span>{choice.value}</span><small>{choice.count.toLocaleString()}</small></button>)}
+        {!filteredChoices.length && <p>No matches</p>}
+      </div>
+    </div>}
+  </div>;
 }
 
 function values(items: Book[], field: "author" | "category" | "series") {
@@ -226,8 +292,8 @@ export default function LibraryClient() {
     return () => controller.abort();
   }, []);
 
-  const collections = useMemo(() => [...new Set(books.flatMap((book) => book.collections))].sort((a, b) => a.localeCompare(b)), [books]);
-  const authors = useMemo(() => values(books, "author"), [books]);
+  const collectionChoices = useMemo(() => countedChoices(books, (book) => book.collections), [books]);
+  const authorChoices = useMemo(() => countedChoices(books, (book) => book.author ? [book.author] : []), [books]);
   const categories = useMemo(() => values(books, "category"), [books]);
   const seriesOptions = useMemo(() => values(books, "series"), [books]);
   const formats = useMemo(() => [...new Set(books.flatMap((book) => book.formats))].sort((a, b) => FORMAT_ORDER.indexOf(a) - FORMAT_ORDER.indexOf(b)), [books]);
@@ -311,6 +377,11 @@ export default function LibraryClient() {
     saveState(reader.bookId, { fileId: reader.file.id, status: location.status || "reading", progressLabel: location.label, position: location.position });
   }
 
+  function handleBookmarksChange(bookmarks: ReaderBookmark[]) {
+    if (!reader) return;
+    saveState(reader.bookId, { bookmarks });
+  }
+
   const clearFilters = () => {
     setQuery(""); setCollection("All collections"); setAuthor("All authors"); setCategory("All categories");
     setSeries("All series"); setFormat("All formats"); setReadingStatus("All reading statuses"); setReadableOnly(false); setVisible(60);
@@ -356,8 +427,8 @@ export default function LibraryClient() {
     <section className="catalog">
       <div className="catalog-toolbar"><button className="mobile-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>Filters {activeFilters.length ? `(${activeFilters.length})` : ""}</button><label className="sort-control"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}><option value="title">Title</option><option value="author">Author</option><option value="series">Series</option><option value="added">Recently added</option><option value="opened">Recently opened</option></select></label></div>
       <div className={`filters expanded-filters ${filtersOpen ? "open" : ""}`}>
-        <label><span>Collection</span><select value={collection} onChange={(event) => { setCollection(event.target.value); setVisible(60); }}><option>All collections</option>{collections.map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label><span>Author</span><select value={author} onChange={(event) => { setAuthor(event.target.value); setVisible(60); }}><option>All authors</option>{authors.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <SearchableFilter label="Collection" value={collection} allLabel="All collections" choices={collectionChoices} onChange={(next) => { setCollection(next); setVisible(60); }} />
+        <SearchableFilter label="Author" value={author} allLabel="All authors" choices={authorChoices} onChange={(next) => { setAuthor(next); setVisible(60); }} />
         <label><span>Category</span><select value={category} onChange={(event) => { setCategory(event.target.value); setVisible(60); }}><option>All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
         <label><span>Series</span><select value={series} onChange={(event) => { setSeries(event.target.value); setVisible(60); }}><option>All series</option>{seriesOptions.map((item) => <option key={item}>{item}</option>)}</select></label>
         <label><span>Format</span><select value={format} onChange={(event) => { setFormat(event.target.value); setVisible(60); }}><option>All formats</option>{formats.map((item) => <option key={item}>{item}</option>)}</select></label>
@@ -386,7 +457,7 @@ export default function LibraryClient() {
 
     {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)} role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="book-title" onMouseDown={(event) => event.stopPropagation()}><button className="close" onClick={() => setSelected(null)} aria-label="Close">×</button><p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p><h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}{selected.series ? ` · ${selected.series}` : ""}</p><div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format) && <button onClick={() => openCopy(selected, copy)}>Read here</button>}<a href={["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? downloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? "Download" : "Drive"} ↗</a></div></div>)}</div><p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p></section></div>}
 
-    {reader && <BookReader title={reader.title} file={reader.file} initialPosition={reader.initialPosition} onLocationChange={handleReaderLocation} seriesNavigation={{ previous: readerSeriesIndex > 0 ? readerSeries[readerSeriesIndex - 1]?.title : undefined, next: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? readerSeries[readerSeriesIndex + 1]?.title : undefined, onPrevious: readerSeriesIndex > 0 ? () => openBook(readerSeries[readerSeriesIndex - 1]) : undefined, onNext: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? () => openBook(readerSeries[readerSeriesIndex + 1]) : undefined }} onClose={() => setReader(null)} />}
+    {reader && <BookReader title={reader.title} file={reader.file} initialPosition={reader.initialPosition} bookmarks={savedStates[reader.bookId]?.bookmarks || []} onBookmarksChange={handleBookmarksChange} onLocationChange={handleReaderLocation} seriesNavigation={{ previous: readerSeriesIndex > 0 ? readerSeries[readerSeriesIndex - 1]?.title : undefined, next: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? readerSeries[readerSeriesIndex + 1]?.title : undefined, onPrevious: readerSeriesIndex > 0 ? () => openBook(readerSeries[readerSeriesIndex - 1]) : undefined, onNext: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? () => openBook(readerSeries[readerSeriesIndex + 1]) : undefined }} onClose={() => setReader(null)} />}
     <footer><span>The Reading Room</span><p>One clean catalogue for your digital shelves. Covers enriched by <a href="https://openlibrary.org" target="_blank" rel="noreferrer">Open Library</a>.</p></footer>
   </main>;
 }

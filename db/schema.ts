@@ -8,6 +8,7 @@ export const readingState = sqliteTable("reading_state", {
   lastOpened: integer("last_opened"),
   progressLabel: text("progress_label"),
   position: text("position"),
+  bookmarks: text("bookmarks").notNull().default("[]"),
   status: text("status").notNull().default("unread"),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => [primaryKey({ columns: [table.userEmail, table.bookId] })]);

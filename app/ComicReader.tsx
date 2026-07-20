@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
-export type ComicReaderHandle = { previous: () => void; next: () => void };
+export type ComicReaderHandle = { previous: () => void; next: () => void; goTo: (page: number) => void };
 type ComicPage = { name: string; url: string };
 
 const IMAGE_PATTERN = /\.(?:avif|bmp|gif|jpe?g|jxl|png|svg|webp)$/i;
@@ -139,7 +139,13 @@ const ComicReader = forwardRef<ComicReaderHandle, {
     else setPageIndex((current) => Math.min(Math.max(0, pages.length - 1), current + spreadSize));
   }
 
-  useImperativeHandle(ref, () => ({ previous, next }));
+  function goTo(page: number) {
+    const nextPage = Math.min(Math.max(0, page), Math.max(0, pages.length - 1));
+    setPageIndex(nextPage);
+    if (mode === "scroll") scrollRef.current?.querySelector(`[data-comic-page="${nextPage}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  useImperativeHandle(ref, () => ({ previous, next, goTo }));
 
   const spread = useMemo(() => {
     const items = pages.slice(pageIndex, pageIndex + spreadSize);

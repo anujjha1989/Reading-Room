@@ -3,7 +3,13 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 
-export type PdfReaderHandle = { previous: () => void; next: () => void };
+export type PdfSearchResult = { target: string; label: string; excerpt: string };
+export type PdfReaderHandle = {
+  previous: () => void;
+  next: () => void;
+  goTo: (page: number) => void;
+  search: (query: string) => Promise<PdfSearchResult[]>;
+};
 
 type Props = {
   fileId: string;
@@ -159,7 +165,28 @@ const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId
     if (mode === "scroll") scrollRef.current?.querySelector(`[data-page="${nextPage}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  useImperativeHandle(ref, () => ({ previous: () => goTo(pageNumber - spreadSize), next: () => goTo(pageNumber + spreadSize) }), [mode, pageNumber, spreadSize, total]);
+  async function search(query: string) {
+    if (!pdf || query.trim().length < 2) return [];
+    const needle = query.trim().toLocaleLowerCase();
+    const results: PdfSearchResult[] = [];
+    for (let pageNumber = 1; pageNumber <= pdf.numPages && results.length < 80; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const text = content.items.map((item) => "str" in item ? item.str : "").join(" ").replace(/\s+/g, " ").trim();
+      const lower = text.toLocaleLowerCase();
+      let from = 0;
+      for (let match = lower.indexOf(needle, from); match >= 0 && results.length < 80; match = lower.indexOf(needle, from)) {
+        const start = Math.max(0, match - 55);
+        const end = Math.min(text.length, match + needle.length + 75);
+        results.push({ target: String(pageNumber), label: `Page ${pageNumber}`, excerpt: `${start ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}` });
+        from = match + needle.length;
+        if (results.filter((item) => item.target === String(pageNumber)).length >= 3) break;
+      }
+    }
+    return results;
+  }
+
+  useImperativeHandle(ref, () => ({ previous: () => goTo(pageNumber - spreadSize), next: () => goTo(pageNumber + spreadSize), goTo, search }), [mode, pageNumber, pdf, spreadSize, total]);
 
   if (!pdf) return null;
   if (mode === "pages") return <div className={`pdf-pages ${spreadSize === 1 ? "single-spread" : ""}`}><PdfPage pdf={pdf} pageNumber={pageNumber} mode="pages" onVisible={() => {}} />{spreadSize === 2 && pageNumber < pdf.numPages && <PdfPage pdf={pdf} pageNumber={pageNumber + 1} mode="pages" onVisible={() => {}} />}</div>;

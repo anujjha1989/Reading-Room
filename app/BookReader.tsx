@@ -18,10 +18,31 @@ export type ReaderLocation = {
   status?: "reading" | "finished";
 };
 
+export type ReaderBookmark = {
+  id: string;
+  position: string;
+  label: string;
+  createdAt: number;
+};
+
+type ReaderSearchResult = { target: string; label: string; excerpt: string };
+
 type TocEntry = { href: string; label: string; depth: number };
 type ReadingMode = "pages" | "scroll";
 type TocItem = { href: string; label: string; subitems?: TocItem[] };
 type FoliateSection = { load?: () => Promise<string> };
+type FoliateSearchGroup = {
+  progress?: number;
+  label?: string;
+  subitems?: Array<{ cfi: string; excerpt: string | { pre?: string; match?: string; post?: string } }>;
+};
+type EpubSearchSection = {
+  href: string;
+  index: number;
+  load: (request: (url: string) => Promise<unknown>) => Promise<unknown>;
+  find: (query: string) => Array<{ cfi: string; excerpt: string }>;
+  unload: () => void;
+};
 type FoliateView = HTMLElement & {
   book?: { toc?: TocItem[]; sections?: FoliateSection[]; metadata?: { title?: string } };
   renderer?: { setAttribute: (name: string, value: string) => void; setStyles: (styles: string) => void };
@@ -30,6 +51,8 @@ type FoliateView = HTMLElement & {
   prev: () => Promise<void>;
   next: () => Promise<void>;
   goTo: (target: string) => Promise<unknown>;
+  search?: (options: { query: string }) => AsyncGenerator<FoliateSearchGroup>;
+  clearSearch?: () => void;
   close: () => void;
 };
 
@@ -140,10 +163,12 @@ async function secureMobiSections(view: FoliateView) {
   return () => safeUrls.forEach((url) => URL.revokeObjectURL(url));
 }
 
-export default function BookReader({ title, file, initialPosition, onLocationChange, seriesNavigation, onClose }: {
+export default function BookReader({ title, file, initialPosition, bookmarks = [], onBookmarksChange, onLocationChange, seriesNavigation, onClose }: {
   title: string;
   file: ReaderFile;
   initialPosition?: string;
+  bookmarks?: ReaderBookmark[];
+  onBookmarksChange?: (bookmarks: ReaderBookmark[]) => void;
   onLocationChange?: (location: ReaderLocation) => void;
   seriesNavigation?: { previous?: string; next?: string; onPrevious?: () => void; onNext?: () => void };
   onClose: () => void;
@@ -158,6 +183,8 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
   const viewerRef = useRef<HTMLDivElement>(null);
   const onLocationChangeRef = useRef(onLocationChange);
   const pendingLocationRef = useRef<ReaderLocation | null>(null);
+  const currentLocationRef = useRef<ReaderLocation>({ label: "Saved place", position: initialPosition });
+  const searchRunRef = useRef(0);
   const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const bookRef = useRef<EpubBook | null>(null);
@@ -182,12 +209,17 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
   const [margin, setMargin] = useState(4);
   const [mangaMode, setMangaMode] = useState(false);
   const [epubRevision, setEpubRevision] = useState(0);
+  const [panel, setPanel] = useState<"search" | "bookmarks" | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<ReaderSearchResult[]>([]);
+  const [searchStatus, setSearchStatus] = useState("");
 
   useEffect(() => {
     onLocationChangeRef.current = onLocationChange;
   }, [onLocationChange]);
 
   const reportLocation = useCallback((location: ReaderLocation) => {
+    currentLocationRef.current = location;
     pendingLocationRef.current = location;
     if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
     locationTimerRef.current = setTimeout(() => {
@@ -207,7 +239,13 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
 
   useEffect(() => {
     setDisplayTitle(title);
-  }, [file.id, title]);
+    currentLocationRef.current = { label: "Saved place", position: initialPosition };
+    searchRunRef.current += 1;
+    setPanel(null);
+    setSearchQuery("");
+    setSearchResults([]);
+    setSearchStatus("");
+  }, [file.id, initialPosition, title]);
 
   useEffect(() => {
     const bodyOverflow = document.body.style.overflow;
@@ -425,7 +463,11 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) return;
+      if (event.key === "Escape") {
+        if (panel) setPanel(null);
+        else onClose();
+      }
       if (isBookReader && event.key === "ArrowLeft") previous();
       if (isBookReader && event.key === "ArrowRight") next();
     }
@@ -451,6 +493,76 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
   function goToChapter(href: string) {
     if (isEpub) renditionRef.current?.display(href);
     else mobiViewRef.current?.goTo(href);
+  }
+
+  async function performSearch() {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearchStatus("Enter at least two characters.");
+      return;
+    }
+    const run = ++searchRunRef.current;
+    setSearchResults([]);
+    setSearchStatus("Searching…");
+    try {
+      let results: ReaderSearchResult[] = [];
+      if (isEpub && bookRef.current) {
+        const searchable = bookRef.current as unknown as {
+          spine: { each: (callback: (section: EpubSearchSection) => void) => void };
+          load: (url: string) => Promise<unknown>;
+        };
+        const sections: EpubSearchSection[] = [];
+        searchable.spine.each((section) => sections.push(section));
+        for (let index = 0; index < sections.length && results.length < 80; index += 1) {
+          if (run !== searchRunRef.current) return;
+          const section = sections[index];
+          try {
+            await section.load(searchable.load.bind(searchable));
+            const label = toc.find((item) => item.href.split("#")[0] === section.href.split("#")[0])?.label || `Section ${index + 1}`;
+            results.push(...section.find(query).slice(0, 8).map((match) => ({ target: match.cfi, label, excerpt: match.excerpt.replace(/<[^>]+>/g, "") })));
+          } finally {
+            section.unload();
+          }
+          if (index % 4 === 0) setSearchStatus(`Searching ${index + 1} of ${sections.length} sections…`);
+        }
+      } else if (isMobi && mobiViewRef.current?.search) {
+        for await (const group of mobiViewRef.current.search({ query })) {
+          if (run !== searchRunRef.current) return;
+          for (const match of group.subitems || []) {
+            const excerpt = typeof match.excerpt === "string" ? match.excerpt : `${match.excerpt.pre || ""}${match.excerpt.match || ""}${match.excerpt.post || ""}`;
+            results.push({ target: match.cfi, label: group.label || "Match", excerpt });
+            if (results.length >= 80) break;
+          }
+          if (results.length >= 80) break;
+        }
+      } else if (isPdf) {
+        results = await pdfReaderRef.current?.search(query) || [];
+      }
+      if (run !== searchRunRef.current) return;
+      setSearchResults(results.slice(0, 80));
+      setSearchStatus(results.length ? `${Math.min(results.length, 80)} match${results.length === 1 ? "" : "es"}` : "No matches found.");
+    } catch {
+      if (run === searchRunRef.current) setSearchStatus("Search could not be completed for this book.");
+    }
+  }
+
+  function goToPosition(position: string) {
+    if (isEpub) renditionRef.current?.display(position);
+    else if (isMobi) mobiViewRef.current?.goTo(position);
+    else if (isPdf) pdfReaderRef.current?.goTo(Number(position));
+    else if (isComic) comicReaderRef.current?.goTo(Number(position));
+    setPanel(null);
+  }
+
+  function addBookmark() {
+    const location = currentLocationRef.current;
+    if (!location.position || bookmarks.some((bookmark) => bookmark.position === location.position)) return;
+    onBookmarksChange?.([{ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, position: location.position, label: location.label || "Saved place", createdAt: Date.now() }, ...bookmarks].slice(0, 100));
+  }
+
+  function removeBookmark(id: string) {
+    onBookmarksChange?.(bookmarks.filter((bookmark) => bookmark.id !== id));
   }
 
   function previous() {
@@ -496,11 +608,26 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
           {isBookReader && <details className="reader-settings"><summary aria-label="Reading appearance">Aa</summary><div><span>Theme</span><div className="theme-options"><button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}>Light</button><button className={theme === "sepia" ? "active" : ""} onClick={() => setTheme("sepia")}>Sepia</button><button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>Dark</button></div>{isReflowable && <><span>Line spacing</span><input type="range" min="1.35" max="2" step="0.05" value={lineHeight} onChange={(event) => setLineHeight(Number(event.target.value))} /><span>Margins</span><input type="range" min="2" max="12" step="1" value={margin} onChange={(event) => setMargin(Number(event.target.value))} /></>}</div></details>}
           {isComic && <button className={mangaMode ? "active" : ""} onClick={() => setMangaMode((enabled) => !enabled)} aria-pressed={mangaMode}>Manga</button>}
           {(seriesNavigation?.previous || seriesNavigation?.next) && <div className="reader-series-nav"><button disabled={!seriesNavigation.previous} title={seriesNavigation.previous} onClick={seriesNavigation.onPrevious}>Previous issue</button><button disabled={!seriesNavigation.next} title={seriesNavigation.next} onClick={seriesNavigation.onNext}>Next issue</button></div>}
+          {(isReflowable || isPdf) && <button className={panel === "search" ? "active" : ""} onClick={() => setPanel((current) => current === "search" ? null : "search")} aria-label="Search inside book">⌕ <span className="reader-action-label">Search</span></button>}
+          {isBookReader && <button className={panel === "bookmarks" ? "active" : ""} onClick={() => setPanel((current) => current === "bookmarks" ? null : "bookmarks")} aria-label={`Bookmarks${bookmarks.length ? `, ${bookmarks.length} saved` : ""}`}>▮ <span className="reader-action-label">Bookmarks{bookmarks.length ? ` ${bookmarks.length}` : ""}</span></button>}
           <button onClick={toggleFullscreen} aria-label="Toggle full screen">⛶</button>
           <a href={file.url} target="_blank" rel="noreferrer">Open in Drive ↗</a>
           <button className="reader-close" onClick={onClose} aria-label="Close reader">×</button>
         </div>
       </header>
+
+      {panel === "search" && <aside className="reader-panel" aria-label="Search inside book">
+        <div className="reader-panel-heading"><div><span>FIND IN BOOK</span><strong>Search this title</strong></div><button onClick={() => setPanel(null)} aria-label="Close search">×</button></div>
+        <form className="reader-search-form" onSubmit={(event) => { event.preventDefault(); performSearch(); }}><input autoFocus value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Word or phrase…" aria-label="Word or phrase" /><button type="submit">Search</button></form>
+        {searchStatus && <p className="reader-panel-status">{searchStatus}</p>}
+        <div className="reader-search-results">{searchResults.map((result, index) => <button key={`${result.target}-${index}`} onClick={() => goToPosition(result.target)}><strong>{result.label}</strong><span>{result.excerpt}</span></button>)}</div>
+      </aside>}
+
+      {panel === "bookmarks" && <aside className="reader-panel" aria-label="Bookmarks">
+        <div className="reader-panel-heading"><div><span>SAVED PLACES</span><strong>Bookmarks</strong></div><button onClick={() => setPanel(null)} aria-label="Close bookmarks">×</button></div>
+        <button className="reader-add-bookmark" onClick={addBookmark}>+ Bookmark current place</button>
+        <div className="reader-bookmarks">{bookmarks.length ? bookmarks.map((bookmark) => <div key={bookmark.id}><button onClick={() => goToPosition(bookmark.position)}><strong>{bookmark.label}</strong><span>{new Date(bookmark.createdAt).toLocaleDateString()}</span></button><button onClick={() => removeBookmark(bookmark.id)} aria-label={`Remove bookmark ${bookmark.label}`}>×</button></div>) : <p>No bookmarks yet.</p>}</div>
+      </aside>}
 
       {isBookReader ? <>
         <div className="epub-stage" onTouchStart={(event) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={endSwipe}>{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{isComic && readingMode && <ComicReader ref={comicReaderRef} fileId={file.id} format={file.format} mode={readingMode} direction={mangaMode ? "rtl" : "ltr"} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download {format}</a>}</div>}</div>
