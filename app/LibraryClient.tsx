@@ -1,20 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import catalog from "./books.json";
-import newAndScriptsCatalog from "./books-new-scripts.json";
-import oldCatalogOne from "./books-old-1.json";
-import oldCatalogTwo from "./books-old-2.json";
-import oldCatalogThree from "./books-old-3.json";
 
 type RawBook = {
   id: string; title: string; originalTitle?: string; author?: string; workKey?: string;
   format: string; source: string; collection?: string; category?: string;
+  collections?: string[];
   path?: string; url: string; size?: number; modified?: string;
 };
 
 type Copy = Pick<RawBook, "id" | "url" | "format" | "path" | "source">;
-type Book = RawBook & { copies: Copy[]; formats: string[] };
+type Book = RawBook & { copies: Copy[]; formats: string[]; collections: string[] };
 
 const FORMAT_ORDER = ["EPUB", "PDF", "MOBI", "FDX", "DOCX", "DOC", "RTF", "TXT"];
 const palettes = [
@@ -44,7 +40,7 @@ function groupBooks(rows: RawBook[]): Book[] {
     const author = (row.author || "").trim();
     const isScript = /(^|\/)scripts?(\/|$)|screenplay|black list/i.test(`${row.source}/${row.path || ""}`);
     const base = normalized(title).replace(normalized(author), "").trim();
-    const exactKey = `${base}|${normalized(author)}`;
+    const exactKey = row.workKey || `${base}|${normalized(author)}`;
     const titleKey = normalized(title);
     const indexedKey = titleIndex.get(titleKey);
     const indexedBook = indexedKey ? grouped.get(indexedKey) : undefined;
@@ -55,11 +51,15 @@ function groupBooks(rows: RawBook[]): Book[] {
       if (!existing.copies.some((item) => item.id === copy.id)) existing.copies.push(copy);
       if (!existing.formats.includes(copy.format)) existing.formats.push(copy.format);
       if (!existing.author && author) existing.author = author;
-      if ((!existing.collection || existing.collection === existing.source) && row.collection) existing.collection = row.collection;
+      for (const item of row.collections || (row.collection ? [row.collection] : [])) {
+        if (!existing.collections.includes(item)) existing.collections.push(item);
+      }
+      if (!existing.collection && row.collection) existing.collection = row.collection;
       if ((!existing.category || existing.category === "General") && row.category) existing.category = row.category;
-      if (isScript) { existing.category = "Script"; existing.collection = "Scripts"; }
+      if (isScript) existing.category = "Script";
     } else {
-      grouped.set(key, { ...row, title, author, category: isScript ? "Script" : row.category, collection: isScript ? "Scripts" : row.collection, copies: [copy], formats: [copy.format] });
+      const collections = row.collections || (row.collection ? [row.collection] : []);
+      grouped.set(key, { ...row, title, author, category: isScript ? "Script" : row.category, collections, copies: [copy], formats: [copy.format] });
       if (!titleIndex.has(titleKey)) titleIndex.set(titleKey, key);
     }
   }
@@ -67,10 +67,11 @@ function groupBooks(rows: RawBook[]): Book[] {
     ...book,
     copies: [...book.copies].sort((a, b) => FORMAT_ORDER.indexOf(a.format) - FORMAT_ORDER.indexOf(b.format)),
     formats: [...book.formats].sort((a, b) => FORMAT_ORDER.indexOf(a) - FORMAT_ORDER.indexOf(b)),
+    collections: [...book.collections].sort((a, b) => a.localeCompare(b)),
   })).sort((a, b) => a.title.localeCompare(b.title));
 }
 
-function options(items: Book[], field: "author" | "collection" | "category") {
+function options(items: Book[], field: "author" | "category") {
   return [...new Set(items.map((item) => item[field]?.trim()).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b));
 }
 
@@ -79,7 +80,9 @@ function initials(title: string) {
 }
 
 export default function LibraryClient() {
-  const books = useMemo(() => groupBooks([...(catalog as RawBook[]), ...(newAndScriptsCatalog as RawBook[]), ...(oldCatalogOne as RawBook[]), ...(oldCatalogTwo as RawBook[]), ...(oldCatalogThree as RawBook[])]), []);
+  const [catalogRows, setCatalogRows] = useState<RawBook[]>([]);
+  const [catalogStatus, setCatalogStatus] = useState<"loading" | "ready" | "error">("loading");
+  const books = useMemo(() => groupBooks(catalogRows), [catalogRows]);
   const [query, setQuery] = useState("");
   const [collection, setCollection] = useState("All collections");
   const [author, setAuthor] = useState("All authors");
@@ -105,15 +108,30 @@ export default function LibraryClient() {
     return () => { window.clearTimeout(restore); window.removeEventListener("keydown", onKey); };
   }, []);
 
-  const collections = useMemo(() => options(books, "collection"), [books]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/catalog.json", { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error("Catalogue unavailable");
+        return response.json() as Promise<RawBook[]>;
+      })
+      .then((rows) => { setCatalogRows(rows); setCatalogStatus("ready"); })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setCatalogStatus("error");
+      });
+    return () => controller.abort();
+  }, []);
+
+  const collections = useMemo(() => [...new Set(books.flatMap((book) => book.collections))].sort((a, b) => a.localeCompare(b)), [books]);
   const authors = useMemo(() => options(books, "author"), [books]);
   const categories = useMemo(() => options(books, "category"), [books]);
   const filtered = useMemo(() => {
     const term = normalized(query);
     const list = books.filter((book) => {
-      const searchable = normalized([book.title, book.author, book.collection, book.category, book.path].filter(Boolean).join(" "));
+      const searchable = normalized([book.title, book.author, ...book.collections, book.category, book.path].filter(Boolean).join(" "));
       return (!term || searchable.includes(term))
-        && (collection === "All collections" || book.collection === collection)
+        && (collection === "All collections" || book.collections.includes(collection))
         && (author === "All authors" || book.author === author)
         && (category === "All categories" || book.category === category);
     });
@@ -164,7 +182,9 @@ export default function LibraryClient() {
         </div>
         <div className="results"><p><strong>{filtered.length.toLocaleString()}</strong> unique titles</p><p>{collections.length.toLocaleString()} collections · Audiobooks excluded</p></div>
 
-        {filtered.length ? <div className="grid">{filtered.slice(0, visible).map((book, index) => {
+        {catalogStatus === "loading" ? <div className="empty"><b>Opening the library…</b><p>Preparing the latest catalogue.</p></div>
+        : catalogStatus === "error" ? <div className="empty"><b>The catalogue could not be loaded</b><p>Please refresh the page and try again.</p></div>
+        : filtered.length ? <div className="grid">{filtered.slice(0, visible).map((book, index) => {
           const palette = palettes[Math.abs(book.title.length + index) % palettes.length];
           return <article className="book" key={book.id}>
             <button className="cover" style={{ "--cover": palette[0], "--ink": palette[1] } as React.CSSProperties} onClick={() => openBook(book)}>
@@ -182,7 +202,7 @@ export default function LibraryClient() {
       {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)} role="presentation">
         <section className="modal" role="dialog" aria-modal="true" aria-labelledby="book-title" onMouseDown={(e) => e.stopPropagation()}>
           <button className="close" onClick={() => setSelected(null)} aria-label="Close">×</button>
-          <p className="eyebrow">{selected.category || "BOOK"} · {selected.collection || selected.source}</p>
+          <p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p>
           <h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}</p>
           <div className="availability"><p>Available files</p>{selected.copies.map((copy, i) => <a key={copy.id} href={copy.url} target="_blank" rel="noreferrer"><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><em>{i === 0 ? "Open preferred" : "Open copy"} ↗</em></a>)}</div>
           <p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p>
