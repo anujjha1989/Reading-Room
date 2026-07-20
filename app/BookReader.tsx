@@ -54,6 +54,10 @@ function previewUrl(id: string, sourceUrl: string) {
 
 type ReaderTheme = "light" | "sepia" | "dark";
 
+function isMobileViewport() {
+  return window.innerWidth <= 700 || window.matchMedia("(max-width: 700px)").matches;
+}
+
 function themeColors(theme: ReaderTheme) {
   if (theme === "dark") return { ink: "#e8e4d8", paper: "#181b1a", link: "#a8c8b7" };
   if (theme === "sepia") return { ink: "#443a2d", paper: "#f3ead7", link: "#6c5b3f" };
@@ -248,15 +252,17 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
         bookRef.current = book;
         await book.ready;
         const mode = readingModeRef.current;
+        const mobile = isMobileViewport();
         const rendition = book.renderTo(viewerRef.current, {
           width: "100%",
           height: "100%",
           manager: "default",
           flow: mode === "scroll" ? "scrolled-doc" : "paginated",
-          spread: mode === "scroll" ? "none" : "auto",
+          spread: mode === "scroll" || mobile ? "none" : "auto",
           minSpreadWidth: 980,
         });
         renditionRef.current = rendition;
+        rendition.spread(mode === "scroll" || mobile ? "none" : "auto", 980);
         rendition.themes.default(epubStyles(themeRef.current, lineHeightRef.current, marginRef.current));
         rendition.themes.fontSize("100%");
 
@@ -292,6 +298,19 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
   }, [file.format, file.id, initialPosition, isEpub, readerModeReady, reportLocation]);
 
   useEffect(() => {
+    if (!isEpub || !readerModeReady) return;
+    const media = window.matchMedia("(max-width: 700px)");
+    const updateSpread = () => renditionRef.current?.spread(readingModeRef.current === "scroll" || isMobileViewport() ? "none" : "auto", 980);
+    updateSpread();
+    media.addEventListener("change", updateSpread);
+    window.addEventListener("resize", updateSpread);
+    return () => {
+      media.removeEventListener("change", updateSpread);
+      window.removeEventListener("resize", updateSpread);
+    };
+  }, [isEpub, readerModeReady]);
+
+  useEffect(() => {
     if (!isMobi || !viewerRef.current || !readerModeReady) return;
     const controller = new AbortController();
     let disposed = false;
@@ -317,6 +336,7 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
         if (metadataTitle && metadataTitle.length > title.trim().length) setDisplayTitle(metadataTitle);
         revokeSafeUrls = await secureMobiSections(view);
         view.renderer?.setAttribute("flow", readingModeRef.current === "scroll" ? "scrolled" : "paginated");
+        view.renderer?.setAttribute("max-column-count", isMobileViewport() ? "1" : "2");
         view.renderer?.setStyles(mobiStyles(fontSizeRef.current, themeRef.current, lineHeightRef.current, marginRef.current));
         view.addEventListener("load", () => view.renderer?.setStyles(mobiStyles(fontSizeRef.current, themeRef.current, lineHeightRef.current, marginRef.current)));
         view.addEventListener("relocate", (event) => {
@@ -352,6 +372,19 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
   }, [file.id, file.format, format, initialPosition, isMobi, readerModeReady, reportLocation, title]);
 
   useEffect(() => {
+    if (!isMobi || !readerModeReady) return;
+    const media = window.matchMedia("(max-width: 700px)");
+    const updateColumns = () => mobiViewRef.current?.renderer?.setAttribute("max-column-count", isMobileViewport() ? "1" : "2");
+    updateColumns();
+    media.addEventListener("change", updateColumns);
+    window.addEventListener("resize", updateColumns);
+    return () => {
+      media.removeEventListener("change", updateColumns);
+      window.removeEventListener("resize", updateColumns);
+    };
+  }, [isMobi, readerModeReady]);
+
+  useEffect(() => {
     fontSizeRef.current = fontSize;
     renditionRef.current?.themes.fontSize(`${fontSize}%`);
     themeRef.current = theme;
@@ -380,9 +413,12 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
     setReadingMode(mode);
     if (isEpub) {
       renditionRef.current?.flow(mode === "scroll" ? "scrolled-doc" : "paginated");
-      renditionRef.current?.spread(mode === "scroll" ? "none" : "auto", 980);
+      renditionRef.current?.spread(mode === "scroll" || isMobileViewport() ? "none" : "auto", 980);
     }
-    if (isMobi) mobiViewRef.current?.renderer?.setAttribute("flow", mode === "scroll" ? "scrolled" : "paginated");
+    if (isMobi) {
+      mobiViewRef.current?.renderer?.setAttribute("flow", mode === "scroll" ? "scrolled" : "paginated");
+      mobiViewRef.current?.renderer?.setAttribute("max-column-count", isMobileViewport() ? "1" : "2");
+    }
   }
 
   function goToChapter(href: string) {
