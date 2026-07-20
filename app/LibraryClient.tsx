@@ -156,9 +156,15 @@ export default function LibraryClient() {
   }
 
   function openBook(book: Book) {
-    setSelected(book);
     const next = [book.id, ...recent.filter((item) => item !== book.id)].slice(0, 50);
     setRecent(next); localStorage.setItem("reading-room-recent", JSON.stringify(next));
+    const readableCopy = book.copies.find((copy) => canReadHere(copy.format));
+    if (readableCopy) {
+      setSelected(null);
+      setReader({ title: book.title, file: readableCopy });
+    } else {
+      setSelected(book);
+    }
   }
 
   const clearFilters = () => { setQuery(""); setCollection("All collections"); setAuthor("All authors"); setCategory("All categories"); setVisible(60); };
