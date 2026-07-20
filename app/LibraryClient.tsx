@@ -108,6 +108,7 @@ export default function LibraryClient() {
   const [view, setView] = useState<"library" | "favorites" | "recent">("library");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
+  const [displayMode, setDisplayMode] = useState<"thumbnails" | "list">("thumbnails");
   const [selected, setSelected] = useState<Book | null>(null);
   const [reader, setReader] = useState<{ title: string; file: ReaderFile } | null>(null);
   const [visible, setVisible] = useState(60);
@@ -116,6 +117,8 @@ export default function LibraryClient() {
     const restore = window.setTimeout(() => {
       setFavorites(JSON.parse(localStorage.getItem("reading-room-favorites") || "[]"));
       setRecent(JSON.parse(localStorage.getItem("reading-room-recent") || "[]"));
+      const savedDisplay = localStorage.getItem("reading-room-display-mode");
+      if (savedDisplay === "thumbnails" || savedDisplay === "list") setDisplayMode(savedDisplay);
     }, 0);
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -177,6 +180,10 @@ export default function LibraryClient() {
   }
 
   const clearFilters = () => { setQuery(""); setCollection("All collections"); setAuthor("All authors"); setCategory("All categories"); setVisible(60); };
+  const chooseDisplayMode = (mode: "thumbnails" | "list") => {
+    setDisplayMode(mode);
+    localStorage.setItem("reading-room-display-mode", mode);
+  };
 
   return (
     <main>
@@ -205,11 +212,11 @@ export default function LibraryClient() {
           <label><span>Category</span><select value={category} onChange={(e) => { setCategory(e.target.value); setVisible(60); }}><option>All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
           <button className="clear" onClick={clearFilters}>Clear filters</button>
         </div>
-        <div className="results"><p><strong>{filtered.length.toLocaleString()}</strong> unique titles</p><p>{collections.length.toLocaleString()} collections · Audiobooks excluded</p></div>
+        <div className="results"><p><strong>{filtered.length.toLocaleString()}</strong> unique titles</p><div className="display-switch" role="group" aria-label="Book display"><button className={displayMode === "thumbnails" ? "active" : ""} aria-pressed={displayMode === "thumbnails"} onClick={() => chooseDisplayMode("thumbnails")}><span aria-hidden="true">▦</span> Thumbnails</button><button className={displayMode === "list" ? "active" : ""} aria-pressed={displayMode === "list"} onClick={() => chooseDisplayMode("list")}><span aria-hidden="true">☷</span> List</button></div></div>
 
         {catalogStatus === "loading" ? <div className="empty"><b>Opening the library…</b><p>Preparing the latest catalogue.</p></div>
         : catalogStatus === "error" ? <div className="empty"><b>The catalogue could not be loaded</b><p>Please refresh the page and try again.</p></div>
-        : filtered.length ? <div className="grid">{filtered.slice(0, visible).map((book, index) => {
+        : filtered.length ? <div className={`grid ${displayMode === "list" ? "list-view" : "thumbnail-view"}`}>{filtered.slice(0, visible).map((book, index) => {
           const palette = palettes[Math.abs(book.title.length + index) % palettes.length];
           return <article className="book" key={book.id}>
             <button className="cover" aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`} style={{ "--cover": palette[0], "--ink": palette[1] } as React.CSSProperties} onClick={() => openBook(book)}>
@@ -220,6 +227,7 @@ export default function LibraryClient() {
                 {book.author && <em>{book.author}</em>}
               </span>
             </button>
+            <div className="list-copy"><button onClick={() => openBook(book)} aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`}><small>{book.series || book.category || "Book"}</small><strong>{book.title}</strong><em>{book.author || "Author not listed"}</em></button></div>
             <div className="book-tools"><div className="chips">{book.formats.map((format) => <span key={format}>{format}</span>)}{book.copies.length > 1 && <span>{book.copies.length} copies</span>}</div><button className="heart" onClick={() => toggleFavorite(book.id)} aria-label="Toggle favorite">{favorites.includes(book.id) ? "♥" : "♡"}</button></div>
           </article>;
         })}</div> : <div className="empty"><b>No books found</b><p>Try clearing one or more filters.</p><button onClick={clearFilters}>Reset search</button></div>}
