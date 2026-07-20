@@ -59,9 +59,12 @@ const ComicReader = forwardRef<ComicReaderHandle, {
   fileId: string;
   format: string;
   mode: "pages" | "scroll";
+  direction: "ltr" | "rtl";
+  initialPosition?: string;
   onStatus: (status: string) => void;
   onProgress: (progress: string) => void;
-}>(function ComicReader({ fileId, format, mode, onStatus, onProgress }, ref) {
+  onLocationChange?: (location: { label: string; position?: string; status?: "reading" | "finished" }) => void;
+}>(function ComicReader({ fileId, format, mode, direction, initialPosition, onStatus, onProgress, onLocationChange }, ref) {
   const [pages, setPages] = useState<ComicPage[]>([]);
   const [pageIndex, setPageIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
@@ -94,7 +97,7 @@ const ComicReader = forwardRef<ComicReaderHandle, {
           return;
         }
         urls = nextPages.map((page) => page.url);
-        const saved = Math.max(0, Number(localStorage.getItem(`reading-room-comic-page-${fileId}`)) || 0);
+        const saved = Math.max(0, Number(initialPosition || localStorage.getItem(`reading-room-comic-page-${fileId}`)) || 0);
         setPageIndex(Math.min(saved, Math.max(0, nextPages.length - 1)));
         setPages(nextPages);
         onStatus("");
@@ -107,17 +110,19 @@ const ComicReader = forwardRef<ComicReaderHandle, {
       controller.abort();
       urls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [fileId, format, onStatus]);
+  }, [fileId, format, initialPosition, onStatus]);
 
   useEffect(() => {
     if (!pages.length) return;
     localStorage.setItem(`reading-room-comic-page-${fileId}`, String(pageIndex));
-    if (mode === "scroll") onProgress(`Page ${pageIndex + 1} of ${pages.length} · Scroll to continue`);
-    else {
+    let label = `Page ${pageIndex + 1} of ${pages.length} · Scroll to continue`;
+    if (mode !== "scroll") {
       const end = Math.min(pages.length, pageIndex + spreadSize);
-      onProgress(spreadSize === 2 && end > pageIndex + 1 ? `Pages ${pageIndex + 1}–${end} of ${pages.length}` : `Page ${pageIndex + 1} of ${pages.length}`);
+      label = spreadSize === 2 && end > pageIndex + 1 ? `Pages ${pageIndex + 1}–${end} of ${pages.length}` : `Page ${pageIndex + 1} of ${pages.length}`;
     }
-  }, [fileId, mode, onProgress, pageIndex, pages.length, spreadSize]);
+    onProgress(label);
+    onLocationChange?.({ label, position: String(pageIndex), status: pageIndex + spreadSize >= pages.length ? "finished" : "reading" });
+  }, [fileId, mode, onLocationChange, onProgress, pageIndex, pages.length, spreadSize]);
 
   useEffect(() => {
     if (mode !== "scroll" || !scrollRef.current || !pages.length) return;
@@ -136,7 +141,10 @@ const ComicReader = forwardRef<ComicReaderHandle, {
 
   useImperativeHandle(ref, () => ({ previous, next }));
 
-  const spread = useMemo(() => pages.slice(pageIndex, pageIndex + spreadSize), [pageIndex, pages, spreadSize]);
+  const spread = useMemo(() => {
+    const items = pages.slice(pageIndex, pageIndex + spreadSize);
+    return direction === "rtl" && items.length > 1 ? [...items].reverse() : items;
+  }, [direction, pageIndex, pages, spreadSize]);
   if (!pages.length) return null;
 
   if (mode === "pages") return <div className={`comic-pages ${spreadSize === 1 ? "single-spread" : ""}`}>{spread.map((page, index) => <figure key={page.url}><img src={page.url} alt={`Comic page ${pageIndex + index + 1}`} /></figure>)}</div>;

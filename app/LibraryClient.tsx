@@ -1,17 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import BookReader, { type ReaderFile } from "./BookReader";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import BookReader, { type ReaderFile, type ReaderLocation } from "./BookReader";
 
 type RawBook = {
   id: string; title: string; originalTitle?: string; author?: string; series?: string; incomplete?: boolean; workKey?: string;
-  format: string; source: string; collection?: string; category?: string;
-  collections?: string[];
+  format: string; source: string; collection?: string; category?: string; collections?: string[];
   path?: string; url: string; size?: number; modified?: string;
 };
 
 type Copy = Pick<RawBook, "id" | "url" | "format" | "path" | "source">;
-type Book = RawBook & { copies: Copy[]; formats: string[]; collections: string[] };
+type Book = RawBook & { copies: Copy[]; formats: string[]; collections: string[]; searchText: string };
+type LibraryView = "library" | "continue" | "favorites" | "recent";
+type DisplayMode = "thumbnails" | "list";
+type SortMode = "title" | "author" | "series" | "added" | "opened";
+type ReadingStatus = "unread" | "reading" | "finished";
+type SavedState = {
+  bookId: string; fileId?: string | null; favorite: boolean; lastOpened?: number | null;
+  progressLabel?: string | null; position?: string | null; status: ReadingStatus; updatedAt: number;
+};
 
 const FORMAT_ORDER = ["EPUB", "PDF", "CBZ", "CBR", "MOBI", "FDX", "DOCX", "DOC", "RTF", "TXT"];
 const palettes = [
@@ -37,9 +44,12 @@ function cleanTitle(value: string) {
   return value
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/\.(epub|mobi|pdf|cbr|cbz|docx?|rtf|txt|fdx)$/i, "")
-    .replace(/\s*[\[(]?(retail|converted|fixed|copy|ebook)[\])]?\s*$/i, "")
-    .replace(/\s*[\[(]\d+[\])]\s*$/, "")
-    .replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
+    .replace(/^\s*\d{9,13}[xX]?\s*(?=[A-Za-z])/, "")
+    .replace(/\s*[\[(]?(retail|converted|fixed|copy|ebook|nonlocal|team[- ]?dcp)[\])]?\s*/gi, " ")
+    .replace(/\s*[\[(](?:v?\d+(?:\.\d+)?|\d+\s*(?:pages?|p))[\])]/gi, " ")
+    .replace(/\s+[-–—]\s+(?:scan|digital|webrip|fiche).*$/i, "")
+    .replace(/\s*\[(?:hipotter\d*|dcp|empire|minutemen|zone-empire)\]\s*/gi, " ")
+    .replace(/[._]+/g, " ").replace(/\s+/g, " ").replace(/^[-–—\s]+|[-–—\s]+$/g, "").trim();
 }
 
 function normalized(value: string) {
@@ -47,48 +57,81 @@ function normalized(value: string) {
     .toLowerCase().replace(/\b(the|a|an)\b/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+function looksLikePerson(value: string) {
+  return !/^(the|a|an)\b/i.test(value) && !/\d/.test(value) && /^(?:[A-Z][\p{L}'-]*\.?\s+){1,4}[A-Z][\p{L}'-]*\.?$/u.test(value.trim());
+}
+
+function metadataFor(row: RawBook) {
+  const rawTitle = TITLE_CORRECTIONS[row.id] || row.title || row.originalTitle || "Untitled";
+  let title = cleanTitle(rawTitle);
+  let author = cleanTitle(row.author || "");
+  const parts = title.split(/\s+[-–—]\s+/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length > 1 && author) {
+    const first = parts[0];
+    const last = parts.at(-1)!;
+    if (normalized(author) === normalized(first)) {
+      if (looksLikePerson(last)) { title = first; author = last; }
+      else title = cleanTitle(parts.slice(1).join(" — "));
+    } else if (normalized(author) === normalized(last)) {
+      title = cleanTitle(parts.slice(0, -1).join(" — "));
+    }
+  }
+  if (author && normalized(title).startsWith(normalized(author)) && title.length > author.length + 4) {
+    title = cleanTitle(title.slice(author.length).replace(/^\s*[-–—:,]\s*/, ""));
+  }
+  const category = /nonfiction/i.test(row.category || "") ? "Non-Fiction" : row.category || "General";
+  const series = cleanTitle(row.series || "");
+  return { title: title || "Untitled", author, category, series };
+}
+
 function groupBooks(rows: RawBook[]): Book[] {
   const grouped = new Map<string, Book>();
   const titleIndex = new Map<string, string>();
   for (const row of rows) {
-    const title = cleanTitle(TITLE_CORRECTIONS[row.id] || row.title || row.originalTitle || "Untitled");
-    const author = (row.author || "").trim();
+    const metadata = metadataFor(row);
     const isScript = /(^|\/)scripts?(\/|$)|screenplay|black list/i.test(`${row.source}/${row.path || ""}`);
     const isComic = /^(?:CBR|CBZ)$/i.test(row.format);
-    const base = normalized(title).replace(normalized(author), "").trim();
-    const exactKey = row.workKey || `${base}|${normalized(author)}`;
-    const titleKey = normalized(title);
+    const titleKey = normalized(metadata.title);
+    const authorKey = normalized(metadata.author);
+    const seriesKey = normalized(metadata.series || row.collection || "");
+    const exactKey = `${titleKey}|${authorKey}|${isComic ? seriesKey : ""}`;
     const indexedKey = titleIndex.get(titleKey);
     const indexedBook = indexedKey ? grouped.get(indexedKey) : undefined;
-    const key = indexedKey && !isComic && (!author || !indexedBook?.author) ? indexedKey : exactKey;
+    const key = !isComic && indexedKey && (!authorKey || !indexedBook?.author || normalized(indexedBook.author) === authorKey) ? indexedKey : exactKey;
     const copy: Copy = { id: row.id, url: row.url, format: row.format.toUpperCase(), path: row.path, source: row.source };
+    const rowCollections = row.collections || (row.collection ? [row.collection] : []);
     const existing = grouped.get(key);
     if (existing) {
       if (!existing.copies.some((item) => item.id === copy.id)) existing.copies.push(copy);
       if (!existing.formats.includes(copy.format)) existing.formats.push(copy.format);
-      if (!existing.author && author) existing.author = author;
-      for (const item of row.collections || (row.collection ? [row.collection] : [])) {
-        if (!existing.collections.includes(item)) existing.collections.push(item);
-      }
-      if (!existing.collection && row.collection) existing.collection = row.collection;
-      if ((!existing.category || existing.category === "General") && row.category) existing.category = row.category;
+      if (!existing.author && metadata.author) existing.author = metadata.author;
+      if (!existing.series && metadata.series) existing.series = metadata.series;
+      for (const item of rowCollections) if (!existing.collections.includes(item)) existing.collections.push(item);
+      if ((!existing.category || existing.category === "General") && metadata.category) existing.category = metadata.category;
       if (isScript) existing.category = "Script";
+      if (row.modified && (!existing.modified || row.modified > existing.modified)) existing.modified = row.modified;
     } else {
-      const collections = row.collections || (row.collection ? [row.collection] : []);
-      grouped.set(key, { ...row, title, author, category: isScript ? "Script" : row.category, collections, copies: [copy], formats: [copy.format] });
+      grouped.set(key, {
+        ...row, ...metadata, category: isScript ? "Script" : metadata.category,
+        collections: rowCollections, copies: [copy], formats: [copy.format], searchText: "",
+      });
       if (!titleIndex.has(titleKey)) titleIndex.set(titleKey, key);
     }
   }
-  return [...grouped.values()].map((book) => ({
-    ...book,
-    copies: [...book.copies].sort((a, b) => FORMAT_ORDER.indexOf(a.format) - FORMAT_ORDER.indexOf(b.format)),
-    formats: [...book.formats].sort((a, b) => FORMAT_ORDER.indexOf(a) - FORMAT_ORDER.indexOf(b)),
-    collections: [...book.collections].sort((a, b) => a.localeCompare(b)),
-  })).sort((a, b) => Number(Boolean(a.incomplete)) - Number(Boolean(b.incomplete)) || normalized(a.title).localeCompare(normalized(b.title)));
+  return [...grouped.values()].map((book) => {
+    const collections = [...book.collections].sort((a, b) => a.localeCompare(b));
+    return {
+      ...book,
+      copies: [...book.copies].sort((a, b) => FORMAT_ORDER.indexOf(a.format) - FORMAT_ORDER.indexOf(b.format)),
+      formats: [...book.formats].sort((a, b) => FORMAT_ORDER.indexOf(a) - FORMAT_ORDER.indexOf(b)),
+      collections,
+      searchText: normalized([book.title, book.author, book.series, ...collections, book.category, book.path].filter(Boolean).join(" ")),
+    };
+  }).sort((a, b) => Number(Boolean(a.incomplete)) - Number(Boolean(b.incomplete)) || normalized(a.title).localeCompare(normalized(b.title)));
 }
 
-function options(items: Book[], field: "author" | "category") {
-  return [...new Set(items.map((item) => item[field]?.trim()).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b));
+function values(items: Book[], field: "author" | "category" | "series") {
+  return [...new Set(items.map((item) => item[field]?.trim()).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 }
 
 function coverUrl(book: Book) {
@@ -98,154 +141,252 @@ function coverUrl(book: Book) {
   return `/api/cover?${query}`;
 }
 
+function stateFromLegacy() {
+  const favorites = JSON.parse(localStorage.getItem("reading-room-favorites") || "[]") as string[];
+  const recent = JSON.parse(localStorage.getItem("reading-room-recent") || "[]") as string[];
+  const stored = JSON.parse(localStorage.getItem("reading-room-state") || "{}") as Record<string, SavedState>;
+  const now = Date.now();
+  for (const id of favorites) {
+    const previous = stored[id];
+    stored[id] = { ...previous, bookId: id, favorite: true, status: previous?.status || "unread", updatedAt: previous?.updatedAt || now };
+  }
+  recent.forEach((id, index) => {
+    const previous = stored[id];
+    stored[id] = { ...previous, bookId: id, favorite: previous?.favorite || false, status: previous?.status === "finished" ? "finished" : "reading", updatedAt: previous?.updatedAt || now - index, lastOpened: previous?.lastOpened || now - index };
+  });
+  return stored;
+}
+
+function persistLocal(states: Record<string, SavedState>) {
+  localStorage.setItem("reading-room-state", JSON.stringify(states));
+  localStorage.setItem("reading-room-favorites", JSON.stringify(Object.values(states).filter((item) => item.favorite).map((item) => item.bookId)));
+  localStorage.setItem("reading-room-recent", JSON.stringify(Object.values(states).filter((item) => item.lastOpened).sort((a, b) => (b.lastOpened || 0) - (a.lastOpened || 0)).slice(0, 50).map((item) => item.bookId)));
+}
+
 export default function LibraryClient() {
   const [catalogRows, setCatalogRows] = useState<RawBook[]>([]);
   const [catalogStatus, setCatalogStatus] = useState<"loading" | "ready" | "error">("loading");
   const books = useMemo(() => groupBooks(catalogRows), [catalogRows]);
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const [collection, setCollection] = useState("All collections");
   const [author, setAuthor] = useState("All authors");
   const [category, setCategory] = useState("All categories");
-  const [view, setView] = useState<"library" | "favorites" | "recent">("library");
-  const [favorites, setFavorites] = useState<string[]>([]);
-  const [recent, setRecent] = useState<string[]>([]);
-  const [displayMode, setDisplayMode] = useState<"thumbnails" | "list">("thumbnails");
+  const [series, setSeries] = useState("All series");
+  const [format, setFormat] = useState("All formats");
+  const [readingStatus, setReadingStatus] = useState("All reading statuses");
+  const [readableOnly, setReadableOnly] = useState(false);
+  const [sort, setSort] = useState<SortMode>("title");
+  const [view, setView] = useState<LibraryView>("library");
+  const [savedStates, setSavedStates] = useState<Record<string, SavedState>>({});
+  const savedStatesRef = useRef<Record<string, SavedState>>({});
+  const pendingRemoteRef = useRef<Map<string, SavedState>>(new Map());
+  const remoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("thumbnails");
   const [selected, setSelected] = useState<Book | null>(null);
-  const [reader, setReader] = useState<{ title: string; file: ReaderFile } | null>(null);
+  const [seriesFocus, setSeriesFocus] = useState<string | null>(null);
+  const [reader, setReader] = useState<{ title: string; file: ReaderFile; bookId: string } | null>(null);
   const [visible, setVisible] = useState(60);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
-    const restore = window.setTimeout(() => {
-      setFavorites(JSON.parse(localStorage.getItem("reading-room-favorites") || "[]"));
-      setRecent(JSON.parse(localStorage.getItem("reading-room-recent") || "[]"));
-      const savedDisplay = localStorage.getItem("reading-room-display-mode");
-      if (savedDisplay === "thumbnails" || savedDisplay === "list") setDisplayMode(savedDisplay);
-    }, 0);
+    const local = stateFromLegacy();
+    savedStatesRef.current = local;
+    setSavedStates(local);
+    const savedDisplay = localStorage.getItem("reading-room-display-mode");
+    if (savedDisplay === "thumbnails" || savedDisplay === "list") setDisplayMode(savedDisplay);
+    fetch("/api/library-state").then((response) => response.ok ? response.json() : { states: [] }).then((payload: { states?: SavedState[] }) => {
+      if (!payload.states?.length) return;
+      setSavedStates((current) => {
+        const merged = { ...current };
+        for (const item of payload.states || []) if (!merged[item.bookId] || item.updatedAt >= merged[item.bookId].updatedAt) merged[item.bookId] = item;
+        savedStatesRef.current = merged;
+        persistLocal(merged);
+        return merged;
+      });
+    }).catch(() => {});
     const onKey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault(); document.querySelector<HTMLInputElement>(".search input")?.focus();
-      }
-      if (event.key === "Escape" && !document.querySelector(".reader-shell")) setSelected(null);
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); document.querySelector<HTMLInputElement>(".search input")?.focus(); }
+      if (event.key === "Escape" && !document.querySelector(".reader-shell")) { setSelected(null); setSeriesFocus(null); }
     };
     window.addEventListener("keydown", onKey);
-    return () => { window.clearTimeout(restore); window.removeEventListener("keydown", onKey); };
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (remoteTimerRef.current) clearTimeout(remoteTimerRef.current);
+      flushRemoteState();
+    };
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
     fetch("/catalog.json", { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error("Catalogue unavailable");
-        return response.json() as Promise<RawBook[]>;
-      })
+      .then((response) => { if (!response.ok) throw new Error("Catalogue unavailable"); return response.json() as Promise<RawBook[]>; })
       .then((rows) => { setCatalogRows(rows); setCatalogStatus("ready"); })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setCatalogStatus("error");
-      });
+      .catch((error: unknown) => { if (!(error instanceof DOMException && error.name === "AbortError")) setCatalogStatus("error"); });
     return () => controller.abort();
   }, []);
 
   const collections = useMemo(() => [...new Set(books.flatMap((book) => book.collections))].sort((a, b) => a.localeCompare(b)), [books]);
-  const authors = useMemo(() => options(books, "author"), [books]);
-  const categories = useMemo(() => options(books, "category"), [books]);
+  const authors = useMemo(() => values(books, "author"), [books]);
+  const categories = useMemo(() => values(books, "category"), [books]);
+  const seriesOptions = useMemo(() => values(books, "series"), [books]);
+  const formats = useMemo(() => [...new Set(books.flatMap((book) => book.formats))].sort((a, b) => FORMAT_ORDER.indexOf(a) - FORMAT_ORDER.indexOf(b)), [books]);
+  const seriesGroups = useMemo(() => {
+    const groups = new Map<string, Book[]>();
+    for (const book of books) if (book.series) groups.set(book.series, [...(groups.get(book.series) || []), book]);
+    for (const list of groups.values()) list.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
+    return groups;
+  }, [books]);
+  const favorites = useMemo(() => Object.values(savedStates).filter((item) => item.favorite).map((item) => item.bookId), [savedStates]);
+  const recent = useMemo(() => Object.values(savedStates).filter((item) => item.lastOpened).sort((a, b) => (b.lastOpened || 0) - (a.lastOpened || 0)).map((item) => item.bookId), [savedStates]);
+
   const filtered = useMemo(() => {
-    const term = normalized(query);
-    const list = books.filter((book) => {
-      const searchable = normalized([book.title, book.author, book.series, ...book.collections, book.category, book.path].filter(Boolean).join(" "));
-      return (!term || searchable.includes(term))
+    const term = normalized(deferredQuery);
+    let list = books.filter((book) => {
+      const state = savedStates[book.id];
+      return (!term || book.searchText.includes(term))
         && (collection === "All collections" || book.collections.includes(collection))
         && (author === "All authors" || book.author === author)
-        && (category === "All categories" || book.category === category);
+        && (category === "All categories" || book.category === category)
+        && (series === "All series" || book.series === series)
+        && (format === "All formats" || book.formats.includes(format))
+        && (readingStatus === "All reading statuses" || (state?.status || "unread") === readingStatus)
+        && (!readableOnly || book.copies.some((copy) => canReadHere(copy.format)));
     });
-    if (view === "favorites") return list.filter((book) => favorites.includes(book.id));
-    if (view === "recent") return [...list].sort((a, b) => recent.indexOf(a.id) - recent.indexOf(b.id)).filter((book) => recent.includes(book.id));
-    return list;
-  }, [books, query, collection, author, category, view, favorites, recent]);
+    if (view === "favorites") list = list.filter((book) => favorites.includes(book.id));
+    if (view === "recent") list = list.filter((book) => recent.includes(book.id));
+    if (view === "continue") list = list.filter((book) => savedStates[book.id]?.status === "reading");
+    return [...list].sort((a, b) => {
+      if (sort === "opened") return (savedStates[b.id]?.lastOpened || 0) - (savedStates[a.id]?.lastOpened || 0);
+      if (sort === "added") return (b.modified || "").localeCompare(a.modified || "");
+      if (sort === "author") return (a.author || "ZZZ").localeCompare(b.author || "ZZZ") || a.title.localeCompare(b.title, undefined, { numeric: true });
+      if (sort === "series") return (a.series || "ZZZ").localeCompare(b.series || "ZZZ", undefined, { numeric: true }) || a.title.localeCompare(b.title, undefined, { numeric: true });
+      return normalized(a.title).localeCompare(normalized(b.title), undefined, { numeric: true });
+    });
+  }, [author, books, category, collection, deferredQuery, favorites, format, readableOnly, readingStatus, recent, savedStates, series, sort, view]);
 
-  function toggleFavorite(id: string) {
-    const next = favorites.includes(id) ? favorites.filter((item) => item !== id) : [...favorites, id];
-    setFavorites(next); localStorage.setItem("reading-room-favorites", JSON.stringify(next));
+  const continueBooks = useMemo(() => recent.filter((id) => savedStates[id]?.status === "reading").map((id) => books.find((book) => book.id === id)).filter((book): book is Book => Boolean(book)).slice(0, 10), [books, recent, savedStates]);
+  const recentlyAdded = useMemo(() => [...books].filter((book) => book.modified).sort((a, b) => (b.modified || "").localeCompare(a.modified || "")).slice(0, 10), [books]);
+  const prizeBooks = useMemo(() => books.filter((book) => book.collections.some((item) => /pulit|booker|nobel|prize|award/i.test(item))).slice(0, 10), [books]);
+  const popularSeries = useMemo(() => [...seriesGroups.entries()].filter(([, list]) => list.length > 2).sort((a, b) => b[1].length - a[1].length).slice(0, 12), [seriesGroups]);
+
+  function flushRemoteState() {
+    const pending = [...pendingRemoteRef.current.values()];
+    pendingRemoteRef.current.clear();
+    remoteTimerRef.current = null;
+    for (const state of pending) fetch("/api/library-state", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(state), keepalive: true }).catch(() => {});
   }
+
+  function saveState(bookId: string, patch: Partial<SavedState>) {
+    const current = savedStatesRef.current;
+    const previous = current[bookId] || { bookId, favorite: false, status: "unread" as ReadingStatus, updatedAt: 0 };
+    const nextState: SavedState = { ...previous, ...patch, bookId, updatedAt: Date.now() };
+    const next = { ...current, [bookId]: nextState };
+    savedStatesRef.current = next;
+    setSavedStates(next);
+    persistLocal(next);
+    pendingRemoteRef.current.set(bookId, nextState);
+    if (remoteTimerRef.current) clearTimeout(remoteTimerRef.current);
+    remoteTimerRef.current = setTimeout(flushRemoteState, 650);
+  }
+
+  function toggleFavorite(id: string) { saveState(id, { favorite: !savedStates[id]?.favorite }); }
+  function toggleFinished(id: string) { saveState(id, { status: savedStates[id]?.status === "finished" ? "reading" : "finished", progressLabel: savedStates[id]?.status === "finished" ? savedStates[id]?.progressLabel : "Finished" }); }
 
   function openBook(book: Book) {
-    const next = [book.id, ...recent.filter((item) => item !== book.id)].slice(0, 50);
-    setRecent(next); localStorage.setItem("reading-room-recent", JSON.stringify(next));
     const readableCopy = book.copies.find((copy) => canReadHere(copy.format));
-    if (readableCopy) {
-      setSelected(null);
-      setReader({ title: book.title, file: readableCopy });
-    } else {
-      setSelected(book);
-    }
+    saveState(book.id, { lastOpened: Date.now(), status: savedStates[book.id]?.status === "finished" ? "finished" : "reading", fileId: readableCopy?.id || book.copies[0]?.id });
+    if (readableCopy) { setSelected(null); setSeriesFocus(null); setReader({ title: book.title, file: readableCopy, bookId: book.id }); }
+    else setSelected(book);
   }
 
-  const clearFilters = () => { setQuery(""); setCollection("All collections"); setAuthor("All authors"); setCategory("All categories"); setVisible(60); };
-  const chooseDisplayMode = (mode: "thumbnails" | "list") => {
-    setDisplayMode(mode);
-    localStorage.setItem("reading-room-display-mode", mode);
+  function openCopy(book: Book, copy: Copy) {
+    saveState(book.id, { lastOpened: Date.now(), status: savedStatesRef.current[book.id]?.status === "finished" ? "finished" : "reading", fileId: copy.id });
+    setSelected(null);
+    setReader({ title: book.title, file: copy, bookId: book.id });
+  }
+
+  function handleReaderLocation(location: ReaderLocation) {
+    if (!reader) return;
+    saveState(reader.bookId, { fileId: reader.file.id, lastOpened: Date.now(), status: location.status || "reading", progressLabel: location.label, position: location.position });
+  }
+
+  const clearFilters = () => {
+    setQuery(""); setCollection("All collections"); setAuthor("All authors"); setCategory("All categories");
+    setSeries("All series"); setFormat("All formats"); setReadingStatus("All reading statuses"); setReadableOnly(false); setVisible(60);
   };
+  const chooseDisplayMode = (mode: DisplayMode) => { setDisplayMode(mode); localStorage.setItem("reading-room-display-mode", mode); };
+  const activeFilters = [
+    collection !== "All collections" ? collection : "", author !== "All authors" ? author : "", category !== "All categories" ? category : "",
+    series !== "All series" ? series : "", format !== "All formats" ? format : "", readingStatus !== "All reading statuses" ? readingStatus : "", readableOnly ? "Readable here" : "",
+  ].filter(Boolean);
+  const currentReaderBook = reader ? books.find((book) => book.id === reader.bookId) : undefined;
+  const readerSeries = currentReaderBook?.series ? seriesGroups.get(currentReaderBook.series) || [] : [];
+  const readerSeriesIndex = currentReaderBook ? readerSeries.findIndex((book) => book.id === currentReaderBook.id) : -1;
 
-  return (
-    <main>
-      <header className="topbar">
-        <button className="brand" onClick={() => { setView("library"); clearFilters(); }} aria-label="The Reading Room home">
-          <span className="brand-mark">R</span><span><strong>The Reading Room</strong><small>PRIVATE DIGITAL LIBRARY</small></span>
-        </button>
-        <nav aria-label="Library views">
-          <button className={view === "library" ? "active" : ""} onClick={() => setView("library")}>Library</button>
-          <button className={view === "favorites" ? "active" : ""} onClick={() => setView("favorites")}>Favorites <span>{favorites.length}</span></button>
-          <button className={view === "recent" ? "active" : ""} onClick={() => setView("recent")}>Recent</button>
-        </nav>
-      </header>
+  function renderShelf(title: string, items: Book[], action?: { label: string; onClick: () => void }) {
+    if (!items.length) return null;
+    return <section className="smart-shelf"><div className="shelf-heading"><div><span>YOUR LIBRARY</span><h2>{title}</h2></div>{action && <button onClick={action.onClick}>{action.label} →</button>}</div><div className="shelf-strip">{items.map((book, index) => <button className="shelf-book" key={book.id} onClick={() => openBook(book)}><span className="shelf-cover" style={{ "--cover": palettes[(book.title.length + index) % palettes.length][0] } as React.CSSProperties}><img src={coverUrl(book)} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} /></span><strong>{book.title}</strong><small>{savedStates[book.id]?.progressLabel || book.author || book.series || book.category}</small></button>)}</div></section>;
+  }
 
-      <section className="hero">
-        <p className="eyebrow">CURATED FROM YOUR COLLECTION</p>
-        <h1>{view === "favorites" ? "Your favorites" : view === "recent" ? "Recently opened" : "Every book, one shelf."}</h1>
-        <p className="intro">Search ebooks, graphic novels, and scripts. Duplicate files and alternate formats are consolidated into a single title.</p>
-        <label className="search"><span>⌕</span><input value={query} onChange={(e) => { setQuery(e.target.value); setVisible(60); }} placeholder="Search by title, author, collection, or category…" /><kbd>⌘ K</kbd></label>
-      </section>
+  return <main>
+    <header className="topbar">
+      <button className="brand" onClick={() => { setView("library"); clearFilters(); }} aria-label="The Reading Room home"><span className="brand-mark">R</span><span><strong>The Reading Room</strong><small>PRIVATE DIGITAL LIBRARY</small></span></button>
+      <nav aria-label="Library views">
+        <button className={view === "library" ? "active" : ""} onClick={() => setView("library")}><span aria-hidden="true">⌂</span>Library</button>
+        <button className={view === "continue" ? "active" : ""} onClick={() => { setView("continue"); setSort("opened"); }}><span aria-hidden="true">▶</span>Continue</button>
+        <button className={view === "favorites" ? "active" : ""} onClick={() => setView("favorites")}><span aria-hidden="true">♡</span>Favorites <b>{favorites.length}</b></button>
+        <button className={view === "recent" ? "active" : ""} onClick={() => { setView("recent"); setSort("opened"); }}><span aria-hidden="true">↺</span>Recent</button>
+      </nav>
+    </header>
 
-      <section className="catalog">
-        <div className="filters">
-          <label><span>Collection</span><select value={collection} onChange={(e) => { setCollection(e.target.value); setVisible(60); }}><option>All collections</option>{collections.map((item) => <option key={item}>{item}</option>)}</select></label>
-          <label><span>Author</span><select value={author} onChange={(e) => { setAuthor(e.target.value); setVisible(60); }}><option>All authors</option>{authors.map((item) => <option key={item}>{item}</option>)}</select></label>
-          <label><span>Category</span><select value={category} onChange={(e) => { setCategory(e.target.value); setVisible(60); }}><option>All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
-          <button className="clear" onClick={clearFilters}>Clear filters</button>
-        </div>
-        <div className="results"><p><strong>{filtered.length.toLocaleString()}</strong> unique titles</p><div className="display-switch" role="group" aria-label="Book display"><button className={displayMode === "thumbnails" ? "active" : ""} aria-pressed={displayMode === "thumbnails"} onClick={() => chooseDisplayMode("thumbnails")}><span aria-hidden="true">▦</span> Thumbnails</button><button className={displayMode === "list" ? "active" : ""} aria-pressed={displayMode === "list"} onClick={() => chooseDisplayMode("list")}><span aria-hidden="true">☷</span> List</button></div></div>
+    <section className="hero compact-hero">
+      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{view === "favorites" ? "Your favorites" : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Find your next book."}</h1></div>
+      <label className="search"><span>⌕</span><input value={query} onChange={(event) => { setQuery(event.target.value); setVisible(60); }} placeholder="Search title, author, series or collection…" /><kbd>⌘ K</kbd></label>
+      <div className="category-chips"><button onClick={() => setCategory("Fiction")}>Fiction</button><button onClick={() => setCategory("Non-Fiction")}>Non-Fiction</button><button onClick={() => setCategory("Graphic Novel")}>Graphic Novels</button><button onClick={() => setCategory("Script")}>Scripts</button><button onClick={() => setReadableOnly(true)}>Readable here</button></div>
+    </section>
 
-        {catalogStatus === "loading" ? <div className="empty"><b>Opening the library…</b><p>Preparing the latest catalogue.</p></div>
-        : catalogStatus === "error" ? <div className="empty"><b>The catalogue could not be loaded</b><p>Please refresh the page and try again.</p></div>
-        : filtered.length ? <div className={`grid ${displayMode === "list" ? "list-view" : "thumbnail-view"}`}>{filtered.slice(0, visible).map((book, index) => {
-          const palette = palettes[Math.abs(book.title.length + index) % palettes.length];
-          return <article className="book" key={book.id}>
-            <button className="cover" aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`} style={{ "--cover": palette[0], "--ink": palette[1] } as React.CSSProperties} onClick={() => openBook(book)}>
-              <img src={coverUrl(book)} alt="" loading="lazy" onLoad={(event) => event.currentTarget.parentElement?.classList.add("has-cover")} onError={(event) => { event.currentTarget.hidden = true; }} />
-              <span className="cover-copy">
-                {book.series && <small>{book.series}</small>}
-                <strong>{book.title}</strong>
-                {book.author && <em>{book.author}</em>}
-              </span>
-            </button>
-            <div className="list-copy"><button onClick={() => openBook(book)} aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`}><small>{book.series || book.category || "Book"}</small><strong>{book.title}</strong><em>{book.author || "Author not listed"}</em></button></div>
-            <div className="book-tools"><div className="chips">{book.formats.map((format) => <span key={format}>{format}</span>)}{book.copies.length > 1 && <span>{book.copies.length} copies</span>}</div><button className="heart" onClick={() => toggleFavorite(book.id)} aria-label="Toggle favorite">{favorites.includes(book.id) ? "♥" : "♡"}</button></div>
-          </article>;
-        })}</div> : <div className="empty"><b>No books found</b><p>Try clearing one or more filters.</p><button onClick={clearFilters}>Reset search</button></div>}
-        {visible < filtered.length && <button className="load" onClick={() => setVisible((n) => n + 60)}>Show more books</button>}
-      </section>
+    {view === "library" && !query && !activeFilters.length && <section className="discovery">
+      {renderShelf("Continue reading", continueBooks, { label: "See all", onClick: () => { setView("continue"); setSort("opened"); } })}
+      {popularSeries.length > 0 && <section className="smart-shelf"><div className="shelf-heading"><div><span>READ IN ORDER</span><h2>Browse series</h2></div></div><div className="series-strip">{popularSeries.map(([name, list]) => <button key={name} onClick={() => setSeriesFocus(name)}><strong>{name}</strong><small>{list.length} titles</small></button>)}</div></section>}
+      {renderShelf("Recently added", recentlyAdded, { label: "Sort newest", onClick: () => setSort("added") })}
+      {renderShelf("Prize collections", prizeBooks)}
+    </section>}
 
-      {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)} role="presentation">
-        <section className="modal" role="dialog" aria-modal="true" aria-labelledby="book-title" onMouseDown={(e) => e.stopPropagation()}>
-          <button className="close" onClick={() => setSelected(null)} aria-label="Close">×</button>
-          <p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p>
-          <h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}{selected.series ? ` · ${selected.series}` : ""}</p>
-          <div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format) && <button onClick={() => setReader({ title: selected.title, file: copy })}>Read here</button>}<a href={["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? downloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? "Download" : "Drive"} ↗</a></div></div>)}</div>
-          <p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p>
-        </section>
-      </div>}
-      {reader && <BookReader title={reader.title} file={reader.file} onClose={() => setReader(null)} />}
-      <footer><span>The Reading Room</span><p>One clean catalogue for your digital shelves. Covers enriched by <a href="https://openlibrary.org" target="_blank" rel="noreferrer">Open Library</a>.</p></footer>
-    </main>
-  );
+    <section className="catalog">
+      <div className="catalog-toolbar"><button className="mobile-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>Filters {activeFilters.length ? `(${activeFilters.length})` : ""}</button><label className="sort-control"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}><option value="title">Title</option><option value="author">Author</option><option value="series">Series</option><option value="added">Recently added</option><option value="opened">Recently opened</option></select></label></div>
+      <div className={`filters expanded-filters ${filtersOpen ? "open" : ""}`}>
+        <label><span>Collection</span><select value={collection} onChange={(event) => { setCollection(event.target.value); setVisible(60); }}><option>All collections</option>{collections.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><span>Author</span><select value={author} onChange={(event) => { setAuthor(event.target.value); setVisible(60); }}><option>All authors</option>{authors.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><span>Category</span><select value={category} onChange={(event) => { setCategory(event.target.value); setVisible(60); }}><option>All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><span>Series</span><select value={series} onChange={(event) => { setSeries(event.target.value); setVisible(60); }}><option>All series</option>{seriesOptions.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><span>Format</span><select value={format} onChange={(event) => { setFormat(event.target.value); setVisible(60); }}><option>All formats</option>{formats.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><span>Reading status</span><select value={readingStatus} onChange={(event) => { setReadingStatus(event.target.value); setVisible(60); }}><option>All reading statuses</option><option value="unread">Unread</option><option value="reading">In progress</option><option value="finished">Finished</option></select></label>
+        <label className="readable-check"><input type="checkbox" checked={readableOnly} onChange={(event) => setReadableOnly(event.target.checked)} /><span>Readable on this site</span></label>
+        <button className="clear" onClick={clearFilters}>Clear filters</button>
+      </div>
+      {activeFilters.length > 0 && <div className="active-filters">{activeFilters.map((item) => <span key={item}>{item}</span>)}<button onClick={clearFilters}>Clear all</button></div>}
+      <div className="results"><p><strong>{filtered.length.toLocaleString()}</strong> unique titles</p><div className="display-switch" role="group" aria-label="Book display"><button className={displayMode === "thumbnails" ? "active" : ""} aria-pressed={displayMode === "thumbnails"} onClick={() => chooseDisplayMode("thumbnails")}><span aria-hidden="true">▦</span> Thumbnails</button><button className={displayMode === "list" ? "active" : ""} aria-pressed={displayMode === "list"} onClick={() => chooseDisplayMode("list")}><span aria-hidden="true">☷</span> List</button></div></div>
+
+      {catalogStatus === "loading" ? <div className="empty"><b>Opening the library…</b><p>Preparing the latest catalogue.</p></div>
+      : catalogStatus === "error" ? <div className="empty"><b>The catalogue could not be loaded</b><p>Please refresh the page and try again.</p></div>
+      : filtered.length ? <div className={`grid ${displayMode === "list" ? "list-view" : "thumbnail-view"}`}>{filtered.slice(0, visible).map((book, index) => {
+        const palette = palettes[Math.abs(book.title.length + index) % palettes.length];
+        const state = savedStates[book.id];
+        return <article className="book" key={book.id}>
+          <button className="cover" aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`} style={{ "--cover": palette[0], "--ink": palette[1] } as React.CSSProperties} onClick={() => openBook(book)}><img src={coverUrl(book)} alt="" loading="lazy" onLoad={(event) => event.currentTarget.parentElement?.classList.add("has-cover")} onError={(event) => { event.currentTarget.hidden = true; }} /><span className="cover-copy">{book.series && <small>{book.series}</small>}<strong>{book.title}</strong>{book.author && <em>{book.author}</em>}</span>{state?.progressLabel && <span className="cover-progress">{state.progressLabel}</span>}</button>
+          <div className="list-copy"><button onClick={() => openBook(book)} aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`}><small>{book.series || book.category || "Book"}</small><strong>{book.title}</strong><em>{book.author || "Author not listed"}</em>{state?.progressLabel && <span>{state.progressLabel}</span>}</button></div>
+          <div className="book-tools"><div className="chips">{book.formats.map((item) => <span key={item}>{item}</span>)}{book.copies.length > 1 && <span>{book.copies.length} copies</span>}</div><div className="card-actions">{book.series && <button className="series-link" onClick={() => setSeriesFocus(book.series!)} aria-label={`View ${book.series} series`}>Series</button>}<button className={`finish ${state?.status === "finished" ? "active" : ""}`} onClick={() => toggleFinished(book.id)} aria-label={state?.status === "finished" ? "Mark as in progress" : "Mark as finished"}>✓</button><button className="heart" onClick={() => toggleFavorite(book.id)} aria-label="Toggle favorite">{state?.favorite ? "♥" : "♡"}</button></div></div>
+        </article>;
+      })}</div> : <div className="empty"><b>No books found</b><p>Try clearing one or more filters.</p><button onClick={clearFilters}>Reset search</button></div>}
+      {visible < filtered.length && <button className="load" onClick={() => setVisible((count) => count + 60)}>Show more books</button>}
+    </section>
+
+    {seriesFocus && <div className="modal-backdrop" onMouseDown={() => setSeriesFocus(null)} role="presentation"><section className="modal series-modal" role="dialog" aria-modal="true" aria-labelledby="series-title" onMouseDown={(event) => event.stopPropagation()}><button className="close" onClick={() => setSeriesFocus(null)} aria-label="Close">×</button><p className="eyebrow">READ IN ORDER</p><h2 id="series-title">{seriesFocus}</h2><p className="modal-author">{seriesGroups.get(seriesFocus)?.length || 0} titles in this series</p><div className="series-list">{(seriesGroups.get(seriesFocus) || []).map((book, index) => <button key={book.id} onClick={() => openBook(book)}><b>{String(index + 1).padStart(2, "0")}</b><span><strong>{book.title}</strong><small>{book.author || book.formats.join(" · ")}{savedStates[book.id]?.progressLabel ? ` · ${savedStates[book.id].progressLabel}` : ""}</small></span><em>Read →</em></button>)}</div></section></div>}
+
+    {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)} role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="book-title" onMouseDown={(event) => event.stopPropagation()}><button className="close" onClick={() => setSelected(null)} aria-label="Close">×</button><p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p><h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}{selected.series ? ` · ${selected.series}` : ""}</p><div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format) && <button onClick={() => openCopy(selected, copy)}>Read here</button>}<a href={["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? downloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? "Download" : "Drive"} ↗</a></div></div>)}</div><p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p></section></div>}
+
+    {reader && <BookReader title={reader.title} file={reader.file} initialPosition={savedStates[reader.bookId]?.position || undefined} onLocationChange={handleReaderLocation} seriesNavigation={{ previous: readerSeriesIndex > 0 ? readerSeries[readerSeriesIndex - 1]?.title : undefined, next: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? readerSeries[readerSeriesIndex + 1]?.title : undefined, onPrevious: readerSeriesIndex > 0 ? () => openBook(readerSeries[readerSeriesIndex - 1]) : undefined, onNext: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? () => openBook(readerSeries[readerSeriesIndex + 1]) : undefined }} onClose={() => setReader(null)} />}
+    <footer><span>The Reading Room</span><p>One clean catalogue for your digital shelves. Covers enriched by <a href="https://openlibrary.org" target="_blank" rel="noreferrer">Open Library</a>.</p></footer>
+  </main>;
 }

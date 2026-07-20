@@ -9,8 +9,10 @@ type Props = {
   fileId: string;
   format: string;
   mode: "pages" | "scroll";
+  initialPosition?: string;
   onStatus: (status: string) => void;
   onProgress: (progress: string) => void;
+  onLocationChange?: (location: { label: string; position?: string; status?: "reading" | "finished" }) => void;
 };
 
 function readerUrl(id: string, format: string) {
@@ -88,7 +90,7 @@ function PdfPage({ pdf, pageNumber, mode, onVisible }: { pdf: PDFDocumentProxy; 
   return <div className={`pdf-page ${mode === "pages" ? "single" : ""}`} data-page={pageNumber} ref={holderRef}><canvas ref={canvasRef} aria-label={`Page ${pageNumber}`} /></div>;
 }
 
-const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId, format, mode, onStatus, onProgress }, ref) {
+const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId, format, mode, initialPosition, onStatus, onProgress, onLocationChange }, ref) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
@@ -119,7 +121,7 @@ const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId
         const task = pdfjs.getDocument({ data });
         document = await task.promise;
         if (disposed) return;
-        const saved = Number(localStorage.getItem(`reading-room-pdf-page-${fileId}`)) || 1;
+        const saved = Number(initialPosition || localStorage.getItem(`reading-room-pdf-page-${fileId}`)) || 1;
         setPageNumber(Math.min(Math.max(1, saved), document.numPages));
         setPdf(document);
         onStatus("");
@@ -133,16 +135,18 @@ const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId
     return () => {
       disposed = true;
       controller.abort();
-      document?.destroy();
+      (document as unknown as { destroy?: () => void })?.destroy?.();
     };
-  }, [fileId, format, onStatus]);
+  }, [fileId, format, initialPosition, onStatus]);
 
   useEffect(() => {
     if (!total) return;
     const lastVisiblePage = Math.min(pageNumber + spreadSize - 1, total);
-    onProgress(lastVisiblePage > pageNumber ? `Pages ${pageNumber}–${lastVisiblePage} of ${total}` : `Page ${pageNumber} of ${total}`);
+    const label = lastVisiblePage > pageNumber ? `Pages ${pageNumber}–${lastVisiblePage} of ${total}` : `Page ${pageNumber} of ${total}`;
+    onProgress(label);
+    onLocationChange?.({ label, position: String(pageNumber), status: pageNumber >= total ? "finished" : "reading" });
     localStorage.setItem(`reading-room-pdf-page-${fileId}`, String(pageNumber));
-  }, [fileId, onProgress, pageNumber, spreadSize, total]);
+  }, [fileId, onLocationChange, onProgress, pageNumber, spreadSize, total]);
 
   useEffect(() => {
     if (mode !== "scroll") return;
