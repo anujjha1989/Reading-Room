@@ -67,8 +67,8 @@ function themeColors(theme: ReaderTheme) {
 function epubStyles(theme: ReaderTheme, lineHeight: number, margin: number) {
   const colors = themeColors(theme);
   return {
-    ":root": { color: `${colors.ink} !important`, background: `${colors.paper} !important`, width: "100% !important", "max-width": "100% !important", overflow: "hidden auto !important" },
-    "html, body": { color: `${colors.ink} !important`, background: `${colors.paper} !important`, width: "100% !important", "max-width": "100% !important", "min-width": "0 !important", margin: "0 !important", "box-sizing": "border-box !important", "overflow-x": "hidden !important" },
+    ":root": { color: `${colors.ink} !important`, background: `${colors.paper} !important`, overflow: "hidden auto !important" },
+    "html, body": { color: `${colors.ink} !important`, background: `${colors.paper} !important`, margin: "0 !important", "box-sizing": "border-box !important", "overflow-x": "hidden !important" },
     body: { "font-family": "Georgia, serif !important", "line-height": `${lineHeight} !important`, padding: `1.25rem max(16px, ${margin}%) 2.5rem !important`, "word-wrap": "break-word !important" },
     "*, *::before, *::after": { "box-sizing": "border-box !important" },
     "div, section, article, main, header, footer, blockquote, p, li": { "max-width": "100% !important", "min-width": "0 !important" },
@@ -83,11 +83,11 @@ function epubStyles(theme: ReaderTheme, lineHeight: number, margin: number) {
 function mobiStyles(fontSize: number, theme: ReaderTheme, lineHeight: number, margin: number) {
   const colors = themeColors(theme);
   return `
-    :root, html { color: ${colors.ink} !important; background: ${colors.paper} !important; width: 100% !important;
-      max-width: 100% !important; min-width: 0 !important; overflow-x: hidden !important; box-sizing: border-box !important; }
+    :root, html { color: ${colors.ink} !important; background: ${colors.paper} !important;
+      overflow-x: hidden !important; box-sizing: border-box !important; }
     body { color: ${colors.ink} !important; background: ${colors.paper} !important; font-family: Georgia, serif !important;
-      font-size: ${fontSize}% !important; line-height: ${lineHeight} !important; width: 100% !important; max-width: 100% !important;
-      min-width: 0 !important; margin: 0 !important; padding: 1.25rem max(16px, ${margin}%) 2.5rem !important; overflow-x: hidden !important; box-sizing: border-box !important; }
+      font-size: ${fontSize}% !important; line-height: ${lineHeight} !important;
+      margin: 0 !important; padding: 1.25rem max(16px, ${margin}%) 2.5rem !important; overflow-x: hidden !important; box-sizing: border-box !important; }
     *, *::before, *::after { box-sizing: border-box !important; }
     div, section, article, main, header, footer, blockquote, p, li { max-width: 100% !important; min-width: 0 !important; }
     p, li, blockquote { overflow-wrap: break-word !important; }
