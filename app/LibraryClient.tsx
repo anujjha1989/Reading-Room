@@ -20,7 +20,7 @@ const palettes = [
 ];
 
 function canReadHere(format: string) {
-  return ["EPUB", "PDF", "DOC", "DOCX", "RTF", "TXT"].includes(format.toUpperCase());
+  return ["EPUB", "MOBI", "AZW", "AZW3", "KF8", "PDF", "DOC", "DOCX", "RTF", "TXT"].includes(format.toUpperCase());
 }
 
 function downloadUrl(id: string) {
@@ -225,7 +225,7 @@ export default function LibraryClient() {
           <button className="close" onClick={() => setSelected(null)} aria-label="Close">×</button>
           <p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p>
           <h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}{selected.series ? ` · ${selected.series}` : ""}</p>
-          <div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format) && <button onClick={() => setReader({ title: selected.title, file: copy })}>Read here</button>}<a href={copy.format === "MOBI" ? downloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{copy.format === "MOBI" ? "Download" : "Drive"} ↗</a></div></div>)}</div>
+          <div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format) && <button onClick={() => setReader({ title: selected.title, file: copy })}>Read here</button>}<a href={["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? downloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? "Download" : "Drive"} ↗</a></div></div>)}</div>
           <p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p>
         </section>
       </div>}

@@ -1,12 +1,22 @@
 const DRIVE_ID = /^[A-Za-z0-9_-]{10,100}$/;
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+const MIME_TYPES: Record<string, string> = {
+  EPUB: "application/epub+zip",
+  MOBI: "application/x-mobipocket-ebook",
+  AZW: "application/vnd.amazon.ebook",
+  AZW3: "application/vnd.amazon.ebook",
+  KF8: "application/vnd.amazon.ebook",
+};
+
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   if (!DRIVE_ID.test(id)) return new Response("Invalid book identifier", { status: 400 });
+  const format = new URL(request.url).searchParams.get("format")?.toUpperCase() || "EPUB";
+  const mimeType = MIME_TYPES[format] || "application/octet-stream";
 
   const upstream = await fetch(`https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`, {
     redirect: "follow",
-    headers: { Accept: "application/epub+zip, application/octet-stream" },
+    headers: { Accept: `${mimeType}, application/octet-stream` },
   });
 
   if (!upstream.ok || !upstream.body) {
@@ -19,7 +29,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 
   const headers = new Headers({
-    "Content-Type": "application/epub+zip",
+    "Content-Type": mimeType,
     "Cache-Control": "private, max-age=300",
     "X-Content-Type-Options": "nosniff",
   });
