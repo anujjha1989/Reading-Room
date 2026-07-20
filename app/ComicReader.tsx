@@ -139,7 +139,7 @@ const ComicReader = forwardRef<ComicReaderHandle, {
   const spread = useMemo(() => pages.slice(pageIndex, pageIndex + spreadSize), [pageIndex, pages, spreadSize]);
   if (!pages.length) return null;
 
-  if (mode === "pages") return <div className={`comic-pages ${spreadSize === 1 ? "single-spread" : ""}`}>{spread.map((page, index) => <img key={page.url} src={page.url} alt={`Comic page ${pageIndex + index + 1}`} />)}</div>;
+  if (mode === "pages") return <div className={`comic-pages ${spreadSize === 1 ? "single-spread" : ""}`}>{spread.map((page, index) => <figure key={page.url}><img src={page.url} alt={`Comic page ${pageIndex + index + 1}`} /></figure>)}</div>;
   return <div className="comic-scroll" ref={scrollRef} onScroll={(event) => {
     const container = event.currentTarget;
     const marker = container.scrollTop + container.clientHeight * .25;
