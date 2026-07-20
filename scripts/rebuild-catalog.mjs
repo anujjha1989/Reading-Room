@@ -8,6 +8,7 @@ const inputs = [
   "books-old-2.json",
   "books-old-3.json",
   "books-new-scripts.json",
+  "graphic-novels-comics.json",
 ];
 
 const favoriteAuthors = new Set([
@@ -56,7 +57,7 @@ function authorFromPath(row) {
 
 function normalize(value = "") {
   return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase().replace(/\.(epub|mobi|pdf|docx?|rtf|txt|fdx)$/i, "")
+    .toLowerCase().replace(/\.(epub|mobi|pdf|cbr|cbz|docx?|rtf|txt|fdx)$/i, "")
     .replace(/\b(retail|converted|fixed|copy|ebook)\b/g, " ")
     .replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -93,7 +94,7 @@ function cleanSeries(value = "") {
 
 function displayMetadata(row, rawAuthor = "", collections = []) {
   let title = tidy(row.title || row.originalTitle || "Untitled")
-    .replace(/\.(epub|mobi|pdf|docx?|rtf|txt|fdx)$/i, "")
+    .replace(/\.(epub|mobi|pdf|cbr|cbz|docx?|rtf|txt|fdx)$/i, "")
     .replace(/\s*\((?:v?\d+(?:\.\d+)?|retail|converted|fixed|copy)\)\s*$/i, "")
     .replace(/\s*\((?:BookZZ|Z-Library|eBookBB)[^)]*\)?\s*$/i, "")
     .replace(/\s*\(\d+\)\s*$/, "")
@@ -364,7 +365,9 @@ for (const row of rows) {
       author,
       source: /scripts?/i.test(`${row.source} ${row.path}`) ? "Scripts" : "Books",
       path: row.path || row.source,
-      collections: collection ? [collection] : [],
+      collections: /^(?:CBR|CBZ)$/i.test(row.format)
+        ? [...new Set([collection, "Graphic Novel Collections"].filter(Boolean))]
+        : collection ? [collection] : [],
     });
   } else {
     if (!current.author && author) current.author = author;
@@ -384,12 +387,19 @@ for (const row of catalog) {
   row.collection = row.collections[0] || "";
   row.category = categoryFor(row, row.collections);
   const metadata = displayMetadata(row, row.author, row.collections);
+  if (/^(?:CBR|CBZ)$/i.test(row.format) && !metadata.series) {
+    metadata.series = row.collections.find((item) => item !== "Graphic Novel Collections") || "";
+  }
   row.title = metadata.title;
   row.author = metadata.author;
   row.series = metadata.series;
   row.incomplete = metadata.incomplete;
   row.path = displayPath(row);
-  row.workKey = metadata.incomplete ? `${normalize(row.title)}|${normalize(row.author)}|${row.id}` : `${normalize(row.title)}|${normalize(row.author)}`;
+  row.workKey = metadata.incomplete
+    ? `${normalize(row.title)}|${normalize(row.author)}|${row.id}`
+    : /^(?:CBR|CBZ)$/i.test(row.format)
+      ? `${normalize(row.title)}|${normalize(row.author)}|${normalize(row.series)}`
+      : `${normalize(row.title)}|${normalize(row.author)}`;
 }
 
 catalog.sort((a, b) => a.title.localeCompare(b.title) || a.format.localeCompare(b.format));

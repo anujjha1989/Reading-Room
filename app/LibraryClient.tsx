@@ -13,7 +13,7 @@ type RawBook = {
 type Copy = Pick<RawBook, "id" | "url" | "format" | "path" | "source">;
 type Book = RawBook & { copies: Copy[]; formats: string[]; collections: string[] };
 
-const FORMAT_ORDER = ["EPUB", "PDF", "MOBI", "FDX", "DOCX", "DOC", "RTF", "TXT"];
+const FORMAT_ORDER = ["EPUB", "PDF", "CBZ", "CBR", "MOBI", "FDX", "DOCX", "DOC", "RTF", "TXT"];
 const palettes = [
   ["#203a32", "#d8c9aa"], ["#773a32", "#e7d9bb"], ["#334f69", "#d7c5a7"],
   ["#59456b", "#dfcfb6"], ["#76532b", "#eadbb9"], ["#315a59", "#d9c8a5"],
@@ -26,7 +26,7 @@ const TITLE_CORRECTIONS: Record<string, string> = {
 };
 
 function canReadHere(format: string) {
-  return ["EPUB", "MOBI", "AZW", "AZW3", "KF8", "PDF", "DOC", "DOCX", "RTF", "TXT"].includes(format.toUpperCase());
+  return ["EPUB", "MOBI", "AZW", "AZW3", "KF8", "PDF", "CBR", "CBZ", "DOC", "DOCX", "RTF", "TXT"].includes(format.toUpperCase());
 }
 
 function downloadUrl(id: string) {
@@ -36,7 +36,7 @@ function downloadUrl(id: string) {
 function cleanTitle(value: string) {
   return value
     .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/\.(epub|mobi|pdf|docx?|rtf|txt|fdx)$/i, "")
+    .replace(/\.(epub|mobi|pdf|cbr|cbz|docx?|rtf|txt|fdx)$/i, "")
     .replace(/\s*[\[(]?(retail|converted|fixed|copy|ebook)[\])]?\s*$/i, "")
     .replace(/\s*[\[(]\d+[\])]\s*$/, "")
     .replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
@@ -54,12 +54,13 @@ function groupBooks(rows: RawBook[]): Book[] {
     const title = cleanTitle(TITLE_CORRECTIONS[row.id] || row.title || row.originalTitle || "Untitled");
     const author = (row.author || "").trim();
     const isScript = /(^|\/)scripts?(\/|$)|screenplay|black list/i.test(`${row.source}/${row.path || ""}`);
+    const isComic = /^(?:CBR|CBZ)$/i.test(row.format);
     const base = normalized(title).replace(normalized(author), "").trim();
     const exactKey = row.workKey || `${base}|${normalized(author)}`;
     const titleKey = normalized(title);
     const indexedKey = titleIndex.get(titleKey);
     const indexedBook = indexedKey ? grouped.get(indexedKey) : undefined;
-    const key = indexedKey && (!author || !indexedBook?.author) ? indexedKey : exactKey;
+    const key = indexedKey && !isComic && (!author || !indexedBook?.author) ? indexedKey : exactKey;
     const copy: Copy = { id: row.id, url: row.url, format: row.format.toUpperCase(), path: row.path, source: row.source };
     const existing = grouped.get(key);
     if (existing) {

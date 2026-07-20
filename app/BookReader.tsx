@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Book as EpubBook, Location, Rendition } from "epubjs";
 import PdfReader, { type PdfReaderHandle } from "./PdfReader";
+import ComicReader, { type ComicReaderHandle } from "./ComicReader";
 
 export type ReaderFile = {
   id: string;
@@ -101,13 +102,15 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
   const isEpub = format === "EPUB";
   const isMobi = ["MOBI", "AZW", "AZW3", "KF8"].includes(format);
   const isPdf = format === "PDF";
+  const isComic = format === "CBR" || format === "CBZ";
   const isReflowable = isEpub || isMobi;
-  const isBookReader = isReflowable || isPdf;
+  const isBookReader = isReflowable || isPdf || isComic;
   const viewerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const bookRef = useRef<EpubBook | null>(null);
   const mobiViewRef = useRef<FoliateView | null>(null);
   const pdfReaderRef = useRef<PdfReaderHandle>(null);
+  const comicReaderRef = useRef<ComicReaderHandle>(null);
   const fontSizeRef = useRef(100);
   const readingModeRef = useRef<ReadingMode>("pages");
   const [status, setStatus] = useState(isBookReader ? "Loading the book…" : "");
@@ -294,12 +297,14 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
     if (isEpub) renditionRef.current?.prev();
     else if (isMobi) mobiViewRef.current?.prev();
     else if (isPdf) pdfReaderRef.current?.previous();
+    else if (isComic) comicReaderRef.current?.previous();
   }
 
   function next() {
     if (isEpub) renditionRef.current?.next();
     else if (isMobi) mobiViewRef.current?.next();
     else if (isPdf) pdfReaderRef.current?.next();
+    else if (isComic) comicReaderRef.current?.next();
   }
 
   return (
@@ -316,7 +321,7 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
       </header>
 
       {isBookReader ? <>
-        <div className="epub-stage">{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} onStatus={setStatus} onProgress={setProgress} />}{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download {format}</a>}</div>}</div>
+        <div className="epub-stage">{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} onStatus={setStatus} onProgress={setProgress} />}{isComic && readingMode && <ComicReader ref={comicReaderRef} fileId={file.id} format={file.format} mode={readingMode} onStatus={setStatus} onProgress={setProgress} />}{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download {format}</a>}</div>}</div>
         <footer className="reader-footer"><button onClick={previous}>← {readingMode === "scroll" ? "Previous section" : "Previous"}</button><span>{progress || (readingMode === "scroll" ? "Scroll to continue" : "Use the arrow keys to turn pages")}</span><button onClick={next}>{readingMode === "scroll" ? "Next section" : "Next"} →</button></footer>
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
     </section>

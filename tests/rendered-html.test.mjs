@@ -18,5 +18,6 @@ test("server-renders the ebook library", async () => {
   assert.match(html, /<title>The Reading Room<\/title>/i);
   assert.match(html, /Every book, one shelf\./);
   assert.match(html, /All collections/);
-  assert.match(html, /Audiobooks excluded/);
+  assert.match(html, /Thumbnails/);
+  assert.doesNotMatch(html, /Audiobooks excluded/);
 });

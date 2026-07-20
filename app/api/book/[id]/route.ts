@@ -7,6 +7,8 @@ const MIME_TYPES: Record<string, string> = {
   AZW3: "application/vnd.amazon.ebook",
   KF8: "application/vnd.amazon.ebook",
   PDF: "application/pdf",
+  CBR: "application/x-cbr",
+  CBZ: "application/vnd.comicbook+zip",
 };
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
