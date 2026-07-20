@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
+import ePub from "epubjs";
+// @ts-expect-error epub.js does not publish types for its manager modules.
+import ContinuousManager from "epubjs/lib/managers/continuous/index.js";
 import type { Book as EpubBook, Location, Rendition } from "epubjs";
 import type { RenditionOptions } from "epubjs/types/rendition";
 import PdfReader, { type PdfReaderHandle } from "./PdfReader";
@@ -285,7 +288,6 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         const response = await fetch(readerUrl(file.id, file.format), { signal: controller.signal });
         if (!response.ok) throw new Error("The book could not be downloaded");
         const data = await response.arrayBuffer();
-        const { default: ePub } = await import("epubjs");
         if (disposed || !viewerRef.current) return;
 
         const book = ePub(data);
@@ -297,8 +299,6 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         if (mode === "scroll") {
           // epub.js normally removes distant chapters, which can move Safari's
           // scroll position. Keep rendered chapters mounted and load ahead.
-          // @ts-expect-error epub.js does not publish types for its manager modules.
-          const { default: ContinuousManager } = await import("epubjs/lib/managers/continuous/index.js");
           class StableContinuousManager extends ContinuousManager {
             update(requestedOffset?: number) {
               const container = this.bounds();
@@ -331,7 +331,12 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         rendition.themes.fontSize("100%");
 
         const saved = localStorage.getItem(`reading-room-position-${file.id}`) || initialPosition || undefined;
-        await rendition.display(saved);
+        try {
+          await rendition.display(saved);
+        } catch {
+          localStorage.removeItem(`reading-room-position-${file.id}`);
+          await rendition.display();
+        }
         rendition.on("relocated", (location: Location) => {
           const page = location.start.displayed;
           const label = readingModeRef.current === "scroll" ? "In progress" : page?.total ? `Page ${page.page} of ${page.total}` : "In progress";
@@ -341,8 +346,12 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
             reportLocation({ label, position: location.start.cfi, status: "reading" });
           }
         });
-        const navigation = await book.loaded.navigation;
-        if (!disposed) setToc(flattenToc(navigation.toc));
+        try {
+          const navigation = await book.loaded.navigation;
+          if (!disposed) setToc(flattenToc(navigation.toc));
+        } catch {
+          if (!disposed) setToc([]);
+        }
         setStatus("");
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
