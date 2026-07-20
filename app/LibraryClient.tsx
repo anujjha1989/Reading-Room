@@ -185,7 +185,7 @@ export default function LibraryClient() {
   const [displayMode, setDisplayMode] = useState<DisplayMode>("thumbnails");
   const [selected, setSelected] = useState<Book | null>(null);
   const [seriesFocus, setSeriesFocus] = useState<string | null>(null);
-  const [reader, setReader] = useState<{ title: string; file: ReaderFile; bookId: string } | null>(null);
+  const [reader, setReader] = useState<{ title: string; file: ReaderFile; bookId: string; initialPosition?: string } | null>(null);
   const [visible, setVisible] = useState(60);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -296,19 +296,19 @@ export default function LibraryClient() {
   function openBook(book: Book) {
     const readableCopy = book.copies.find((copy) => canReadHere(copy.format));
     saveState(book.id, { lastOpened: Date.now(), status: savedStates[book.id]?.status === "finished" ? "finished" : "reading", fileId: readableCopy?.id || book.copies[0]?.id });
-    if (readableCopy) { setSelected(null); setSeriesFocus(null); setReader({ title: book.title, file: readableCopy, bookId: book.id }); }
+    if (readableCopy) { setSelected(null); setSeriesFocus(null); setReader({ title: book.title, file: readableCopy, bookId: book.id, initialPosition: savedStatesRef.current[book.id]?.position || undefined }); }
     else setSelected(book);
   }
 
   function openCopy(book: Book, copy: Copy) {
     saveState(book.id, { lastOpened: Date.now(), status: savedStatesRef.current[book.id]?.status === "finished" ? "finished" : "reading", fileId: copy.id });
     setSelected(null);
-    setReader({ title: book.title, file: copy, bookId: book.id });
+    setReader({ title: book.title, file: copy, bookId: book.id, initialPosition: savedStatesRef.current[book.id]?.position || undefined });
   }
 
   function handleReaderLocation(location: ReaderLocation) {
     if (!reader) return;
-    saveState(reader.bookId, { fileId: reader.file.id, lastOpened: Date.now(), status: location.status || "reading", progressLabel: location.label, position: location.position });
+    saveState(reader.bookId, { fileId: reader.file.id, status: location.status || "reading", progressLabel: location.label, position: location.position });
   }
 
   const clearFilters = () => {
@@ -386,7 +386,7 @@ export default function LibraryClient() {
 
     {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)} role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="book-title" onMouseDown={(event) => event.stopPropagation()}><button className="close" onClick={() => setSelected(null)} aria-label="Close">×</button><p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p><h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}{selected.series ? ` · ${selected.series}` : ""}</p><div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format) && <button onClick={() => openCopy(selected, copy)}>Read here</button>}<a href={["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? downloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? "Download" : "Drive"} ↗</a></div></div>)}</div><p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p></section></div>}
 
-    {reader && <BookReader title={reader.title} file={reader.file} initialPosition={savedStates[reader.bookId]?.position || undefined} onLocationChange={handleReaderLocation} seriesNavigation={{ previous: readerSeriesIndex > 0 ? readerSeries[readerSeriesIndex - 1]?.title : undefined, next: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? readerSeries[readerSeriesIndex + 1]?.title : undefined, onPrevious: readerSeriesIndex > 0 ? () => openBook(readerSeries[readerSeriesIndex - 1]) : undefined, onNext: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? () => openBook(readerSeries[readerSeriesIndex + 1]) : undefined }} onClose={() => setReader(null)} />}
+    {reader && <BookReader title={reader.title} file={reader.file} initialPosition={reader.initialPosition} onLocationChange={handleReaderLocation} seriesNavigation={{ previous: readerSeriesIndex > 0 ? readerSeries[readerSeriesIndex - 1]?.title : undefined, next: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? readerSeries[readerSeriesIndex + 1]?.title : undefined, onPrevious: readerSeriesIndex > 0 ? () => openBook(readerSeries[readerSeriesIndex - 1]) : undefined, onNext: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? () => openBook(readerSeries[readerSeriesIndex + 1]) : undefined }} onClose={() => setReader(null)} />}
     <footer><span>The Reading Room</span><p>One clean catalogue for your digital shelves. Covers enriched by <a href="https://openlibrary.org" target="_blank" rel="noreferrer">Open Library</a>.</p></footer>
   </main>;
 }

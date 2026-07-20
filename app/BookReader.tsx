@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type TouchEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
 import type { Book as EpubBook, Location, Rendition } from "epubjs";
 import PdfReader, { type PdfReaderHandle } from "./PdfReader";
 import ComicReader, { type ComicReaderHandle } from "./ComicReader";
@@ -60,12 +60,35 @@ function themeColors(theme: ReaderTheme) {
   return { ink: "#26332f", paper: "#fffdf7", link: "#4d6b5d" };
 }
 
+function epubStyles(theme: ReaderTheme, lineHeight: number, margin: number) {
+  const colors = themeColors(theme);
+  return {
+    ":root": { color: `${colors.ink} !important`, background: `${colors.paper} !important`, width: "100% !important", "max-width": "100% !important", overflow: "hidden auto !important" },
+    "html, body": { color: `${colors.ink} !important`, background: `${colors.paper} !important`, width: "100% !important", "max-width": "100% !important", "min-width": "0 !important", margin: "0 !important", "box-sizing": "border-box !important", "overflow-x": "hidden !important" },
+    body: { "font-family": "Georgia, serif !important", "line-height": `${lineHeight} !important`, padding: `1.25rem max(16px, ${margin}%) 2.5rem !important`, "word-wrap": "break-word !important" },
+    "*, *::before, *::after": { "box-sizing": "border-box !important" },
+    "div, section, article, main, header, footer, blockquote, p, li": { "max-width": "100% !important", "min-width": "0 !important" },
+    "p, li, blockquote": { "overflow-wrap": "break-word !important" },
+    "pre, code": { "white-space": "pre-wrap !important", "overflow-wrap": "anywhere !important" },
+    table: { display: "block !important", width: "100% !important", "max-width": "100% !important", "overflow-x": "auto !important" },
+    a: { color: `${colors.link} !important` },
+    "img, svg, video": { "max-width": "100% !important", height: "auto !important", "max-height": "92vh !important", "object-fit": "contain !important" },
+  };
+}
+
 function mobiStyles(fontSize: number, theme: ReaderTheme, lineHeight: number, margin: number) {
   const colors = themeColors(theme);
   return `
-    :root { color: ${colors.ink} !important; background: ${colors.paper} !important; }
+    :root, html { color: ${colors.ink} !important; background: ${colors.paper} !important; width: 100% !important;
+      max-width: 100% !important; min-width: 0 !important; overflow-x: hidden !important; box-sizing: border-box !important; }
     body { color: ${colors.ink} !important; background: ${colors.paper} !important; font-family: Georgia, serif !important;
-      font-size: ${fontSize}% !important; line-height: ${lineHeight} !important; padding-inline: ${margin}% !important; }
+      font-size: ${fontSize}% !important; line-height: ${lineHeight} !important; width: 100% !important; max-width: 100% !important;
+      min-width: 0 !important; margin: 0 !important; padding: 1.25rem max(16px, ${margin}%) 2.5rem !important; overflow-x: hidden !important; box-sizing: border-box !important; }
+    *, *::before, *::after { box-sizing: border-box !important; }
+    div, section, article, main, header, footer, blockquote, p, li { max-width: 100% !important; min-width: 0 !important; }
+    p, li, blockquote { overflow-wrap: break-word !important; }
+    pre, code { white-space: pre-wrap !important; overflow-wrap: anywhere !important; }
+    table { display: block !important; width: 100% !important; max-width: 100% !important; overflow-x: auto !important; }
     a { color: ${colors.link} !important; }
     img, svg { max-width: 100% !important; max-height: 92vh !important; object-fit: contain !important; }
   `;
@@ -129,6 +152,8 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
   const isBookReader = isReflowable || isPdf || isComic;
   const viewerRef = useRef<HTMLDivElement>(null);
   const onLocationChangeRef = useRef(onLocationChange);
+  const pendingLocationRef = useRef<ReaderLocation | null>(null);
+  const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const bookRef = useRef<EpubBook | null>(null);
   const mobiViewRef = useRef<FoliateView | null>(null);
@@ -155,6 +180,23 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
   useEffect(() => {
     onLocationChangeRef.current = onLocationChange;
   }, [onLocationChange]);
+
+  const reportLocation = useCallback((location: ReaderLocation) => {
+    pendingLocationRef.current = location;
+    if (locationTimerRef.current) return;
+    locationTimerRef.current = setTimeout(() => {
+      locationTimerRef.current = null;
+      const pending = pendingLocationRef.current;
+      pendingLocationRef.current = null;
+      if (pending) onLocationChangeRef.current?.(pending);
+    }, 1200);
+  }, []);
+
+  useEffect(() => () => {
+    if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
+    const pending = pendingLocationRef.current;
+    if (pending) onLocationChangeRef.current?.(pending);
+  }, []);
   const readerModeReady = readingMode !== null;
 
   useEffect(() => {
@@ -215,13 +257,7 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
           minSpreadWidth: 980,
         });
         renditionRef.current = rendition;
-        const colors = themeColors(themeRef.current);
-        rendition.themes.default({
-          body: { color: colors.ink, background: colors.paper, "font-family": "Georgia, serif", "line-height": String(lineHeightRef.current), padding: `0 ${marginRef.current}%` },
-          "p, li": { "font-size": "1em" },
-          a: { color: colors.link },
-          img: { "max-width": "100%", "max-height": "95vh", "object-fit": "contain" },
-        });
+        rendition.themes.default(epubStyles(themeRef.current, lineHeightRef.current, marginRef.current));
         rendition.themes.fontSize("100%");
 
         const saved = initialPosition || localStorage.getItem(`reading-room-position-${file.id}`) || undefined;
@@ -232,7 +268,7 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
           setProgress(label);
           if (location.start.cfi) {
             localStorage.setItem(`reading-room-position-${file.id}`, location.start.cfi);
-            onLocationChangeRef.current?.({ label, position: location.start.cfi, status: "reading" });
+            reportLocation({ label, position: location.start.cfi, status: "reading" });
           }
         });
         const navigation = await book.loaded.navigation;
@@ -253,7 +289,7 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
       renditionRef.current = null;
       bookRef.current = null;
     };
-  }, [file.format, file.id, initialPosition, isEpub, readerModeReady]);
+  }, [file.format, file.id, initialPosition, isEpub, readerModeReady, reportLocation]);
 
   useEffect(() => {
     if (!isMobi || !viewerRef.current || !readerModeReady) return;
@@ -290,7 +326,7 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
           setProgress(label);
           if (detail.cfi) {
             localStorage.setItem(`reading-room-position-${file.id}`, detail.cfi);
-            onLocationChangeRef.current?.({ label, position: detail.cfi, status: "reading" });
+            reportLocation({ label, position: detail.cfi, status: "reading" });
           }
         });
 
@@ -313,7 +349,7 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
       mobiViewRef.current?.remove();
       mobiViewRef.current = null;
     };
-  }, [file.id, file.format, format, initialPosition, isMobi, readerModeReady, title]);
+  }, [file.id, file.format, format, initialPosition, isMobi, readerModeReady, reportLocation, title]);
 
   useEffect(() => {
     fontSizeRef.current = fontSize;
@@ -321,12 +357,7 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
     themeRef.current = theme;
     lineHeightRef.current = lineHeight;
     marginRef.current = margin;
-    const colors = themeColors(theme);
-    renditionRef.current?.themes.default({
-      body: { color: colors.ink, background: colors.paper, "font-family": "Georgia, serif", "line-height": String(lineHeight), padding: `0 ${margin}%` },
-      a: { color: colors.link },
-      img: { "max-width": "100%", "max-height": "95vh", "object-fit": "contain" },
-    });
+    renditionRef.current?.themes.default(epubStyles(theme, lineHeight, margin));
     mobiViewRef.current?.renderer?.setStyles(mobiStyles(fontSize, theme, lineHeight, margin));
     localStorage.setItem("reading-room-reader-theme", theme);
     localStorage.setItem("reading-room-line-height", String(lineHeight));
@@ -409,7 +440,7 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
       </header>
 
       {isBookReader ? <>
-        <div className="epub-stage" onTouchStart={(event) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={endSwipe}>{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={onLocationChange} />}{isComic && readingMode && <ComicReader ref={comicReaderRef} fileId={file.id} format={file.format} mode={readingMode} direction={mangaMode ? "rtl" : "ltr"} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={onLocationChange} />}{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download {format}</a>}</div>}</div>
+        <div className="epub-stage" onTouchStart={(event) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={endSwipe}>{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{isComic && readingMode && <ComicReader ref={comicReaderRef} fileId={file.id} format={file.format} mode={readingMode} direction={mangaMode ? "rtl" : "ltr"} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download {format}</a>}</div>}</div>
         <footer className="reader-footer"><button onClick={previous}>← {readingMode === "scroll" ? "Previous section" : "Previous"}</button><span>{progress || (readingMode === "scroll" ? "Scroll to continue" : "Use the arrow keys to turn pages")}</span><button onClick={next}>{readingMode === "scroll" ? "Next section" : "Next"} →</button></footer>
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
     </section>
