@@ -38,7 +38,10 @@ const deletedIds = new Set([
   "1ZWaqPq_J3_kW4De57mYQ90pPDKzrkG0V",
 ]);
 
-const genericAuthors = new Set(["", "Writing", "Extra", "Poems", "Novels", "Books"]);
+const genericAuthors = new Set([
+  "", "Writing", "Extra", "Poems", "Novels", "Books", "Indian", "Funny", "Fantasy",
+  "World Classics Novels", "Some books for your Kindle", "The Reading Room",
+]);
 
 function cleanAuthor(value = "") {
   const cleaned = value.replace(/[-–—]\s*\d+\s*Books?$/i, "").trim();
@@ -56,6 +59,188 @@ function normalize(value = "") {
     .toLowerCase().replace(/\.(epub|mobi|pdf|docx?|rtf|txt|fdx)$/i, "")
     .replace(/\b(retail|converted|fixed|copy|ebook)\b/g, " ")
     .replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function tidy(value = "") {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_]+/g, " ")
+    .replace(/[’]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function titleCaseWords(value = "") {
+  return value.replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function looksLikePerson(value = "") {
+  const cleaned = tidy(value).replace(/[.,]/g, " ");
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length < 2 || words.length > 6) return false;
+  if (/\b(a|an|the|of|and|in|for|from|with|novel|book|story|guide|complete|volume|edition|press|publisher|writer)\b/i.test(cleaned)) return false;
+  if (/\d|['’]s\b/i.test(cleaned)) return false;
+  return words.filter((word) => /^[A-Z][A-Za-z'-]*$/.test(word) || /^[A-Z]\.?$/.test(word)).length >= Math.ceil(words.length * .65);
+}
+
+function cleanSeries(value = "") {
+  return tidy(value)
+    .replace(/\b(?:series|collection)\b/ig, "")
+    .replace(/\s*[-–—:]?\s*(?:book|vol(?:ume)?)?\s*#?\d+(?:\.\d+)?\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function displayMetadata(row, rawAuthor = "", collections = []) {
+  let title = tidy(row.title || row.originalTitle || "Untitled")
+    .replace(/\.(epub|mobi|pdf|docx?|rtf|txt|fdx)$/i, "")
+    .replace(/\s*\((?:v?\d+(?:\.\d+)?|retail|converted|fixed|copy)\)\s*$/i, "")
+    .replace(/\s*\((?:BookZZ|Z-Library|eBookBB)[^)]*\)?\s*$/i, "")
+    .replace(/\s*\(\d+\)\s*$/, "")
+    .trim();
+  let author = tidy(cleanAuthor(rawAuthor));
+  let series = "";
+  let seriesPosition = "";
+  if (/^\[[^\]]*\d+[^\]]*\]$/.test(author)) {
+    const position = author.match(/(\d+(?:\.\d+)?)\s*\]?$/);
+    series = cleanSeries(author.replace(/^\[|\]$/g, ""));
+    seriesPosition = position?.[1] || "";
+    author = "";
+  }
+
+  const leadingSquare = title.match(/^\[([^\]]+)\]\s*-?\s*(.+)$/);
+  if (leadingSquare) {
+    const label = tidy(leadingSquare[1]);
+    title = leadingSquare[2].trim();
+    if (!/\.(?:com|net|org)\b|free\s*course|ebook/i.test(label)) {
+      if (/series|trilogy|saga|cycle|chronicles|mysteries|howdunit|forgotten realms|hackberry/i.test(label)) series = cleanSeries(label);
+      else if (!author && looksLikePerson(label)) author = label;
+    }
+  }
+
+  const leadingRound = title.match(/^\(([^()]+)\)\s*-?\s*(.+)$/);
+  if (leadingRound && !/^(?:ruslib|ebook|retail)$/i.test(leadingRound[1].trim())) {
+    series = cleanSeries(leadingRound[1]);
+    title = leadingRound[2].trim();
+  } else {
+    title = title.replace(/^\((?:ruslib|ebook|retail)\)\s*/i, "");
+    author = author.replace(/^\((?:ruslib|ebook|retail)\)\s*/i, "");
+  }
+
+  const structuredSeries = title.match(/^(.+?)\s*[-–—]\s*\[([^\]]*\d+[^\]]*)\]\s*[-–—]\s*(.+)$/);
+  if (structuredSeries && looksLikePerson(structuredSeries[1])) {
+    author = tidy(structuredSeries[1]);
+    const position = structuredSeries[2].match(/(\d+(?:\.\d+)?)\s*$/);
+    series = cleanSeries(structuredSeries[2]);
+    seriesPosition = position?.[1] || "";
+    title = tidy(structuredSeries[3]);
+  }
+
+  const inlineSeries = title.match(/\[([^\]]*(?:series|trilogy|saga|cycle|chronicles|mysteries|forgotten realms|hackberry|corfu)[^\]]*)\]/i);
+  if (inlineSeries) {
+    const position = inlineSeries[1].match(/(?:book|vol(?:ume)?)?\s*#?(\d+)\s*$/i);
+    series ||= cleanSeries(inlineSeries[1]);
+    seriesPosition ||= position?.[1] || "";
+    title = title.replace(inlineSeries[0], " ").replace(/\s*[-–—]\s*[-–—]\s*/g, " - ").trim();
+  }
+
+  const leadingNumber = title.match(/^(#?)(\d{1,4})\s*[.:-]\s*(.+)$/);
+  if (leadingNumber) {
+    const value = Number(leadingNumber[2]);
+    const isYear = value >= 1800 && value <= 2099;
+    if (!isYear) seriesPosition = leadingNumber[2];
+    title = leadingNumber[3].trim();
+  } else {
+    const hashNumber = title.match(/^#(\d+)\s+(.+)$/);
+    if (hashNumber) {
+      seriesPosition = hashNumber[1];
+      title = hashNumber[2].trim();
+    }
+  }
+
+  const byline = title.match(/^(.+?)\s+by\s+([^–—-]{3,80})$/i);
+  if (byline && looksLikePerson(byline[2])) {
+    title = byline[1].trim();
+    author = tidy(byline[2]);
+  }
+
+  let parts = title.split(/\s+[-–—]\s+/).map(tidy).filter(Boolean);
+  if (parts.length > 1) {
+    if (/^(?:18|19|20)\d{2}$/.test(parts[0])) parts = parts.slice(1);
+    const first = parts[0] || "";
+    const last = parts.at(-1) || "";
+    const authorKey = normalize(author);
+    if (/^[^,]{2,30},\s*[^,]{2,30}$/.test(first) && looksLikePerson(first)) {
+      author = first;
+      title = parts.slice(1).join(" — ");
+    } else if (collections.some((item) => /books to read/i.test(item)) && looksLikePerson(last)) {
+      author = last;
+      title = parts.slice(0, -1).join(" — ");
+    } else if (authorKey && normalize(first) === authorKey) {
+      if (parts.length === 2 && looksLikePerson(last) && !looksLikePerson(first)) {
+        author = last;
+        title = first;
+      } else title = parts.slice(1).join(" — ");
+    } else if (authorKey && (normalize(last) === authorKey || (normalize(last).length > 7 && authorKey.startsWith(normalize(last))))) {
+      title = parts.slice(0, -1).join(" — ");
+    } else if ((!author || genericAuthors.has(author)) && looksLikePerson(last)) {
+      author = last;
+      title = parts.slice(0, -1).join(" — ");
+    } else if (parts.length >= 3 && looksLikePerson(last)) {
+      author = last;
+      title = parts.slice(0, -1).join(" — ");
+    }
+  }
+
+  const tightByline = title.match(/^([A-Z][A-Za-z.,' ]{2,44}[A-Za-z.])-(?!-)(.+)$/);
+  if (!author && tightByline && looksLikePerson(tightByline[1])) {
+    author = tidy(tightByline[1]);
+    title = tidy(tightByline[2]);
+  }
+
+  const postSeries = title.match(/^\[([^\]]+)\]\s*[—-]\s*(.+)$/);
+  if (postSeries) {
+    const position = postSeries[1].match(/(?:book|vol(?:ume)?)?\s*#?(\d+)\s*$/i);
+    series ||= cleanSeries(postSeries[1]);
+    seriesPosition ||= position?.[1] || "";
+    title = postSeries[2].trim();
+  }
+
+  const namedSeries = title.match(/^([A-Z][A-Za-z' ]{2,32})\s+(\d{1,3})\s*[—-]\s*(.+)$/);
+  if (namedSeries) {
+    series ||= namedSeries[1].trim();
+    seriesPosition ||= namedSeries[2];
+    title = namedSeries[3].trim();
+  }
+
+  const finalParts = title.split(/\s+[-–—]\s+/).map(tidy).filter(Boolean);
+  if (author && finalParts.length > 1) {
+    const authorKey = normalize(author);
+    if (normalize(finalParts[0]) === authorKey) title = finalParts.slice(1).join(" — ");
+    else if (normalize(finalParts.at(-1) || "") === authorKey) title = finalParts.slice(0, -1).join(" — ");
+  }
+
+  if (author && normalize(title) === normalize(author)) author = "";
+  title = tidy(title)
+    .replace(/^[-–—:]+|[-–—:]+$/g, "")
+    .replace(/\s*\((?:\d{4},?\s*)?(?:Penguin|Random House|Harper|Vintage|Arrow|Oxford|Cambridge|G\. P\.|Simon & Schuster)[^)]*\)?\s*$/i, "")
+    .replace(/\s*\(?\b(?:Book\s*ZZ|Z-Library|eBookBB)\b.*$/i, "")
+    .trim();
+
+  if (/^\d+$/.test(title) && series) title = `Volume ${Number(title)}`;
+
+  if (!series && seriesPosition) {
+    const candidate = collections.find((item) => !/favorite authors|prize|books to read|classics|complete works/i.test(item));
+    if (candidate && /series|trilogy|saga|cycle|mysteries/i.test(candidate)) series = cleanSeries(candidate);
+  }
+  if (series && seriesPosition) series = `${series} · Book ${seriesPosition}`;
+  else if (!series && seriesPosition && row.category === "Script") series = `Script ${seriesPosition}`;
+
+  return {
+    title: title || tidy(row.title) || "Untitled",
+    author: tidy(author),
+    series: titleCaseWords(series),
+  };
 }
 
 function cleanCollection(value = "", row) {
@@ -101,13 +286,14 @@ function cleanCollection(value = "", row) {
 
 function categoryFor(row, collections) {
   const haystack = `${row.category || ""} ${row.collection || ""} ${row.path || ""} ${row.source || ""}`;
+  const joined = collections.join(" ");
   if (/scripts?|screenplay|black list/i.test(haystack)) return "Script";
   if (/graphic novel|comic|calvin and hobbes|bheriya/i.test(haystack)) return "Graphic Novel";
   if (/poetry|poems?/i.test(row.category || "")) return "Poetry";
   if (/drama/i.test(row.category || "")) return "Drama";
+  if (/top 100 science fiction|science fiction|fiction & fantasy/i.test(joined)) return "Fiction";
   if (/non.?fiction/i.test(row.category || "")) return "Non-Fiction";
   if (/fiction/i.test(row.category || "")) return "Fiction";
-  const joined = collections.join(" ");
   if (/autobiography|history|science|true crime|self-improvement|travel|technical|biography|non-fiction/i.test(joined)) return "Non-Fiction";
   if (/booker|pulitzer prize — fiction|classics|short stories|fiction|books to read/i.test(joined)) return "Fiction";
   return "General";
@@ -157,6 +343,10 @@ for (const row of catalog) {
   row.collections = row.collections.filter((collection) => (collectionCounts.get(collection) || 0) >= 3 || /scripts|plays/i.test(collection)).sort();
   row.collection = row.collections[0] || "";
   row.category = categoryFor(row, row.collections);
+  const metadata = displayMetadata(row, row.author, row.collections);
+  row.title = metadata.title;
+  row.author = metadata.author;
+  row.series = metadata.series;
   row.path = displayPath(row);
   row.workKey = `${normalize(row.title)}|${normalize(row.author)}`;
 }
@@ -166,6 +356,7 @@ const output = catalog.map((row) => ({
   id: row.id,
   title: row.title,
   author: row.author,
+  series: row.series,
   workKey: row.workKey,
   format: row.format,
   source: row.source,

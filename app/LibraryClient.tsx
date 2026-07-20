@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import BookReader, { type ReaderFile } from "./BookReader";
 
 type RawBook = {
-  id: string; title: string; originalTitle?: string; author?: string; workKey?: string;
+  id: string; title: string; originalTitle?: string; author?: string; series?: string; workKey?: string;
   format: string; source: string; collection?: string; category?: string;
   collections?: string[];
   path?: string; url: string; size?: number; modified?: string;
@@ -84,8 +84,11 @@ function options(items: Book[], field: "author" | "category") {
   return [...new Set(items.map((item) => item[field]?.trim()).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b));
 }
 
-function initials(title: string) {
-  return title.split(/\s+/).filter(Boolean).slice(0, 3).map((word) => word[0]).join("").toUpperCase();
+function coverUrl(book: Book) {
+  const copy = book.copies[0];
+  const query = new URLSearchParams({ title: book.title, id: copy.id, format: copy.format });
+  if (book.author) query.set("author", book.author);
+  return `/api/cover?${query}`;
 }
 
 export default function LibraryClient() {
@@ -139,7 +142,7 @@ export default function LibraryClient() {
   const filtered = useMemo(() => {
     const term = normalized(query);
     const list = books.filter((book) => {
-      const searchable = normalized([book.title, book.author, ...book.collections, book.category, book.path].filter(Boolean).join(" "));
+      const searchable = normalized([book.title, book.author, book.series, ...book.collections, book.category, book.path].filter(Boolean).join(" "));
       return (!term || searchable.includes(term))
         && (collection === "All collections" || book.collections.includes(collection))
         && (author === "All authors" || book.author === author)
@@ -204,11 +207,17 @@ export default function LibraryClient() {
           const palette = palettes[Math.abs(book.title.length + index) % palettes.length];
           return <article className="book" key={book.id}>
             <button className="cover" style={{ "--cover": palette[0], "--ink": palette[1] } as React.CSSProperties} onClick={() => openBook(book)}>
-              <span className="cover-category">{book.category || "Book"}</span><b>{initials(book.title)}</b><i></i><small>{book.author || book.collection || "The Reading Room"}</small>
+              <img src={coverUrl(book)} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />
+              <span className="cover-category">{book.category || "Book"}</span>
+              <span className="cover-copy">
+                {book.series && <small>{book.series}</small>}
+                <strong>{book.title}</strong>
+                <em>{book.author || "Author not listed"}</em>
+              </span>
             </button>
             <div className="book-meta"><p>{book.category || "General"}</p><button className="heart" onClick={() => toggleFavorite(book.id)} aria-label="Toggle favorite">{favorites.includes(book.id) ? "♥" : "♡"}</button></div>
             <h2><button onClick={() => openBook(book)}>{book.title}</button></h2>
-            <p className="author">{book.author || "Author not listed"}</p>
+            <p className="author">{book.author || "Author not listed"}{book.series ? ` · ${book.series}` : ""}</p>
             <div className="chips">{book.formats.map((format) => <span key={format}>{format}</span>)}{book.copies.length > 1 && <span>{book.copies.length} copies</span>}</div>
           </article>;
         })}</div> : <div className="empty"><b>No books found</b><p>Try clearing one or more filters.</p><button onClick={clearFilters}>Reset search</button></div>}
@@ -219,13 +228,13 @@ export default function LibraryClient() {
         <section className="modal" role="dialog" aria-modal="true" aria-labelledby="book-title" onMouseDown={(e) => e.stopPropagation()}>
           <button className="close" onClick={() => setSelected(null)} aria-label="Close">×</button>
           <p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p>
-          <h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}</p>
+          <h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}{selected.series ? ` · ${selected.series}` : ""}</p>
           <div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format) && <button onClick={() => setReader({ title: selected.title, file: copy })}>Read here</button>}<a href={copy.format === "MOBI" ? downloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{copy.format === "MOBI" ? "Download" : "Drive"} ↗</a></div></div>)}</div>
           <p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p>
         </section>
       </div>}
       {reader && <BookReader title={reader.title} file={reader.file} onClose={() => setReader(null)} />}
-      <footer><span>The Reading Room</span><p>One clean catalogue for your digital shelves.</p></footer>
+      <footer><span>The Reading Room</span><p>One clean catalogue for your digital shelves. Covers enriched by <a href="https://openlibrary.org" target="_blank" rel="noreferrer">Open Library</a>.</p></footer>
     </main>
   );
 }
