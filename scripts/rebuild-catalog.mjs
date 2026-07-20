@@ -101,6 +101,15 @@ function displayMetadata(row, rawAuthor = "", collections = []) {
   let author = tidy(cleanAuthor(rawAuthor));
   let series = "";
   let seriesPosition = "";
+  let incomplete = false;
+
+  const historyVolume = title.match(/^\(A History of the English-Speaking Peoples\s+(One|Two|Thr|Fou)/i);
+  if (historyVolume) {
+    const volume = { one: "One", two: "Two", thr: "Three", fou: "Four" }[historyVolume[1].toLowerCase()];
+    title = `A History of the English-Speaking Peoples: Volume ${volume}`;
+    author = "Winston S. Churchill";
+    series = "A History of the English-Speaking Peoples";
+  }
   if (/^\[[^\]]*\d+[^\]]*\]$/.test(author)) {
     const position = author.match(/(\d+(?:\.\d+)?)\s*\]?$/);
     series = cleanSeries(author.replace(/^\[|\]$/g, ""));
@@ -159,9 +168,12 @@ function displayMetadata(row, rawAuthor = "", collections = []) {
   }
 
   const byline = title.match(/^(.+?)\s+by\s+([^–—-]{3,80})$/i);
-  if (byline && looksLikePerson(byline[2])) {
+  const bylineAuthor = byline?.[2].replace(/\s*\([^)]*$/, "").trim() || "";
+  const bylineSeries = byline?.[2].match(/\(([^)]*)\)?$/)?.[1] || "";
+  if (byline && looksLikePerson(bylineAuthor)) {
     title = byline[1].trim();
-    author = tidy(byline[2]);
+    author = tidy(bylineAuthor);
+    if (bylineSeries) series ||= cleanSeries(bylineSeries);
   }
 
   let parts = title.split(/\s+[-–—]\s+/).map(tidy).filter(Boolean);
@@ -170,7 +182,11 @@ function displayMetadata(row, rawAuthor = "", collections = []) {
     const first = parts[0] || "";
     const last = parts.at(-1) || "";
     const authorKey = normalize(author);
-    if (/^[^,]{2,30},\s*[^,]{2,30}$/.test(first) && looksLikePerson(first)) {
+    const numberedAuthor = first.match(/^\d{1,2}\s+(.+)$/);
+    if (numberedAuthor && looksLikePerson(numberedAuthor[1])) {
+      author = numberedAuthor[1];
+      title = parts.slice(1).join(" — ");
+    } else if (/^[^,]{2,30},\s*[^,]{2,30}$/.test(first) && looksLikePerson(first)) {
       author = first;
       title = parts.slice(1).join(" — ");
     } else if (collections.some((item) => /books to read/i.test(item)) && looksLikePerson(last)) {
@@ -220,6 +236,20 @@ function displayMetadata(row, rawAuthor = "", collections = []) {
     else if (normalize(finalParts.at(-1) || "") === authorKey) title = finalParts.slice(0, -1).join(" — ");
   }
 
+  const lateNumber = title.match(/^\d{1,2}\s*[—–-]?\s+(.+)$/);
+  if (lateNumber) title = lateNumber[1].trim();
+
+  const isbnPrefix = title.match(/^\d{10,13}[Xx]?\s*(.+)$/);
+  if (isbnPrefix) title = isbnPrefix[1].trim();
+
+  if (author) {
+    const authorSeries = author.match(/^(.+?)\s*\(([^)]*)\)?$/);
+    if (authorSeries && looksLikePerson(authorSeries[1])) {
+      author = authorSeries[1].trim();
+      series ||= cleanSeries(authorSeries[2]);
+    }
+  }
+
   if (author && normalize(title) === normalize(author)) author = "";
   title = tidy(title)
     .replace(/^[-–—:]+|[-–—:]+$/g, "")
@@ -229,17 +259,27 @@ function displayMetadata(row, rawAuthor = "", collections = []) {
 
   if (/^\d+$/.test(title) && series) title = `Volume ${Number(title)}`;
 
+  if (/^\[/.test(title)) {
+    const label = title.replace(/^\[/, "").replace(/\]$/, "").trim();
+    const position = label.match(/(?:^|\s)(\d{1,3})\s*$/)?.[1] || "";
+    series ||= cleanSeries(label);
+    seriesPosition ||= position;
+    title = position ? `Book ${Number(position)}` : "Collection volume";
+    incomplete = true;
+  }
+
   if (!series && seriesPosition) {
     const candidate = collections.find((item) => !/favorite authors|prize|books to read|classics|complete works/i.test(item));
     if (candidate && /series|trilogy|saga|cycle|mysteries/i.test(candidate)) series = cleanSeries(candidate);
   }
-  if (series && seriesPosition) series = `${series} · Book ${seriesPosition}`;
+  if (series && seriesPosition && !incomplete) series = `${series} · Book ${seriesPosition}`;
   else if (!series && seriesPosition && row.category === "Script") series = `Script ${seriesPosition}`;
 
   return {
     title: title || tidy(row.title) || "Untitled",
     author: tidy(author),
     series: titleCaseWords(series),
+    incomplete,
   };
 }
 
@@ -347,8 +387,9 @@ for (const row of catalog) {
   row.title = metadata.title;
   row.author = metadata.author;
   row.series = metadata.series;
+  row.incomplete = metadata.incomplete;
   row.path = displayPath(row);
-  row.workKey = `${normalize(row.title)}|${normalize(row.author)}`;
+  row.workKey = metadata.incomplete ? `${normalize(row.title)}|${normalize(row.author)}|${row.id}` : `${normalize(row.title)}|${normalize(row.author)}`;
 }
 
 catalog.sort((a, b) => a.title.localeCompare(b.title) || a.format.localeCompare(b.format));
@@ -357,6 +398,7 @@ const output = catalog.map((row) => ({
   title: row.title,
   author: row.author,
   series: row.series,
+  incomplete: row.incomplete,
   workKey: row.workKey,
   format: row.format,
   source: row.source,

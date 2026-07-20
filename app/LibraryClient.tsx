@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import BookReader, { type ReaderFile } from "./BookReader";
 
 type RawBook = {
-  id: string; title: string; originalTitle?: string; author?: string; series?: string; workKey?: string;
+  id: string; title: string; originalTitle?: string; author?: string; series?: string; incomplete?: boolean; workKey?: string;
   format: string; source: string; collection?: string; category?: string;
   collections?: string[];
   path?: string; url: string; size?: number; modified?: string;
@@ -77,7 +77,7 @@ function groupBooks(rows: RawBook[]): Book[] {
     copies: [...book.copies].sort((a, b) => FORMAT_ORDER.indexOf(a.format) - FORMAT_ORDER.indexOf(b.format)),
     formats: [...book.formats].sort((a, b) => FORMAT_ORDER.indexOf(a) - FORMAT_ORDER.indexOf(b)),
     collections: [...book.collections].sort((a, b) => a.localeCompare(b)),
-  })).sort((a, b) => a.title.localeCompare(b.title));
+  })).sort((a, b) => Number(Boolean(a.incomplete)) - Number(Boolean(b.incomplete)) || normalized(a.title).localeCompare(normalized(b.title)));
 }
 
 function options(items: Book[], field: "author" | "category") {
@@ -206,19 +206,15 @@ export default function LibraryClient() {
         : filtered.length ? <div className="grid">{filtered.slice(0, visible).map((book, index) => {
           const palette = palettes[Math.abs(book.title.length + index) % palettes.length];
           return <article className="book" key={book.id}>
-            <button className="cover" style={{ "--cover": palette[0], "--ink": palette[1] } as React.CSSProperties} onClick={() => openBook(book)}>
-              <img src={coverUrl(book)} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />
-              <span className="cover-category">{book.category || "Book"}</span>
+            <button className="cover" aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`} style={{ "--cover": palette[0], "--ink": palette[1] } as React.CSSProperties} onClick={() => openBook(book)}>
+              <img src={coverUrl(book)} alt="" loading="lazy" onLoad={(event) => event.currentTarget.parentElement?.classList.add("has-cover")} onError={(event) => { event.currentTarget.hidden = true; }} />
               <span className="cover-copy">
                 {book.series && <small>{book.series}</small>}
                 <strong>{book.title}</strong>
-                <em>{book.author || "Author not listed"}</em>
+                {book.author && <em>{book.author}</em>}
               </span>
             </button>
-            <div className="book-meta"><p>{book.category || "General"}</p><button className="heart" onClick={() => toggleFavorite(book.id)} aria-label="Toggle favorite">{favorites.includes(book.id) ? "♥" : "♡"}</button></div>
-            <h2><button onClick={() => openBook(book)}>{book.title}</button></h2>
-            <p className="author">{book.author || "Author not listed"}{book.series ? ` · ${book.series}` : ""}</p>
-            <div className="chips">{book.formats.map((format) => <span key={format}>{format}</span>)}{book.copies.length > 1 && <span>{book.copies.length} copies</span>}</div>
+            <div className="book-tools"><div className="chips">{book.formats.map((format) => <span key={format}>{format}</span>)}{book.copies.length > 1 && <span>{book.copies.length} copies</span>}</div><button className="heart" onClick={() => toggleFavorite(book.id)} aria-label="Toggle favorite">{favorites.includes(book.id) ? "♥" : "♡"}</button></div>
           </article>;
         })}</div> : <div className="empty"><b>No books found</b><p>Try clearing one or more filters.</p><button onClick={clearFilters}>Reset search</button></div>}
         {visible < filtered.length && <button className="load" onClick={() => setVisible((n) => n + 60)}>Show more books</button>}
