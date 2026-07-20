@@ -183,13 +183,13 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
 
   const reportLocation = useCallback((location: ReaderLocation) => {
     pendingLocationRef.current = location;
-    if (locationTimerRef.current) return;
+    if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
     locationTimerRef.current = setTimeout(() => {
       locationTimerRef.current = null;
       const pending = pendingLocationRef.current;
       pendingLocationRef.current = null;
       if (pending) onLocationChangeRef.current?.(pending);
-    }, 1200);
+    }, 700);
   }, []);
 
   useEffect(() => () => {
@@ -251,8 +251,8 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
         const rendition = book.renderTo(viewerRef.current, {
           width: "100%",
           height: "100%",
-          manager: "continuous",
-          flow: mode === "scroll" ? "scrolled" : "paginated",
+          manager: "default",
+          flow: mode === "scroll" ? "scrolled-doc" : "paginated",
           spread: mode === "scroll" ? "none" : "auto",
           minSpreadWidth: 980,
         });
@@ -379,7 +379,7 @@ export default function BookReader({ title, file, initialPosition, onLocationCha
     readingModeRef.current = mode;
     setReadingMode(mode);
     if (isEpub) {
-      renditionRef.current?.flow(mode === "scroll" ? "scrolled" : "paginated");
+      renditionRef.current?.flow(mode === "scroll" ? "scrolled-doc" : "paginated");
       renditionRef.current?.spread(mode === "scroll" ? "none" : "auto", 980);
     }
     if (isMobi) mobiViewRef.current?.renderer?.setAttribute("flow", mode === "scroll" ? "scrolled" : "paginated");
