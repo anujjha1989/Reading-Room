@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import BookReader, { type ReaderFile } from "./BookReader";
 
 type RawBook = {
   id: string; title: string; originalTitle?: string; author?: string; workKey?: string;
@@ -17,6 +18,14 @@ const palettes = [
   ["#203a32", "#d8c9aa"], ["#773a32", "#e7d9bb"], ["#334f69", "#d7c5a7"],
   ["#59456b", "#dfcfb6"], ["#76532b", "#eadbb9"], ["#315a59", "#d9c8a5"],
 ];
+
+function canReadHere(format: string) {
+  return ["EPUB", "PDF", "DOC", "DOCX", "RTF", "TXT"].includes(format.toUpperCase());
+}
+
+function downloadUrl(id: string) {
+  return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`;
+}
 
 function cleanTitle(value: string) {
   return value
@@ -91,6 +100,7 @@ export default function LibraryClient() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
   const [selected, setSelected] = useState<Book | null>(null);
+  const [reader, setReader] = useState<{ title: string; file: ReaderFile } | null>(null);
   const [visible, setVisible] = useState(60);
 
   useEffect(() => {
@@ -102,7 +112,7 @@ export default function LibraryClient() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault(); document.querySelector<HTMLInputElement>(".search input")?.focus();
       }
-      if (event.key === "Escape") setSelected(null);
+      if (event.key === "Escape" && !document.querySelector(".reader-shell")) setSelected(null);
     };
     window.addEventListener("keydown", onKey);
     return () => { window.clearTimeout(restore); window.removeEventListener("keydown", onKey); };
@@ -204,10 +214,11 @@ export default function LibraryClient() {
           <button className="close" onClick={() => setSelected(null)} aria-label="Close">×</button>
           <p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p>
           <h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}</p>
-          <div className="availability"><p>Available files</p>{selected.copies.map((copy, i) => <a key={copy.id} href={copy.url} target="_blank" rel="noreferrer"><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><em>{i === 0 ? "Open preferred" : "Open copy"} ↗</em></a>)}</div>
+          <div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format) && <button onClick={() => setReader({ title: selected.title, file: copy })}>Read here</button>}<a href={copy.format === "MOBI" ? downloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{copy.format === "MOBI" ? "Download" : "Drive"} ↗</a></div></div>)}</div>
           <p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p>
         </section>
       </div>}
+      {reader && <BookReader title={reader.title} file={reader.file} onClose={() => setReader(null)} />}
       <footer><span>The Reading Room</span><p>One clean catalogue for your digital shelves.</p></footer>
     </main>
   );
