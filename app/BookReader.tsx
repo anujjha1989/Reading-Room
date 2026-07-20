@@ -15,7 +15,7 @@ type ReadingMode = "pages" | "scroll";
 type TocItem = { href: string; label: string; subitems?: TocItem[] };
 type FoliateSection = { load?: () => Promise<string> };
 type FoliateView = HTMLElement & {
-  book?: { toc?: TocItem[]; sections?: FoliateSection[] };
+  book?: { toc?: TocItem[]; sections?: FoliateSection[]; metadata?: { title?: string } };
   renderer?: { setAttribute: (name: string, value: string) => void; setStyles: (styles: string) => void };
   open: (file: File | Blob | string) => Promise<void>;
   init: (options: { lastLocation?: string; showTextStart?: boolean }) => Promise<void>;
@@ -115,7 +115,23 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
   const [fontSize, setFontSize] = useState(100);
   const [progress, setProgress] = useState("");
   const [readingMode, setReadingMode] = useState<ReadingMode | null>(null);
+  const [displayTitle, setDisplayTitle] = useState(title);
   const readerModeReady = readingMode !== null;
+
+  useEffect(() => {
+    setDisplayTitle(title);
+  }, [file.id, title]);
+
+  useEffect(() => {
+    const bodyOverflow = document.body.style.overflow;
+    const htmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = htmlOverflow;
+    };
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("reading-room-reader-mode") as ReadingMode | null;
@@ -208,6 +224,8 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
         viewerRef.current.append(view);
         mobiViewRef.current = view;
         await view.open(mobiFile);
+        const metadataTitle = view.book?.metadata?.title?.trim();
+        if (metadataTitle && metadataTitle.length > title.trim().length) setDisplayTitle(metadataTitle);
         revokeSafeUrls = await secureMobiSections(view);
         view.renderer?.setAttribute("flow", readingModeRef.current === "scroll" ? "scrolled" : "paginated");
         view.renderer?.setStyles(mobiStyles(fontSizeRef.current));
@@ -285,9 +303,9 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
   }
 
   return (
-    <section className="reader-shell" aria-label={`Reading ${title}`}>
+    <section className="reader-shell" aria-label={`Reading ${displayTitle}`}>
       <header className="reader-header">
-        <div><span>THE READING ROOM</span><h1>{title}</h1></div>
+        <div><span>THE READING ROOM</span><h1>{displayTitle}</h1></div>
         <div className="reader-actions">
           {isReflowable && toc.length > 0 && <label><span>Chapter</span><select defaultValue="" onChange={(event) => event.target.value && goToChapter(event.target.value)}><option value="" disabled>Contents</option>{toc.map((item, index) => <option key={`${item.href}-${index}`} value={item.href}>{`${"— ".repeat(item.depth)}${item.label}`}</option>)}</select></label>}
           {isBookReader && readingMode && <div className="reader-modes" aria-label="Reading mode"><button className={readingMode === "pages" ? "active" : ""} aria-pressed={readingMode === "pages"} onClick={() => chooseReadingMode("pages")}>Pages</button><button className={readingMode === "scroll" ? "active" : ""} aria-pressed={readingMode === "scroll"} onClick={() => chooseReadingMode("scroll")}>Scroll</button></div>}

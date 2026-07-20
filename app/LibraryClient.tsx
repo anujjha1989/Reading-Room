@@ -19,6 +19,12 @@ const palettes = [
   ["#59456b", "#dfcfb6"], ["#76532b", "#eadbb9"], ["#315a59", "#d9c8a5"],
 ];
 
+const TITLE_CORRECTIONS: Record<string, string> = {
+  "1qe6m2GZIcBbAu_v-GETlYsVbsbgdMp6X": "The System of the World",
+  "1Y1aEESMqlVsXwZMUr0Up2KCMfMwTqK0R": "The Emerald Atlas",
+  "11XUTNAAeI_GTCeKfmu-jKchwrYkwbB6b": "The Coming of the Third Reich",
+};
+
 function canReadHere(format: string) {
   return ["EPUB", "MOBI", "AZW", "AZW3", "KF8", "PDF", "DOC", "DOCX", "RTF", "TXT"].includes(format.toUpperCase());
 }
@@ -45,7 +51,7 @@ function groupBooks(rows: RawBook[]): Book[] {
   const grouped = new Map<string, Book>();
   const titleIndex = new Map<string, string>();
   for (const row of rows) {
-    const title = cleanTitle(row.title || row.originalTitle || "Untitled");
+    const title = cleanTitle(TITLE_CORRECTIONS[row.id] || row.title || row.originalTitle || "Untitled");
     const author = (row.author || "").trim();
     const isScript = /(^|\/)scripts?(\/|$)|screenplay|black list/i.test(`${row.source}/${row.path || ""}`);
     const base = normalized(title).replace(normalized(author), "").trim();
