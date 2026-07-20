@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Book as EpubBook, Location, Rendition } from "epubjs";
+import PdfReader, { type PdfReaderHandle } from "./PdfReader";
 
 export type ReaderFile = {
   id: string;
@@ -99,26 +100,32 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
   const format = file.format.toUpperCase();
   const isEpub = format === "EPUB";
   const isMobi = ["MOBI", "AZW", "AZW3", "KF8"].includes(format);
+  const isPdf = format === "PDF";
   const isReflowable = isEpub || isMobi;
+  const isBookReader = isReflowable || isPdf;
   const viewerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const bookRef = useRef<EpubBook | null>(null);
   const mobiViewRef = useRef<FoliateView | null>(null);
+  const pdfReaderRef = useRef<PdfReaderHandle>(null);
   const fontSizeRef = useRef(100);
-  const [status, setStatus] = useState(isReflowable ? "Loading the book…" : "");
+  const readingModeRef = useRef<ReadingMode>("pages");
+  const [status, setStatus] = useState(isBookReader ? "Loading the book…" : "");
   const [toc, setToc] = useState<TocEntry[]>([]);
   const [fontSize, setFontSize] = useState(100);
   const [progress, setProgress] = useState("");
   const [readingMode, setReadingMode] = useState<ReadingMode | null>(null);
+  const readerModeReady = readingMode !== null;
 
   useEffect(() => {
     const saved = localStorage.getItem("reading-room-reader-mode") as ReadingMode | null;
-    if (saved === "pages" || saved === "scroll") setReadingMode(saved);
-    else setReadingMode(window.matchMedia("(max-width: 700px)").matches ? "scroll" : "pages");
+    const mode = saved === "pages" || saved === "scroll" ? saved : window.matchMedia("(max-width: 700px)").matches ? "scroll" : "pages";
+    readingModeRef.current = mode;
+    setReadingMode(mode);
   }, [file.id]);
 
   useEffect(() => {
-    if (!isEpub || !viewerRef.current || !readingMode) return;
+    if (!isEpub || !viewerRef.current || !readerModeReady) return;
     const controller = new AbortController();
     let disposed = false;
 
@@ -134,12 +141,13 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
         const book = ePub(data);
         bookRef.current = book;
         await book.ready;
+        const mode = readingModeRef.current;
         const rendition = book.renderTo(viewerRef.current, {
           width: "100%",
           height: "100%",
-          manager: readingMode === "scroll" ? "continuous" : undefined,
-          flow: readingMode === "scroll" ? "scrolled" : "paginated",
-          spread: readingMode === "scroll" ? "none" : "auto",
+          manager: "continuous",
+          flow: mode === "scroll" ? "scrolled" : "paginated",
+          spread: mode === "scroll" ? "none" : "auto",
           minSpreadWidth: 980,
         });
         renditionRef.current = rendition;
@@ -155,7 +163,7 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
         await rendition.display(saved);
         rendition.on("relocated", (location: Location) => {
           const page = location.start.displayed;
-          setProgress(readingMode === "scroll" ? "Scroll to continue" : page?.total ? `Page ${page.page} of ${page.total}` : "");
+          setProgress(readingModeRef.current === "scroll" ? "Scroll to continue" : page?.total ? `Page ${page.page} of ${page.total}` : "");
           if (location.start.cfi) localStorage.setItem(`reading-room-position-${file.id}`, location.start.cfi);
         });
         const navigation = await book.loaded.navigation;
@@ -176,10 +184,10 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
       renditionRef.current = null;
       bookRef.current = null;
     };
-  }, [file.id, isEpub, readingMode]);
+  }, [file.format, file.id, isEpub, readerModeReady]);
 
   useEffect(() => {
-    if (!isMobi || !viewerRef.current || !readingMode) return;
+    if (!isMobi || !viewerRef.current || !readerModeReady) return;
     const controller = new AbortController();
     let disposed = false;
     let revokeSafeUrls = () => {};
@@ -201,13 +209,13 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
         mobiViewRef.current = view;
         await view.open(mobiFile);
         revokeSafeUrls = await secureMobiSections(view);
-        view.renderer?.setAttribute("flow", readingMode === "scroll" ? "scrolled" : "paginated");
+        view.renderer?.setAttribute("flow", readingModeRef.current === "scroll" ? "scrolled" : "paginated");
         view.renderer?.setStyles(mobiStyles(fontSizeRef.current));
         view.addEventListener("load", () => view.renderer?.setStyles(mobiStyles(fontSizeRef.current)));
         view.addEventListener("relocate", (event) => {
           const detail = (event as CustomEvent<{ fraction?: number; cfi?: string; tocItem?: { label?: string } }>).detail;
           const percent = typeof detail.fraction === "number" ? `${Math.max(1, Math.round(detail.fraction * 100))}%` : "";
-          setProgress(detail.tocItem?.label || (readingMode === "scroll" ? "Scroll to continue" : percent));
+          setProgress(detail.tocItem?.label || (readingModeRef.current === "scroll" ? "Scroll to continue" : percent));
           if (detail.cfi) localStorage.setItem(`reading-room-position-${file.id}`, detail.cfi);
         });
 
@@ -230,7 +238,7 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
       mobiViewRef.current?.remove();
       mobiViewRef.current = null;
     };
-  }, [file.id, file.format, format, isMobi, readingMode, title]);
+  }, [file.id, file.format, format, isMobi, readerModeReady, title]);
 
   useEffect(() => {
     fontSizeRef.current = fontSize;
@@ -241,16 +249,22 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
-      if (isReflowable && event.key === "ArrowLeft") isEpub ? renditionRef.current?.prev() : mobiViewRef.current?.prev();
-      if (isReflowable && event.key === "ArrowRight") isEpub ? renditionRef.current?.next() : mobiViewRef.current?.next();
+      if (isBookReader && event.key === "ArrowLeft") previous();
+      if (isBookReader && event.key === "ArrowRight") next();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isEpub, isReflowable, onClose]);
+  });
 
   function chooseReadingMode(mode: ReadingMode) {
     localStorage.setItem("reading-room-reader-mode", mode);
+    readingModeRef.current = mode;
     setReadingMode(mode);
+    if (isEpub) {
+      renditionRef.current?.flow(mode === "scroll" ? "scrolled" : "paginated");
+      renditionRef.current?.spread(mode === "scroll" ? "none" : "auto", 980);
+    }
+    if (isMobi) mobiViewRef.current?.renderer?.setAttribute("flow", mode === "scroll" ? "scrolled" : "paginated");
   }
 
   function goToChapter(href: string) {
@@ -260,12 +274,14 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
 
   function previous() {
     if (isEpub) renditionRef.current?.prev();
-    else mobiViewRef.current?.prev();
+    else if (isMobi) mobiViewRef.current?.prev();
+    else if (isPdf) pdfReaderRef.current?.previous();
   }
 
   function next() {
     if (isEpub) renditionRef.current?.next();
-    else mobiViewRef.current?.next();
+    else if (isMobi) mobiViewRef.current?.next();
+    else if (isPdf) pdfReaderRef.current?.next();
   }
 
   return (
@@ -274,15 +290,15 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
         <div><span>THE READING ROOM</span><h1>{title}</h1></div>
         <div className="reader-actions">
           {isReflowable && toc.length > 0 && <label><span>Chapter</span><select defaultValue="" onChange={(event) => event.target.value && goToChapter(event.target.value)}><option value="" disabled>Contents</option>{toc.map((item, index) => <option key={`${item.href}-${index}`} value={item.href}>{`${"— ".repeat(item.depth)}${item.label}`}</option>)}</select></label>}
-          {isReflowable && readingMode && <div className="reader-modes" aria-label="Reading mode"><button className={readingMode === "pages" ? "active" : ""} aria-pressed={readingMode === "pages"} onClick={() => chooseReadingMode("pages")}>Pages</button><button className={readingMode === "scroll" ? "active" : ""} aria-pressed={readingMode === "scroll"} onClick={() => chooseReadingMode("scroll")}>Scroll</button></div>}
+          {isBookReader && readingMode && <div className="reader-modes" aria-label="Reading mode"><button className={readingMode === "pages" ? "active" : ""} aria-pressed={readingMode === "pages"} onClick={() => chooseReadingMode("pages")}>Pages</button><button className={readingMode === "scroll" ? "active" : ""} aria-pressed={readingMode === "scroll"} onClick={() => chooseReadingMode("scroll")}>Scroll</button></div>}
           {isReflowable && <div className="font-controls" aria-label="Text size"><button onClick={() => setFontSize((size) => Math.max(75, size - 10))} aria-label="Decrease text size">A−</button><button onClick={() => setFontSize((size) => Math.min(160, size + 10))} aria-label="Increase text size">A+</button></div>}
           <a href={file.url} target="_blank" rel="noreferrer">Open in Drive ↗</a>
           <button className="reader-close" onClick={onClose} aria-label="Close reader">×</button>
         </div>
       </header>
 
-      {isReflowable ? <>
-        <div className="epub-stage"><div className="epub-viewer" ref={viewerRef}></div>{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download {format}</a>}</div>}</div>
+      {isBookReader ? <>
+        <div className="epub-stage">{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} onStatus={setStatus} onProgress={setProgress} />}{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download {format}</a>}</div>}</div>
         <footer className="reader-footer"><button onClick={previous}>← {readingMode === "scroll" ? "Previous section" : "Previous"}</button><span>{progress || (readingMode === "scroll" ? "Scroll to continue" : "Use the arrow keys to turn pages")}</span><button onClick={next}>{readingMode === "scroll" ? "Next section" : "Next"} →</button></footer>
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
     </section>
