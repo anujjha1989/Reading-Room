@@ -18,8 +18,12 @@ function flattenToc(items: NavItem[], depth = 0): TocEntry[] {
   ]);
 }
 
-function downloadUrl(id: string) {
+function driveDownloadUrl(id: string) {
   return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`;
+}
+
+function readerUrl(id: string) {
+  return `/api/book/${encodeURIComponent(id)}`;
 }
 
 function previewUrl(id: string, sourceUrl: string) {
@@ -45,7 +49,7 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
     async function openEpub() {
       try {
         setStatus("Loading the book…");
-        const response = await fetch(downloadUrl(file.id), { signal: controller.signal });
+        const response = await fetch(readerUrl(file.id), { signal: controller.signal });
         if (!response.ok) throw new Error("The book could not be downloaded");
         const data = await response.arrayBuffer();
         const { default: ePub } = await import("epubjs");
@@ -124,7 +128,7 @@ export default function BookReader({ title, file, onClose }: { title: string; fi
       </header>
 
       {isEpub ? <>
-        <div className="epub-stage"><div className="epub-viewer" ref={viewerRef}></div>{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={downloadUrl(file.id)}>Download EPUB</a>}</div>}</div>
+        <div className="epub-stage"><div className="epub-viewer" ref={viewerRef}></div>{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download EPUB</a>}</div>}</div>
         <footer className="reader-footer"><button onClick={() => renditionRef.current?.prev()}>← Previous</button><span>{progress || "Use the arrow keys to turn pages"}</span><button onClick={() => renditionRef.current?.next()}>Next →</button></footer>
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
     </section>
