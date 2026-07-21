@@ -1,9 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
-import ePub from "epubjs";
-// @ts-expect-error epub.js does not publish types for its manager modules.
-import ContinuousManager from "epubjs/lib/managers/continuous/index.js";
 import type { Book as EpubBook, Location, Rendition } from "epubjs";
 import type { RenditionOptions } from "epubjs/types/rendition";
 import PdfReader, { type PdfReaderHandle } from "./PdfReader";
@@ -288,6 +285,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         const response = await fetch(readerUrl(file.id, file.format), { signal: controller.signal });
         if (!response.ok) throw new Error("The book could not be downloaded");
         const data = await response.arrayBuffer();
+        const { default: ePub } = await import("epubjs");
         if (disposed || !viewerRef.current) return;
 
         const book = ePub(data);
@@ -299,6 +297,8 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         if (mode === "scroll") {
           // epub.js normally removes distant chapters, which can move Safari's
           // scroll position. Keep rendered chapters mounted and load ahead.
+          // @ts-expect-error epub.js does not publish types for its manager modules.
+          const { default: ContinuousManager } = await import("epubjs/lib/managers/continuous/index.js");
           class StableContinuousManager extends ContinuousManager {
             update(requestedOffset?: number) {
               const container = this.bounds();
