@@ -295,24 +295,9 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         const mobile = isMobileViewport();
         let manager: string | (new (...args: never[]) => unknown) = "default";
         if (mode === "scroll") {
-          // epub.js normally removes distant chapters, which can move Safari's
-          // scroll position. Keep rendered chapters mounted and load ahead.
-          // @ts-expect-error epub.js does not publish types for its manager modules.
-          const { default: ContinuousManager } = await import("epubjs/lib/managers/continuous/index.js");
-          class StableContinuousManager extends ContinuousManager {
-            update(requestedOffset?: number) {
-              const container = this.bounds();
-              const offset = requestedOffset ?? this.settings.offset ?? 0;
-              const promises = this.views.all().flatMap((view: { displayed: boolean; display: (request: unknown) => Promise<unknown>; show: () => void; hide: () => void }) => {
-                if (!this.isVisible(view, offset, offset, container)) return [];
-                if (view.displayed) { view.show(); return []; }
-                return [view.display(this.request).then(() => view.show(), () => view.hide())];
-              });
-              return promises.length ? Promise.all(promises) : Promise.resolve();
-            }
-            trim() { return Promise.resolve(); }
-          }
-          manager = StableContinuousManager;
+          // Use epub.js's registered manager name instead of importing its
+          // private implementation, which is not stable across bundler upgrades.
+          manager = "continuous";
         }
         const renditionOptions: RenditionOptions & { offset?: number; offsetDelta?: number } = {
           width: "100%",
