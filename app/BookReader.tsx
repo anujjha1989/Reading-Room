@@ -43,6 +43,44 @@ type EpubSearchSection = {
   find: (query: string) => Array<{ cfi: string; excerpt: string }>;
   unload: () => void;
 };
+type ContinuousView = {
+  displayed: boolean;
+  display: (request: unknown) => Promise<unknown>;
+  show: () => void;
+  hide: () => void;
+};
+type ContinuousManager = {
+  settings: { offset?: number };
+  request: unknown;
+  bounds: () => unknown;
+  isVisible: (view: ContinuousView, offsetTop: number, offsetBottom: number, bounds: unknown) => boolean;
+  views: { all: () => ContinuousView[] };
+  update: (offset?: number) => Promise<unknown>;
+  trim: () => Promise<unknown>;
+};
+
+function stabilizeContinuousScroll(rendition: Rendition) {
+  const manager = (rendition as Rendition & { manager?: ContinuousManager }).manager;
+  if (!manager) return;
+
+  // EPUB.js normally destroys off-screen chapter views. Removing content above
+  // the viewport forces a compensating scroll jump, which feels like jitter.
+  // Keep rendered views mounted so the book remains one stable scroll surface.
+  manager.update = (requestedOffset?: number) => {
+    const bounds = manager.bounds();
+    const offset = requestedOffset ?? manager.settings.offset ?? 0;
+    const work = manager.views.all().flatMap((view) => {
+      if (!manager.isVisible(view, offset, offset, bounds)) return [];
+      if (view.displayed) {
+        view.show();
+        return [];
+      }
+      return [view.display(manager.request).then(() => view.show(), () => view.hide())];
+    });
+    return work.length ? Promise.all(work) : Promise.resolve();
+  };
+  manager.trim = () => Promise.resolve();
+}
 type FoliateView = HTMLElement & {
   book?: { toc?: TocItem[]; sections?: FoliateSection[]; metadata?: { title?: string } };
   renderer?: { setAttribute: (name: string, value: string) => void; setStyles: (styles: string) => void };
@@ -299,18 +337,20 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
           // private implementation, which is not stable across bundler upgrades.
           manager = "continuous";
         }
-        const renditionOptions: RenditionOptions & { offset?: number; offsetDelta?: number } = {
+        const renditionOptions: RenditionOptions & { offset?: number; offsetDelta?: number; gap?: number } = {
           width: "100%",
           height: "100%",
           manager,
           flow: mode === "scroll" ? "scrolled-continuous" : "paginated",
           offset: mode === "scroll" ? Math.max(1800, window.innerHeight * 3) : undefined,
           offsetDelta: mode === "scroll" ? Math.max(700, window.innerHeight) : undefined,
+          gap: mode === "scroll" ? 0 : undefined,
           spread: mode === "scroll" || mobile ? "none" : "auto",
           minSpreadWidth: 980,
         };
         const rendition = book.renderTo(viewerRef.current, renditionOptions);
         renditionRef.current = rendition;
+        if (mode === "scroll") stabilizeContinuousScroll(rendition);
         rendition.spread(mode === "scroll" || mobile ? "none" : "auto", 980);
         rendition.themes.default(epubStyles(themeRef.current, lineHeightRef.current, marginRef.current));
         rendition.themes.fontSize("100%");
