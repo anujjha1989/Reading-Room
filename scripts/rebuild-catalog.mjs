@@ -9,6 +9,7 @@ const inputs = [
   "books-old-3.json",
   "books-new-scripts.json",
   "graphic-novels-comics.json",
+  "books-imported-2026-07-22.json",
 ];
 
 const favoriteAuthors = new Set([
