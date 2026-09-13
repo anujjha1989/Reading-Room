@@ -8,7 +8,7 @@
 // catalogue itself. It writes a request file instead; a systemd path unit
 // notices and runs the privileged rebuild. Everything here is therefore
 // read-only except for settings.json and that request file.
-import { readFile, writeFile, readdir, stat } from "node:fs/promises";
+import { readFile, writeFile, readdir, stat, chmod } from "node:fs/promises";
 import { join } from "node:path";
 
 const DATA = process.env.READING_ROOM_DATA || "/var/lib/reading-room";
@@ -18,6 +18,8 @@ const COVER_DIR = process.env.READING_ROOM_COVER_ART || "/mnt/seagate/ReadingRoo
 const SETTINGS = join(DATA, "settings.json");
 const STATUS = join(DATA, "scan-status.json");
 const REQUEST = join(DATA, "scan-request.json");
+
+const DEFAULT_DROP = "Books/Archive/New Imports";
 
 const DEFAULT_SOURCES = [
   { id: "books", name: "Books", path: "Books", enabled: true },
@@ -40,8 +42,9 @@ const readJson = async (path, fallback) => {
 async function loadSettings() {
   const s = await readJson(SETTINGS, null);
   if (!s || !Array.isArray(s.sources) || !s.sources.length) {
-    return { sources: DEFAULT_SOURCES };
+    return { sources: DEFAULT_SOURCES, dropFolder: (s && s.dropFolder) || DEFAULT_DROP };
   }
+  if (!s.dropFolder) s.dropFolder = DEFAULT_DROP;
   return s;
 }
 
@@ -100,7 +103,8 @@ export async function settingsRoute(request, response, url) {
     try { catalogueModified = (await stat(join(SITE, "catalog.json"))).mtime.toISOString(); } catch {}
     const formats = {};
     for (const b of books) formats[b.format] = (formats[b.format] || 0) + 1;
-    json(response, 200, { sources: settings.sources, status, gaps, formats, catalogueModified });
+    json(response, 200, { sources: settings.sources, dropFolder: settings.dropFolder,
+                          status, gaps, formats, catalogueModified });
     return true;
   }
 
@@ -143,12 +147,19 @@ export async function settingsRoute(request, response, url) {
     } else if (payload.action === "toggle") {
       const s = settings.sources.find((x) => x.id === payload.id);
       if (s) s.enabled = !s.enabled;
+    } else if (payload.action === "dropFolder") {
+      const p = clean(payload.path);
+      if (!p || !/^(Books|Scripts)(\/|$)/.test(p)) {
+        json(response, 400, { error: "Drop folder must be inside Books/ or Scripts/." });
+        return true;
+      }
+      settings.dropFolder = p;
     } else {
       json(response, 400, { error: "unknown action" });
       return true;
     }
     await saveSettings(settings);
-    json(response, 200, { sources: settings.sources });
+    json(response, 200, { sources: settings.sources, dropFolder: settings.dropFolder });
     return true;
   }
 
@@ -158,9 +169,21 @@ export async function settingsRoute(request, response, url) {
       json(response, 409, { error: "A scan is already running.", status });
       return true;
     }
+    let mode = "full";
+    try {
+      let body = "";
+      for await (const chunk of request) { body += chunk; if (body.length > 4096) break; }
+      if (JSON.parse(body || "{}").mode === "incremental") mode = "incremental";
+    } catch { /* no body: a full scan */ }
     // The privileged rebuild is started by a systemd path unit watching this.
-    await writeFile(REQUEST, JSON.stringify({ requestedAt: new Date().toISOString() }));
-    json(response, 202, { state: "requested" });
+    // "incremental" lists only the drop folder and appends; "full" relists all
+    // of Drive and rebuilds, so deleted books drop out.
+    await writeFile(REQUEST, JSON.stringify({ requestedAt: new Date().toISOString(), mode }));
+    // UMask=0077 would leave this 0600 and unreadable by the rebuild,
+    // which runs as a different user and would silently fall back to a
+    // full scan.
+    await chmod(REQUEST, 0o644);
+    json(response, 202, { state: "requested", mode });
     return true;
   }
 

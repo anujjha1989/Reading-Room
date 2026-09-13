@@ -244,15 +244,17 @@ function maintenancePage(){
   const s = state.status || {state:'idle'};
   const running = s.state === 'running';
   page('Library maintenance',
-    `<div class="set-actions"><button class="primary" id="scan-run"${running?' disabled':''}>${running?'Scanning…':'Scan for new books'}</button></div>`
+    `<div class="set-actions"><button class="primary" id="scan-run"${running?' disabled':''}>${running?'Working…':'Scan for new books'}</button></div>`
     + section('', [
-        row({icon:'book', title:'Sync new additions', sub:'Index anything added to your source folders', chevron:true, id:'sync-run'}),
+        row({icon:'book', title:'Sync new additions', sub:'Only ' + (state.dropFolder || 'the drop folder'), chevron:true, id:'sync-run'}),
+        row({icon:'folder', title:'Drop folder', sub:'Where new books are dropped', value:'Change', chevron:true, id:'drop-set'}),
         row({icon:'chart', title:'Review metadata & artwork', sub:'Books missing covers, authors or real titles', chevron:true, id:'gaps-run'})
       ])
-    + `<p class="set-footer" id="scan-line" aria-live="polite">${esc(scanLine())}</p>`,
+    + `<p class="set-footer" id="scan-line" aria-live="polite">${esc(scanLine())}</p>`+ `<p class="set-footer">A full scan relists everything and rebuilds the catalogue, so books deleted from Drive drop out. Syncing new additions only looks in the drop folder and adds what it finds — much faster, and it never removes anything.</p>`,
     rootPage);
   $('#scan-run').onclick = runScan;
-  $('#sync-run').onclick = runScan;
+  $('#sync-run').onclick = runSync;
+  $('#drop-set').onclick = dropFolderPage;
   $('#gaps-run').onclick = gapsPage;
   if (running) pollScan();
 }
@@ -266,13 +268,39 @@ function scanLine(){
   return `${nf(state.gaps.total)} books · catalogue updated ${when}${d}`;
 }
 
-async function runScan(){
+async function startScan(mode, note){
   try {
-    await api('/api/settings/scan', post({}));
-    toast('Scan started');
+    await api('/api/settings/scan', post({mode}));
+    toast(note);
     state.status = {state:'running', message:'Starting…'};
     maintenancePage();
   } catch(e){ toast(e.message); }
+}
+// Full: relist all of Drive and rebuild, so deleted books drop out.
+const runScan = () => startScan('full', 'Full scan started');
+// Incremental: list only the drop folder and append what is new.
+const runSync = () => startScan('incremental', 'Checking the drop folder');
+
+function dropFolderPage(){
+  page('Drop folder',
+    `<section class="set-section"><div class="set-rows" style="padding:16px">
+      <label class="set-title" for="d">Folder path in Drive</label>
+      <p class="set-sub" style="margin:6px 0 10px">“Sync new additions” looks here and nowhere else.</p>
+      <input type="text" id="d" autocapitalize="off" autocorrect="off" spellcheck="false"
+             value="${esc(state.dropFolder||'')}">
+     </div></section>
+     <div class="set-actions"><button class="primary" id="d-save">Save</button>
+     <button class="secondary" id="d-cancel">Cancel</button></div>`,
+    maintenancePage);
+  $('#d-cancel').onclick = maintenancePage;
+  $('#d-save').onclick = async () => {
+    try {
+      const r = await api('/api/settings/sources', post({action:'dropFolder', path:$('#d').value.trim()}));
+      state.dropFolder = r.dropFolder;
+      toast('Drop folder saved');
+      maintenancePage();
+    } catch(e){ toast(e.message); }
+  };
 }
 
 async function pollScan(){

@@ -1,8 +1,6 @@
 [Unit]
 Description=Reading Room: rebuild the catalogue from Drive
-# A failing scan must not be retriggered endlessly by the path unit.
-StartLimitIntervalSec=600
-StartLimitBurst=3
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot

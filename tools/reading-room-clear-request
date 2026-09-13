@@ -1,0 +1,5 @@
+#!/bin/sh
+# Remove the scan request file. Deliberately takes no arguments so the sudo
+# grant cannot be pointed at anything else.
+set -eu
+rm -f /var/lib/reading-room/scan-request.json

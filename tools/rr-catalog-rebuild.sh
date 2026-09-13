@@ -22,6 +22,7 @@ DATA=/var/lib/reading-room
 CATALOG=/opt/reading-room/current/site/catalog.json
 MANIFEST=$DIR/drive-manifest.json
 LOG=$DIR/last-scan.log
+SCOPED=$DIR/drive-manifest.scoped.json
 FILTERED=$DIR/drive-manifest.filtered.json
 EMPTY=$DIR/empty-catalog.json
 NEXT=$DIR/catalog.next.json
@@ -38,9 +39,12 @@ if ! flock -n 9; then
   exit 0
 fi
 
+SCAN_MODE=$(node -p "try{require('$REQUEST').mode||'full'}catch(e){'full'}" 2>/dev/null || echo full)
+DROP=$(node -p "try{require('$SETTINGS').dropFolder||'Books/Archive/New Imports'}catch(e){'Books/Archive/New Imports'}" 2>/dev/null || echo "Books/Archive/New Imports")
+
 # Consume the request immediately: the path unit triggers on this file
 # existing, so holding it until success turns any failure into a restart loop.
-rm -f "$REQUEST"
+sudo -n /usr/local/sbin/reading-room-clear-request
 
 status() {  # status <state> <message> [extra-json]
   sudo -n /usr/local/sbin/reading-room-write-status "$1" "$2" "${3:-{\}}"
@@ -53,14 +57,34 @@ fail() {
     status failed "Scan failed — the catalogue was left unchanged."
   fi
 }
-trap fail ERR
+trap 'fail; exit 0' ERR   # exit 0   # reported via status, not as a unit failure
 
-status running "Listing Drive…"
-rclone lsjson --recursive --files-only \
-  --tpslimit 8 --retries 5 --low-level-retries 20 --retries-sleep 20s \
-  reading-room-drive: > "$MANIFEST.new"
-mv "$MANIFEST.new" "$MANIFEST"
+if [ "$SCAN_MODE" = "incremental" ]; then
+  # Only the drop folder. rclone reports paths relative to the subpath it was
+  # given, so they are re-prefixed to full catalogue paths before scanning.
+  status running "Checking $DROP…"
+  rclone lsjson --recursive --files-only \
+    --tpslimit 8 --retries 5 --low-level-retries 20 --retries-sleep 20s \
+    "reading-room-drive:$DROP" > "$SCOPED.raw"
+  node - "$SCOPED.raw" "$DROP" "$SCOPED" <<'NODE'
+import fs from "node:fs";
+const [, , raw, prefix, out] = process.argv;
+const rows = JSON.parse(fs.readFileSync(raw, "utf8"))
+  .filter((f) => !f.IsDir)
+  .map((f) => ({ ...f, Path: `${prefix.replace(/\/+$/, "")}/${f.Path}` }));
+fs.writeFileSync(out, JSON.stringify(rows));
+console.log(`drop folder: ${rows.length} files`);
+NODE
+  cp "$SCOPED" "$FILTERED"
+else
+  status running "Listing Drive…"
+  rclone lsjson --recursive --files-only \
+    --tpslimit 8 --retries 5 --low-level-retries 20 --retries-sleep 20s \
+    reading-room-drive: > "$MANIFEST.new"
+  mv "$MANIFEST.new" "$MANIFEST"
+fi
 
+if [ "$SCAN_MODE" != "incremental" ]; then
 status running "Reading the catalogue…"
 node - "$MANIFEST" "$SETTINGS" "$FILTERED" <<'NODE'
 // Keep only files under the enabled source folders. drive-scan.mjs applies its
@@ -81,18 +105,32 @@ const keep = manifest.filter((f) => !f.IsDir && typeof f.Path === "string" &&
 fs.writeFileSync(outPath, JSON.stringify(keep));
 console.log(`manifest: ${manifest.length} files, ${keep.length} within sources`);
 NODE
+fi
 
-echo "[]" > "$EMPTY"
-status running "Rebuilding the catalogue…"
-node /usr/local/lib/reading-room/drive-scan.mjs "$EMPTY" "$FILTERED" "$NEXT" "$SUMMARY"
+if [ "$SCAN_MODE" = "incremental" ]; then
+  # Append to the live catalogue: drive-scan.mjs skips IDs it already knows.
+  status running "Adding new books…"
+  node /usr/local/lib/reading-room/drive-scan.mjs "$CATALOG" "$FILTERED" "$NEXT" "$SUMMARY"
+  if [ "$(node -p "require('$SUMMARY').added")" = "0" ]; then
+    status ready "No new books in $DROP." '{"added":0}'
+    echo "nothing new"
+    exit 0
+  fi
+else
+  echo "[]" > "$EMPTY"
+  status running "Rebuilding the catalogue…"
+  node /usr/local/lib/reading-room/drive-scan.mjs "$EMPTY" "$FILTERED" "$NEXT" "$SUMMARY"
+fi
 
 if [ ! -s "$NEXT" ]; then
   status failed "Scan produced no catalogue — nothing changed."
   exit 1
 fi
 
-status running "Carrying reading progress across…"
-sudo -n /usr/local/sbin/reading-room-migrate-progress "$CATALOG" "$NEXT"
+if [ "$SCAN_MODE" != "incremental" ]; then
+  status running "Carrying reading progress across…"
+  sudo -n /usr/local/sbin/reading-room-migrate-progress "$CATALOG" "$NEXT"
+fi
 
 status running "Installing…"
 before=$(node -p "require('$CATALOG').length")
@@ -102,6 +140,6 @@ after=$(node -p "require('$CATALOG').length")
 added=$(node -p "
   const a=new Set(require('$CATALOG').map(b=>b.id));
   String(require('$NEXT').filter(b=>a.has(b.id)).length)" 2>/dev/null || echo 0)
-rm -f "$REQUEST"
-status ready "Scan complete." "{\"before\":$before,\"after\":$after}"
+sudo -n /usr/local/sbin/reading-room-clear-request
+status ready "$([ "$SCAN_MODE" = incremental ] && echo "Added $((after-before)) new book(s)." || echo "Scan complete.")" "{\"before\":$before,\"after\":$after,\"mode\":\"$SCAN_MODE\"}"
 echo "catalogue: $before -> $after"
