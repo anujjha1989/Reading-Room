@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly Reading Room catalogue reconcile
+
+[Timer]
+OnCalendar=Sun *-*-* 03:00:00 Asia/Kolkata
+Persistent=true
+RandomizedDelaySec=900
+Unit=reading-room-drive-sync.service
+
+[Install]
+WantedBy=timers.target
