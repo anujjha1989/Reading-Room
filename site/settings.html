@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Settings · The Reading Room</title>
+<meta name="theme-color" content="#f3efe5">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script>
+// Before first paint, so switching themes never flashes the other one.
+try {
+  var t = localStorage.getItem('reading-room-theme');
+  if (t === 'dark' || t === 'light') document.documentElement.dataset.rrTheme = t;
+} catch (e) {}
+</script>
+<style>
+:root{
+  --paper:#f3efe5; --paper-2:#e9e4d8; --white:#fff; --ink:#26332f;
+  --muted:#6b736e; --line:#d9d3c5; --accent:#8a5a2b; --danger:#a8322f;
+}
+html[data-rr-theme="dark"], html:not([data-rr-theme="light"]) {}
+@media (prefers-color-scheme: dark){
+  html:not([data-rr-theme="light"]){
+    --paper:#000; --paper-2:#1c1c1e; --white:#242426; --ink:#f5f5f7;
+    --muted:#a1a1a6; --line:#303034; --accent:#f4ad78; --danger:#ff6b70;
+    color-scheme:dark;
+  }
+}
+html[data-rr-theme="dark"]{
+  --paper:#000; --paper-2:#1c1c1e; --white:#242426; --ink:#f5f5f7;
+  --muted:#a1a1a6; --line:#303034; --accent:#f4ad78; --danger:#ff6b70;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;padding-bottom:40px}
+.wrap{max-width:620px;margin:0 auto;padding:0 0 24px}
+
+.set-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:6px;
+  padding:16px 12px;background:color-mix(in srgb,var(--paper) 92%,transparent);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line)}
+.set-head h1{margin:0;flex:1;font:600 21px/1.2 Georgia,serif;letter-spacing:-.4px;
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.set-back,.set-close{width:36px;min-width:36px;height:36px;display:inline-flex;
+  align-items:center;justify-content:center;border:0;background:none;color:var(--ink);
+  border-radius:50%;cursor:pointer;font-size:28px;line-height:1;padding:0}
+.set-back:hover,.set-close:hover{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.set-close{font-size:20px}
+
+.set-section{margin:22px 0 0}
+.set-section h2{margin:0 0 9px;padding:0 20px;font-size:11px;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--muted);font-weight:700}
+.set-rows{margin:0 14px;background:var(--white);border-radius:14px;overflow:hidden;
+  border:1px solid var(--line)}
+.set-row{display:flex;align-items:center;gap:14px;width:100%;min-height:62px;
+  padding:13px 16px;text-align:left;background:none;border:0;color:inherit;
+  font:inherit;cursor:pointer}
+div.set-row{cursor:default}
+.set-row+.set-row{box-shadow:inset 0 1px 0 var(--line)}
+button.set-row:hover{background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.set-icon{width:23px;min-width:23px;height:23px;color:var(--muted);
+  display:inline-flex;align-items:center;justify-content:center}
+.set-icon svg{width:23px;height:23px}
+.set-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.set-title{font-size:15px;font-weight:550;line-height:1.3}
+.set-sub{font-size:12.5px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere}
+.set-value{font-size:13px;color:var(--muted);white-space:nowrap}
+.set-dot{width:8px;height:8px;border-radius:50%;flex:none}
+.set-dot.on{background:#5ac37f}.set-dot.off{background:#e0707f}
+.set-chevron{color:var(--muted);font-size:23px;line-height:1}
+.set-row.danger .set-title,.set-row.danger .set-icon{color:var(--danger)}
+.set-footer{margin:9px 0 0;padding:0 20px;font-size:12px;color:var(--muted);line-height:1.5}
+.set-actions{display:flex;gap:10px;padding:20px 14px 0}
+.set-actions button{flex:1;padding:13px 18px;border-radius:11px;font-size:15px;
+  border:1px solid var(--ink);cursor:pointer;font-weight:550}
+.primary{background:var(--ink);color:var(--paper)}
+.secondary{background:transparent;color:var(--ink)}
+button[disabled]{opacity:.5;cursor:default}
+.seg{display:flex;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:0;background:var(--white);color:var(--ink);padding:8px 14px;
+  font-size:13px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.gap-item{display:flex;gap:10px;align-items:baseline;padding:9px 16px;font-size:13px;
+  border-top:1px solid var(--line)}
+.gap-item:first-child{border-top:0}
+.gap-item .t{flex:1;min-width:0;overflow-wrap:anywhere}
+.gap-item .f{color:var(--muted);font-size:11px;white-space:nowrap}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+  background:var(--ink);color:var(--paper);padding:11px 18px;border-radius:11px;
+  font-size:14px;box-shadow:0 8px 30px #0003;opacity:0;transition:opacity .2s;
+  pointer-events:none;z-index:9;max-width:90vw}
+.toast.show{opacity:1}
+input[type=text]{width:100%;padding:11px 13px;border:1px solid var(--line);
+  border-radius:10px;background:var(--white);color:var(--ink);font:inherit}
+</style>
+</head>
+<body>
+<div class="wrap"><div id="page"></div></div>
+<div class="toast" id="toast"></div>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+  (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf = (n) => Number(n || 0).toLocaleString();
+
+const ICONS = {
+  folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+  refresh:'<path d="M20 11a8 8 0 1 0-.6 4"/><path d="M20 5v6h-6"/>',
+  chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  book:'<path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2Z"/><path d="M8 3v18"/>'
+};
+const icon = (n) => `<span class="set-icon">${ICONS[n] ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>` : ''}</span>`;
+
+function row(o){
+  const tail = [
+    o.status ? `<span class="set-dot ${o.status}"></span><span class="set-value">${o.status==='on'?'Indexed':'Paused'}</span>` : '',
+    o.value ? `<span class="set-value">${esc(o.value)}</span>` : '',
+    o.control || '',
+    o.chevron ? '<span class="set-chevron">›</span>' : ''
+  ].join('');
+  const inner = `${icon(o.icon)}<span class="set-text"><span class="set-title">${esc(o.title)}</span>${o.sub?`<span class="set-sub">${esc(o.sub)}</span>`:''}</span>${tail}`;
+  return o.id && !o.control
+    ? `<button type="button" class="set-row${o.danger?' danger':''}" id="${o.id}">${inner}</button>`
+    : `<div class="set-row${o.danger?' danger':''}">${inner}</div>`;
+}
+const section = (title, rows, footer) =>
+  `<section class="set-section">${title?`<h2>${esc(title)}</h2>`:''}<div class="set-rows">${rows.join('')}</div>${footer?`<p class="set-footer">${footer}</p>`:''}</section>`;
+
+function page(title, body, back){
+  $('#page').innerHTML =
+    `<header class="set-head">${back?'<button class="set-back" id="back" aria-label="Back">‹</button>':'<span class="set-back"></span>'}`
+    + `<h1>${esc(title)}</h1>`
+    + `<button class="set-close" id="close" aria-label="Close settings">✕</button></header>${body}`;
+  scrollTo(0,0);
+  $('#close').onclick = () => { location.href = '/'; };
+  if (back) $('#back').onclick = back;
+}
+
+let toastTimer;
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>t.classList.remove('show'), 3200);
+}
+
+async function api(path, opts){
+  const r = await fetch(path, opts);
+  const body = await r.json().catch(()=>({}));
+  if (!r.ok) throw new Error(body.error || ('Request failed ('+r.status+')'));
+  return body;
+}
+
+let state = null;
+const load = async () => { state = await api('/api/settings/state'); return state; };
+
+// ---------------------------------------------------------------- root ----
+function rootPage(){
+  const s = state, g = s.gaps, src = s.sources;
+  const off = src.filter(x=>x.enabled===false).length;
+  const scan = s.status && s.status.state;
+  const scanSub = scan === 'running' ? (s.status.message || 'Scan in progress')
+    : scan === 'failed' ? (s.status.message || 'Last scan failed')
+    : `${nf(g.total)} books · ${nf(g.withCover)} with artwork`;
+  page('Settings', section('', [
+    row({icon:'folder', title:'Library sources', sub:`${src.length} folder${src.length===1?'':'s'}${off?` · ${off} paused`:''}`, chevron:true, id:'r-src'}),
+    row({icon:'refresh', title:'Library maintenance', sub:scanSub, chevron:true, id:'r-maint'}),
+    row({icon:'chart', title:'Metadata & artwork', sub:`${nf(g.noCover)} without artwork · ${nf(g.noAuthor)} without an author`, chevron:true, id:'r-gaps'}),
+    row({icon:'sun', title:'Appearance', sub:themeLabel(), chevron:true, id:'r-theme'}),
+    row({icon:'info', title:'About', sub:'How this works', chevron:true, id:'r-about'})
+  ]));
+  $('#r-src').onclick = sourcesPage;
+  $('#r-maint').onclick = maintenancePage;
+  $('#r-gaps').onclick = gapsPage;
+  $('#r-theme').onclick = themePage;
+  $('#r-about').onclick = aboutPage;
+}
+
+// ------------------------------------------------------------- sources ----
+function sourcesPage(){
+  const list = state.sources;
+  page('Library sources',
+    section('FOLDERS', list.map(s => row({
+      icon:'folder', title:s.name, sub:s.path,
+      status: s.enabled === false ? 'off' : 'on', chevron:true, id:'src-'+s.id
+    })).concat(row({icon:'plus', title:'Add a folder', chevron:true, id:'src-add'})),
+    'Folders are paths inside your Drive, like <code>Books/Archive/New Imports</code>. Pausing or removing one only stops it being indexed — nothing in Drive is touched.'),
+    rootPage);
+  for (const s of list) $('#src-'+s.id).onclick = () => sourcePage(s);
+  $('#src-add').onclick = addSourcePage;
+}
+
+function sourcePage(s){
+  page(s.name,
+    section('', [
+      row({icon:'folder', title:'Path', sub:s.path}),
+      row({icon:'refresh', title: s.enabled===false ? 'Resume indexing' : 'Pause indexing',
+           sub: s.enabled===false ? 'Currently skipped by scans' : 'Included in every scan', id:'s-toggle'}),
+      row({icon:'plus', title:'Remove this source', danger:true, id:'s-remove'})
+    ], 'Removing a source drops its books from the catalogue at the next scan. The files stay in Drive.'),
+    sourcesPage);
+  $('#s-toggle').onclick = async () => {
+    try { state.sources = (await api('/api/settings/sources', post({action:'toggle', id:s.id}))).sources;
+          toast('Saved'); sourcesPage(); } catch(e){ toast(e.message); }
+  };
+  $('#s-remove').onclick = async () => {
+    try { state.sources = (await api('/api/settings/sources', post({action:'remove', id:s.id}))).sources;
+          toast('Source removed'); sourcesPage(); } catch(e){ toast(e.message); }
+  };
+}
+
+const post = (body) => ({method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+
+function addSourcePage(){
+  page('Add a folder',
+    `<section class="set-section"><div class="set-rows" style="padding:16px">
+      <label class="set-title" for="p">Folder path in Drive</label>
+      <p class="set-sub" style="margin:6px 0 10px">Relative to your Drive root, without a leading slash.</p>
+      <input type="text" id="p" placeholder="Books/Archive/New Imports" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <label class="set-title" for="n" style="display:block;margin-top:14px">Name (optional)</label>
+      <input type="text" id="n" placeholder="New Imports" style="margin-top:6px">
+     </div></section>
+     <div class="set-actions"><button class="primary" id="add-save">Add source</button>
+     <button class="secondary" id="add-cancel">Cancel</button></div>
+     <p class="set-footer">Must sit inside <code>Books/</code> or <code>Scripts/</code> — the scanner ignores anything else.</p>`,
+    sourcesPage);
+  $('#add-cancel').onclick = sourcesPage;
+  $('#add-save').onclick = async () => {
+    const path = $('#p').value.trim(), name = $('#n').value.trim();
+    if (!path) { toast('Enter a folder path'); return; }
+    try {
+      state.sources = (await api('/api/settings/sources', post({action:'add', path, name}))).sources;
+      toast('Source added · run a scan to index it');
+      sourcesPage();
+    } catch(e){ toast(e.message); }
+  };
+}
+
+// --------------------------------------------------------- maintenance ----
+function maintenancePage(){
+  const s = state.status || {state:'idle'};
+  const running = s.state === 'running';
+  page('Library maintenance',
+    `<div class="set-actions"><button class="primary" id="scan-run"${running?' disabled':''}>${running?'Scanning…':'Scan for new books'}</button></div>`
+    + section('', [
+        row({icon:'book', title:'Sync new additions', sub:'Index anything added to your source folders', chevron:true, id:'sync-run'}),
+        row({icon:'chart', title:'Review metadata & artwork', sub:'Books missing covers, authors or real titles', chevron:true, id:'gaps-run'})
+      ])
+    + `<p class="set-footer" id="scan-line" aria-live="polite">${esc(scanLine())}</p>`,
+    rootPage);
+  $('#scan-run').onclick = runScan;
+  $('#sync-run').onclick = runScan;
+  $('#gaps-run').onclick = gapsPage;
+  if (running) pollScan();
+}
+
+function scanLine(){
+  const s = state.status || {};
+  if (s.state === 'running') return s.message || 'Scan in progress…';
+  if (s.state === 'failed') return s.message || 'The last scan failed.';
+  const when = state.catalogueModified ? new Date(state.catalogueModified).toLocaleString() : 'never';
+  const d = s.before != null && s.after != null ? ` · last run ${nf(s.before)} → ${nf(s.after)}` : '';
+  return `${nf(state.gaps.total)} books · catalogue updated ${when}${d}`;
+}
+
+async function runScan(){
+  try {
+    await api('/api/settings/scan', post({}));
+    toast('Scan started');
+    state.status = {state:'running', message:'Starting…'};
+    maintenancePage();
+  } catch(e){ toast(e.message); }
+}
+
+async function pollScan(){
+  const tick = async () => {
+    try {
+      await load();
+      const line = $('#scan-line');
+      if (line) line.textContent = scanLine();
+      if (state.status && state.status.state === 'running') { setTimeout(tick, 2500); return; }
+      toast(state.status && state.status.state === 'failed' ? 'Scan failed' : 'Scan complete');
+      maintenancePage();
+    } catch { setTimeout(tick, 5000); }
+  };
+  setTimeout(tick, 2500);
+}
+
+// ---------------------------------------------------------------- gaps ----
+function gapsPage(){
+  const g = state.gaps;
+  page('Metadata & artwork',
+    section('', [
+      row({icon:'chart', title:'Without artwork', value:nf(g.noCover), chevron:true, id:'g-cover'}),
+      row({icon:'chart', title:'Without an author', value:nf(g.noAuthor), chevron:true, id:'g-author'}),
+      row({icon:'chart', title:'Filename-style titles', value:nf(g.poorTitle), chevron:true, id:'g-title'})
+    ], `${nf(g.withCover)} of ${nf(g.total)} books have artwork. Covers are read out of the book files themselves, so a gap usually means the file has no embedded cover.`),
+    rootPage);
+  $('#g-cover').onclick = () => gapList('cover','Without artwork');
+  $('#g-author').onclick = () => gapList('author','Without an author');
+  $('#g-title').onclick = () => gapList('title','Filename-style titles');
+}
+
+async function gapList(kind, title){
+  page(title, '<p class="set-footer">Loading…</p>', gapsPage);
+  try {
+    const d = await api('/api/settings/gaps?kind=' + kind);
+    const items = d.items.map(b =>
+      `<div class="gap-item"><span class="t">${esc(b.title)}${b.author?` <span class="f">· ${esc(b.author)}</span>`:''}</span><span class="f">${esc(b.format)}</span></div>`
+    ).join('') || '<p class="set-footer">Nothing here — all clear.</p>';
+    page(title,
+      `<section class="set-section"><div class="set-rows">${items}</div>`
+      + `<p class="set-footer">${nf(d.count)} book${d.count===1?'':'s'}${d.count > d.items.length ? ` · showing the first ${nf(d.items.length)}`:''}</p></section>`,
+      gapsPage);
+  } catch(e){
+    page(title, `<p class="set-footer">${esc(e.message)}</p>`, gapsPage);
+  }
+}
+
+// -------------------------------------------------------------- theme ----
+const themeGet = () => { try { return localStorage.getItem('reading-room-theme') || 'system'; } catch { return 'system'; } };
+const themeLabel = () => ({system:'Match device', light:'Light', dark:'Dark'})[themeGet()];
+
+function themeApply(v){
+  try { v === 'system' ? localStorage.removeItem('reading-room-theme') : localStorage.setItem('reading-room-theme', v); } catch {}
+  if (v === 'system') delete document.documentElement.dataset.rrTheme;
+  else document.documentElement.dataset.rrTheme = v;
+}
+
+function themePage(){
+  const cur = themeGet();
+  const opt = (v,label,sub) => row({
+    icon:'sun', title:label, sub, id:'t-'+v,
+    value: cur === v ? '✓' : ''
+  });
+  page('Appearance',
+    section('', [
+      opt('system','Match device','Follow your phone or computer'),
+      opt('light','Light','Paper and ink, always'),
+      opt('dark','Dark','Black background, as in Books')
+    ], 'This is saved on this device, so each device you read on can differ.'),
+    rootPage);
+  for (const v of ['system','light','dark']) {
+    $('#t-'+v).onclick = () => { themeApply(v); toast('Appearance: ' + themeLabel()); themePage(); };
+  }
+}
+
+function aboutPage(){
+  page('About',
+    section('', [
+      row({icon:'book', title:'Books in the catalogue', value:nf(state.gaps.total)}),
+      row({icon:'chart', title:'With artwork', value:nf(state.gaps.withCover)}),
+      row({icon:'folder', title:'Source folders', value:String(state.sources.length)})
+    ], 'A scan lists your Drive folders and rebuilds the catalogue from what is actually there, so books you have deleted drop out and new ones appear. Reading positions are carried across by title. Cover art is read out of the book files themselves.'),
+    rootPage);
+}
+
+load().then(rootPage).catch(e => {
+  $('#page').innerHTML = `<header class="set-head"><span class="set-back"></span><h1>Settings</h1></header>`
+    + `<p class="set-footer">Could not load settings: ${esc(e.message)}</p>`;
+});
+</script>
+</body>
+</html>

@@ -13,6 +13,7 @@ import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
+import { settingsRoute } from "./rr-settings.mjs";
 
 const APP_VERSION = "1.1";
 const startedAt = Date.now();
@@ -1165,6 +1166,10 @@ const handler = async (request, response) => {
         });
         return;
       }
+      case "/api/settings/state": case "/api/settings/sources":
+      case "/api/settings/scan": case "/api/settings/gaps":
+        if (await settingsRoute(request, response, url)) return;
+        break;
       case "/api/library-state": await handleLibraryState(request, response); return;
       case "/api/cover": await cover(response, url); return;
       case "/api/health": {

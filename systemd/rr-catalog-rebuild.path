@@ -1,0 +1,9 @@
+[Unit]
+Description=Reading Room: run a scan when the app asks for one
+
+[Path]
+PathExists=/var/lib/reading-room/scan-request.json
+Unit=rr-catalog-rebuild.service
+
+[Install]
+WantedBy=paths.target

@@ -1,0 +1,666 @@
+/* The Reading Room — full-page reading.
+ *
+ * Two different things eat an iPhone screen, and they need different fixes.
+ *
+ * Safari's own chrome cannot be hidden by script in an ordinary tab: on
+ * iPhone the Fullscreen API accepts <video> and nothing else. The only route
+ * is the home screen. The manifest already says `display: standalone`, and
+ * index.html now carries `apple-mobile-web-app-capable`, so "Add to Home
+ * Screen" launches the library with no browser UI at all. `viewport-fit=cover`
+ * plus the safe-area padding below is what keeps the toolbar clear of the
+ * notch and the home indicator once it does.
+ *
+ * The reader's own toolbar is ours, and this does two things to it:
+ *   1. The header shrinks to a thin strip — book title and close, nothing
+ *      else. Chapter, Pages/Scroll and A−/A+ move into a sheet that slides up
+ *      from the bottom when you tap ≡.
+ *   2. A tap in the middle of the page hides the strip and the footer
+ *      outright; another tap brings them back. The edges are left alone, so
+ *      whatever the reader itself does with taps there still works.
+ *
+ * All of it hangs off classes on <html> set by fullscreen-fix.js, so the
+ * original reader is one class removal away.
+ */
+
+/* --- Keep the chrome out from under the notch and the home indicator. -----
+ * Meaningful only with viewport-fit=cover; the insets read 0 everywhere else,
+ * so these collapse back to the built stylesheet's own padding.
+ */
+@media (width <= 1200px), (height <= 560px) {
+  .reader-header {
+    padding-top: calc(8px + env(safe-area-inset-top));
+    padding-left: calc(10px + env(safe-area-inset-left));
+    padding-right: calc(10px + env(safe-area-inset-right));
+  }
+  .reader-footer {
+    padding-bottom: calc(7px + env(safe-area-inset-bottom));
+    padding-left: calc(10px + env(safe-area-inset-left));
+    padding-right: calc(10px + env(safe-area-inset-right));
+  }
+}
+
+/* --- The thin strip ------------------------------------------------------- */
+@media (width <= 900px), (height <= 560px) {
+  html.rr-strip .reader-header {
+    padding-bottom: 5px;
+    min-height: 0;
+  }
+  html.rr-strip .reader-header > div:first-child {
+    padding-right: 88px;          /* room for ≡ and × */
+  }
+  html.rr-strip .reader-header h1 {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.4;
+    opacity: .72;
+  }
+
+  /* The controls, relocated by CSS alone. The nodes stay exactly where the
+   * app rendered them — moving them in the DOM would fight React. */
+  html.rr-strip .reader-actions {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 12;
+    width: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 16px calc(14px + env(safe-area-inset-right))
+             calc(16px + env(safe-area-inset-bottom))
+             calc(14px + env(safe-area-inset-left));
+    background: var(--paper);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -18px 45px #18211d2e;
+    overflow: visible;
+    transform: translateY(115%);
+    transition: transform .22s ease;
+  }
+  html.rr-sheet-open .reader-actions {
+    transform: translateY(0);
+  }
+  html.rr-strip .reader-actions label {
+    flex: 1 1 100%;
+  }
+  html.rr-strip .reader-actions select {
+    width: 100%;
+    max-width: none;
+    height: 42px;
+  }
+  html.rr-strip .reader-actions > button,
+  html.rr-strip .reader-actions > a {
+    flex: 1 1 auto;
+    min-height: 42px;
+    font-size: 12px;
+  }
+  html.rr-strip .reader-actions > a {
+    display: block;
+    text-align: center;
+    line-height: 26px;
+  }
+
+  /* `.reader-close` cannot be pinned to the viewport from in here: the sheet's
+   * `transform` makes it the containing block for its own fixed children, so a
+   * fixed close button rides off-screen with the sheet. Let it sit in the sheet
+   * as an ordinary button instead — and once the JS has mounted a proxy × up in
+   * the strip, hide this one as a duplicate. If the JS ever fails to run, the
+   * class is absent and this stays visible, so the book can always be closed. */
+  html.rr-strip .reader-actions .reader-close {
+    position: static;
+    flex: 1 1 100%;
+    order: 99;
+    min-height: 42px;
+    padding: 0;
+    font: 500 12px/1 Georgia, serif;
+  }
+  html.rr-strip .reader-actions .reader-close::after {
+    content: " Close book";
+  }
+  html.rr-has-close .reader-actions .reader-close {
+    display: none;
+  }
+}
+
+/* --- The ≡ button. Lives on <body>, outside React's tree. ----------------- */
+/* --- The strip buttons. Mounted on <body>, outside React's tree. ----------
+ * `.reader-shell` is position:fixed at z-index:100 and paints an opaque
+ * background over the whole viewport, so anything below that stacking level is
+ * simply invisible — these have to sit above it. Note also that neither can
+ * live inside `.reader-actions`: that sheet is transformed, which would make it
+ * their containing block and carry them off-screen when it closes.
+ */
+.rr-sheet-btn,
+.rr-close-btn {
+  display: none;
+  position: fixed;
+  top: calc(5px + env(safe-area-inset-top));
+  z-index: 120;
+  width: 36px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line, #ddd8cb);
+  background: var(--white, #fffdf7);
+  color: var(--ink, #1e2422);
+  font: 600 15px/1 Georgia, serif;
+  cursor: pointer;
+  transition: opacity .15s ease;
+}
+.rr-sheet-btn { right: calc(50px + env(safe-area-inset-right)); }
+.rr-close-btn { right: calc(9px + env(safe-area-inset-right)); font-size: 19px; }
+@media (width <= 1200px), (height <= 560px) {
+  html.rr-strip .rr-sheet-btn,
+  html.rr-strip .rr-close-btn { display: grid; }
+}
+html.rr-theme-dark .rr-sheet-btn,
+html.rr-theme-dark .rr-close-btn {
+  background: #252a28;
+  border-color: #4a524e;
+  color: #e8e4d8;
+}
+
+/* --- Chrome hidden: the page and nothing else. ---------------------------- */
+html.rr-hide-chrome .reader-header,
+html.rr-hide-chrome .reader-footer {
+  max-height: 0;
+  min-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-width: 0 !important;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.reader-header,
+.reader-footer {
+  transition: max-height .2s ease, opacity .15s ease;
+}
+/* Both of these are position:fixed, so an ancestor's overflow:hidden will not
+ * clip them — they have to be taken out of play by hand. */
+html.rr-hide-chrome .reader-actions,
+html.rr-hide-chrome .reader-actions .reader-close,
+html.rr-hide-chrome .rr-close-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+/* The ≡ stays — faint, but present and tappable. Without it, a centre tap that
+ * failed for any reason would leave no way back to the controls at all. */
+html.rr-hide-chrome .rr-sheet-btn {
+  opacity: .22;
+  background: transparent;
+  border-color: transparent;
+}
+
+/* --- "Hide toolbars": the dependable route to a full page ------------------
+ * An ordinary button in the host document, so it works regardless of what the
+ * book's own touch handling does with taps. Appears with the sheet. Anchored to
+ * the top rather than floated above the sheet, whose height varies with the
+ * controls in it.
+ */
+.rr-hide-btn {
+  display: none;
+  position: fixed;
+  top: calc(48px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 121;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink, #1e2422);
+  color: var(--paper, #f3efe5);
+  font: 500 12px/1 Georgia, serif;
+  cursor: pointer;
+  box-shadow: 0 8px 24px #18211d40;
+}
+html.rr-sheet-open .rr-hide-btn { display: block; }
+
+/* Free the full grid track when chrome is hidden; no reserved toolbar rows. */
+html.rr-hide-chrome .reader-shell { grid-template-rows: 0 minmax(0, 1fr) 0 !important; }
+html.rr-hide-chrome .reader-header,
+html.rr-hide-chrome .reader-footer { height:0!important; margin:0!important; }
+.reader-shell .epub-stage { min-height:0!important; }
+.reader-shell { height:100dvh; }
+.reader-actions { max-height:75dvh; overflow-y:auto!important; }
+.reader-settings[open] > div { max-height:55dvh; overflow-y:auto; }
+.reader-theme-light { --paper:#fff; --white:#fff; --ink:#202123; --line:#e5e5e5; --muted:#6b6b6b; background:#fff!important; color:#202123; }
+.reader-theme-light .reader-header,
+.reader-theme-light .reader-footer,
+.reader-theme-light .epub-stage,
+.reader-theme-light .reader-settings > div { background:#fff!important; }
+.reader-theme-light .reader-header,
+.reader-theme-light .reader-footer,
+.reader-theme-light .reader-actions,
+.reader-theme-light .reader-actions button,
+.reader-theme-light .reader-settings summary { font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important; }
+.reader-theme-light .reader-settings > div { border-radius:16px; box-shadow:0 8px 32px #0002; padding:20px; }
+.reader-theme-light .theme-options button { border-radius:8px; }
+/* Host-page close buttons stay tappable above the reader's touch layer. */
+.rr-panel-close {
+  display:none; position:fixed; z-index:130;
+  width:44px; height:44px; padding:0; place-items:center;
+  border:0; border-radius:50%; cursor:pointer;
+  font:400 28px/1 system-ui; touch-action:manipulation;
+}
+.rr-panel-close:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
+.reader-settings[open] > div { padding-top:48px!important; }
+@media (width <= 900px), (height <= 560px) {
+  html.rr-strip .reader-actions { padding-top:48px; box-sizing:border-box; }
+  .reader-settings[open] { flex:1 1 100%; }
+  .reader-settings[open] > div { position:static!important; width:100%!important; margin-top:8px; box-sizing:border-box; }
+}
+
+/* Books-inspired library shell. Scoped away from every reading surface. */
+html.rr-library-visible body { background:#fff; }
+html main > :is(.topbar,.hero,.discovery,.catalog,footer,.modal-backdrop), .rr-library-dock {
+  --paper:#fff; --paper-2:#f2f2f7; --white:#fff; --ink:#1c1c1e;
+  --muted:#737378; --sage:#737378; --line:#e5e5ea; --accent:#ad501d;
+  color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+html main > .topbar {
+  order:0; position:relative; height:auto; min-height:72px;
+  padding:calc(20px + env(safe-area-inset-top)) max(24px,calc((100vw - 1200px)/2)) 8px;
+  background:var(--paper); border:0; backdrop-filter:none; gap:20px; flex-wrap:wrap;
+}
+html .topbar .brand-mark { width:36px; height:40px; border-radius:6px; background:var(--ink); }
+html .topbar .brand strong { font:600 18px Georgia,serif; }
+html .topbar .brand small { font-size:8px; letter-spacing:.13em; }
+html .topbar nav { position:static; display:flex; gap:4px; height:auto; padding:0; background:none; border:0; backdrop-filter:none; }
+html .topbar nav b { position:static; margin-left:4px; font-size:10px; }
+html .topbar nav button {
+  min-height:40px; padding:8px 13px; border-radius:20px; height:auto;
+  text-transform:none; letter-spacing:0; font-size:13px; color:var(--muted);
+}
+html .topbar nav button.active { background:var(--paper-2); color:var(--ink); }
+html .topbar nav button.active:after { display:none; }
+html main > .hero {
+  order:1; max-width:1248px; padding:24px 24px 20px; grid-template-columns:1fr 1fr;
+  gap:18px 40px; background:var(--paper);
+}
+html .hero .eyebrow { display:none; }
+html .hero h1 { font:700 clamp(38px,6vw,52px)/1.08 Georgia,"Times New Roman",serif; letter-spacing:-.035em; margin:0; }
+html .hero .search { border:0; border-radius:14px; background:var(--paper-2); box-shadow:none; height:48px; }
+html .hero .search input { font-size:16px; }
+html .hero .category-chips { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-bottom:4px; }
+html .hero .category-chips button { flex-shrink:0; border:0; background:var(--paper-2); padding:10px 16px; font-size:13px; color:var(--ink); min-height:40px; }
+html main > .discovery { order:2; max-width:1248px; padding:0 24px 32px; border:0; }
+html .discovery .smart-shelf {
+  margin:0 -24px; padding:24px 24px 20px; border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,var(--paper) 0%,var(--paper) 22%,#eef3f9 100%);
+  overflow:hidden;
+}
+html .discovery .smart-shelf:nth-child(3n+2) { background:linear-gradient(180deg,var(--paper) 0%,var(--paper) 22%,#f5eeeb 100%); }
+html .discovery .smart-shelf:nth-child(3n) { background:linear-gradient(180deg,var(--paper) 0%,var(--paper) 22%,#eef4f0 100%); }
+html .shelf-heading { align-items:center; margin-bottom:16px; gap:0; }
+html .shelf-heading span { display:none; }
+html .shelf-heading > div { display:flex; align-items:center; min-width:0; gap:1px; }
+html .shelf-heading h2 { font:700 28px/1.12 Georgia,serif; letter-spacing:-.025em; margin:0; }
+html .rr-shelf-chevron { border:0; background:transparent; color:#98989d; padding:0; width:18px; min-width:18px; min-height:40px; font-size:0; cursor:pointer; display:grid; place-items:center; }
+html .rr-shelf-chevron::before { content:""; width:9px; height:9px; border-top:2.5px solid currentColor; border-right:2.5px solid currentColor; transform:translate(-2px,-1px) rotate(45deg); }
+html .rr-shelf-chevron:focus-visible { outline:2px solid var(--accent); border-radius:9px; }
+html .shelf-strip { grid-auto-columns:168px; align-items:start; gap:20px; padding:2px 2px 10px; scroll-snap-type:none; scroll-behavior:auto; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:none; mask-image:none; contain:layout style; }
+html .shelf-book { align-self:start; display:grid; grid-template-rows:auto auto auto; align-content:start; }
+html .shelf-strip::-webkit-scrollbar,html .series-strip::-webkit-scrollbar { display:none; }
+html .shelf-cover { border-radius:3px 6px 6px 3px; box-shadow:2px 4px 12px #0003; }
+html .shelf-cover img { position:absolute; inset:0; z-index:2; }
+html .shelf-cover img[hidden] { display:none; }
+html .rr-cover-label { display:flex; flex-direction:column; justify-content:space-between; position:absolute; inset:0; padding:12% 10%; color:#fff; border:1px solid #ffffff38; margin:5%; text-align:center; overflow:hidden; }
+html .rr-cover-label small { font:600 7px/1.2 system-ui; letter-spacing:.13em; opacity:.75; }
+html .rr-cover-label strong { font:600 15px/1.25 Georgia,serif; overflow-wrap:normal; hyphens:auto; display:block; }
+html .rr-cover-label em { font:10px/1.25 system-ui; opacity:.8; }
+html .shelf-cover.rr-artwork .rr-cover-label { display:none; }
+html .rr-author-portrait img { object-fit:cover; object-position:center top; }
+html .rr-art-credits { margin:12px 24px 28px; font:12px/1.5 system-ui; color:var(--muted); }
+html .rr-art-credits a { color:inherit; }
+html .rr-continue-shelf .rr-cover-label { padding:8px 3px; }
+html .rr-continue-shelf .rr-cover-label strong { font-size:10px; -webkit-line-clamp:5; }
+html .rr-continue-shelf .rr-cover-label small { font-size:4px; }
+html .rr-continue-shelf .rr-cover-label em { font-size:5px; }
+html .shelf-book > strong { font:600 12.5px/1.28 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; margin-top:9px; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; white-space:normal; overflow:hidden; overflow-wrap:normal; min-height:2.56em; }
+html .shelf-book > small { font-size:11.5px; line-height:1.25; margin-top:3px; white-space:nowrap; display:block; overflow:hidden; text-overflow:ellipsis; }
+.rr-editions { position:relative; max-height:80dvh; overflow-y:auto; width:min(540px,calc(100vw - 32px)); padding:24px; border:1px solid #fff9; border-radius:26px; background:color-mix(in srgb,var(--paper) 84%,transparent); box-shadow:0 18px 60px #0004; -webkit-backdrop-filter:blur(28px) saturate(1.35); backdrop-filter:blur(28px) saturate(1.35); }
+.rr-editions h2 { padding-right:36px; font:600 26px/1.2 Georgia,serif; }
+.rr-editions-close { position:absolute; right:12px; top:12px; min-width:44px; min-height:44px; border:0; border-radius:50%; font-size:26px; }
+.rr-edition-list { display:grid; gap:10px; margin-top:20px; counter-reset:edition; }
+.rr-edition-list button { counter-increment:edition; position:relative; padding:15px 16px 15px 52px; min-height:66px; text-align:left; border:1px solid color-mix(in srgb,var(--line) 74%,transparent); border-radius:16px; background:color-mix(in srgb,var(--paper-2) 88%,transparent); color:var(--ink); }
+.rr-edition-list button::before { content:counter(edition); position:absolute; left:14px; top:16px; display:grid; place-items:center; width:26px; height:26px; border-radius:50%; background:var(--ink); color:var(--paper); font:600 12px/1 system-ui; }
+.rr-edition-list strong,.rr-edition-list small { display:block; white-space:normal; }
+.rr-edition-list small { margin-top:8px; opacity:.7; }
+html .rr-continue-shelf .shelf-strip { grid-auto-columns:244px; gap:14px; }
+html .rr-continue-shelf .shelf-book {
+  display:grid; grid-template-columns:42px minmax(0,1fr); grid-template-rows:auto auto auto;
+  gap:1px 10px; align-content:center; align-items:center; padding:7px 10px; border-radius:14px;
+  background:#e7edf7; color:#172d4c; min-height:78px;
+}
+html .rr-continue-shelf .shelf-book:nth-child(3n+2) { background:#f4e7e1; color:#502b24; }
+html .rr-continue-shelf .shelf-book:nth-child(3n) { background:#e4eee8; color:#244437; }
+html .rr-continue-shelf .shelf-cover { grid-row:1/4; width:42px; }
+html .rr-continue-shelf .shelf-book > strong { margin:0; font-size:14px; line-height:1.14; -webkit-line-clamp:2; }
+html .rr-continue-shelf .shelf-book > small { margin:0; color:inherit; opacity:.82; font-size:11.5px; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+html .rr-continue-shelf .shelf-book > .rr-continue-meta { opacity:.62; font-size:10.5px; }
+html .series-strip { grid-auto-columns:240px; gap:16px; mask-image:none; scrollbar-width:none; }
+html .series-strip button { min-height:116px; border:0; border-radius:16px; background:var(--paper-2); padding:20px; }
+html .series-strip strong { font:600 20px/1.2 Georgia,serif; }
+html .series-strip small { font-size:13px; }
+html .rail-nav.prev { left:6px; } html .rail-nav.next { right:6px; }
+@media (hover:none), (pointer:coarse), (max-width:700px) { html .rail-nav { display:none!important; } }
+html main > .catalog { order:3; max-width:1248px; padding:24px 24px 52px; scroll-margin-top:16px; }
+html .catalog::before { content:"Your library"; display:block; margin:0 0 24px; font:700 32px/1.15 Georgia,serif; letter-spacing:-.025em; }
+html .catalog .catalog-toolbar { align-items:center; }
+html .catalog .mobile-filter-toggle,html .catalog .sort-control select,html .catalog .clear {
+  border:0; border-radius:12px; background:var(--paper-2); color:var(--ink); font-size:13px;
+  text-transform:none; letter-spacing:0; min-height:44px;
+}
+html .catalog .sort-control span { display:none; }
+html .catalog .filters { border:0; border-radius:18px; padding:20px; }
+html .catalog .filter-picker > button,html .catalog .filters select { border-radius:10px; font-size:14px; }
+html .catalog .filter-picker-menu { border-radius:12px; }
+html .catalog .results { font-size:12px; text-transform:none; letter-spacing:0; gap:12px; }
+html .catalog .display-switch { border:0; border-radius:9px; padding:3px; background:var(--paper-2); }
+html .catalog .display-switch button { border:0; border-radius:7px; text-transform:none; letter-spacing:0; font-size:12px; min-height:34px; }
+html .catalog .display-switch button.active { background:var(--white); color:var(--ink); box-shadow:0 1px 4px #0002; }
+html .catalog .thumbnail-view { grid-template-columns:repeat(auto-fill,minmax(156px,1fr)); gap:28px 24px; }
+html .catalog .cover { border-radius:3px 6px 6px 3px; box-shadow:2px 5px 14px #0002; }
+html .catalog .book-tools button { opacity:1; }
+html .catalog .book-tools :is(.finish,.series-link) { border-radius:8px; min-height:32px; }
+html .catalog .chips span { border:0; padding:2px 0; font-size:10px; }
+html .catalog .heart { min-width:32px; min-height:32px; }
+html .catalog .load,html .catalog .empty button { border-radius:24px; font-size:14px; }
+html main > footer { order:4; background:var(--paper); padding-bottom:120px; }
+html main > .modal-backdrop { background:#0008; }
+html .modal-backdrop .modal { border-radius:24px; }
+.rr-library-dock {
+  position:fixed; bottom:calc(12px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
+  width:min(420px,calc(100% - 32px)); height:70px; padding:5px; display:flex; gap:3px;
+  z-index:30; background:rgba(244,244,247,.94); border:1px solid #d0d0d580;
+  border-radius:38px; box-shadow:0 6px 28px #0002; backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+}
+.rr-library-dock[hidden] { display:none!important; }
+.rr-library-dock button { flex:1; border:0; background:transparent; border-radius:32px; min-width:0; color:var(--muted); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; font:500 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:0; text-transform:none; padding:4px; }
+.rr-library-dock button svg { width:24px; height:24px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.rr-library-dock button > span { display:block; }
+.rr-library-dock button[aria-current="page"] { background:#fff; color:#202123; box-shadow:0 2px 8px #0001; }
+.rr-library-dock button:after { display:none!important; }
+.rr-library-dock button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+html.rr-library-visible body { padding-bottom:0; }
+@media (max-width:600px) {
+  html main > .topbar { padding:calc(12px + env(safe-area-inset-top)) 24px 0; gap:14px; }
+  html .topbar .brand { width:100%; }
+  html .topbar .brand-mark { display:none; }
+  html .topbar .brand strong { font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--muted); }
+  html .topbar .brand small { display:none; }
+  html .topbar nav { width:100%; justify-content:space-between; gap:0; }
+  html .topbar nav button { padding:8px 10px; font-size:12px; }
+  html .topbar nav button > span { display:none; }
+  html main > .hero { display:flex; flex-direction:column; align-items:stretch; padding-top:24px; gap:18px; }
+  html .hero h1 { font-size:42px; }
+  html .hero .search kbd { display:none; }
+  html .hero .category-chips { margin-right:-24px; padding-right:24px; }
+  html .discovery .smart-shelf { padding-top:22px; padding-bottom:18px; }
+  html .shelf-heading h2 { font-size:26px; }
+  html .shelf-strip { grid-auto-columns:145px; gap:17px; margin-right:-24px; padding-right:24px; }
+  html .rr-continue-shelf .shelf-strip { grid-auto-columns:min(244px,76vw); }
+  html .series-strip { margin-right:-24px; padding-right:24px; }
+  html .catalog .thumbnail-view { grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px 20px; }
+  html .catalog .list-view .book-tools { min-width:0; }
+  html .catalog .list-view .book { gap:12px; }
+  html .catalog .expanded-filters.open { grid-template-columns:1fr; }
+  html .modal-backdrop .modal { padding:28px; }
+}
+@media (prefers-color-scheme:dark) {
+html:not([data-rr-theme="light"]).rr-library-visible body { background:#000; }
+html:not([data-rr-theme="light"]) main > :is(.topbar, html:not([data-rr-theme="light"]) .hero, html:not([data-rr-theme="light"]) .discovery, html:not([data-rr-theme="light"]) .catalog, html:not([data-rr-theme="light"]) footer, html:not([data-rr-theme="light"]) .modal-backdrop), html:not([data-rr-theme="light"]) .rr-library-dock { --paper:#000; --paper-2:#1c1c1e; --white:#242426; --ink:#f5f5f7;
+    --muted:#a1a1a6; --sage:#a1a1a6; --line:#303034; --accent:#f4ad78; color-scheme:dark; }
+html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book { background:#0a2c57; color:#fff; }
+html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book:nth-child(3n+2) { background:#591e21; color:#fff; }
+html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book:nth-child(3n) { background:#173e36; color:#fff; }
+html:not([data-rr-theme="light"]) .discovery .smart-shelf { background:linear-gradient(180deg,#000 0%,#000 22%,#101823 100%); }
+html:not([data-rr-theme="light"]) .discovery .smart-shelf:nth-child(3n+2) { background:linear-gradient(180deg,#000 0%,#000 22%,#1b1211 100%); }
+html:not([data-rr-theme="light"]) .discovery .smart-shelf:nth-child(3n) { background:linear-gradient(180deg,#000 0%,#000 22%,#101914 100%); }
+html:not([data-rr-theme="light"]) .rr-library-dock { background:rgba(48,48,50,.94); border-color:#ffffff30; }
+html:not([data-rr-theme="light"]) .rr-library-dock button[aria-current="page"] { background:#5b5b60; color:#fff; }
+}
+@media (prefers-reduced-motion:reduce) {
+  html .shelf-strip,html .series-strip { scroll-behavior:auto; }
+  html .catalog .cover { transition:none; }
+}
+
+/* Distinct Home, Library, Favorites and Search surfaces. The original header
+   remains mounted only as an internal bridge to React's navigation actions. */
+html main > .topbar { display:none; }
+html main > .hero { padding-top:calc(28px + env(safe-area-inset-top)); }
+html[data-rr-library-view="home"] main > .catalog,
+html:not([data-rr-library-view="home"]) main > .discovery { display:none; }
+html:not([data-rr-library-view="library"]) .hero .search { display:none; }
+html[data-rr-library-view="home"] .hero .category-chips,
+html[data-rr-library-view="favorites"] .hero .category-chips { display:none; }
+html .catalog::before { display:none; }
+html main > .hero { display:flex; flex-direction:column; align-items:stretch; }
+html[data-rr-library-view="home"] main > .hero { padding-bottom:12px; }
+.rr-library-dock { background:none; border:0; box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; gap:4px; padding:5px 0; }
+.rr-library-dock::before { content:""; position:absolute; inset:0; border-radius:38px; background:rgba(238,238,242,.94); border:1px solid #c8c8cd80; box-shadow:0 6px 28px #0002; backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); z-index:-1; }
+.rr-library-dock button:nth-child(1) { margin-left:5px; }
+.rr-library-dock button:nth-child(3) { margin-right:5px; }
+.rr-library-dock button[data-view="Search"] { flex:0 0 64px; height:64px; margin-top:-2px; background:#e2f2ec; color:#1c6456; border:1px solid #73b9a850; box-shadow:0 4px 18px #0002; }
+.rr-library-dock button[data-view="Search"] svg { width:30px; height:30px; }
+.rr-library-dock button[data-view="Search"] > span { display:none; }
+.rr-library-dock button[data-view="Search"][aria-current="page"] { background:#b9e8d8; color:#124d40; }
+@media (prefers-color-scheme:dark) {
+html:not([data-rr-theme="light"]) .rr-library-dock { background:none; border:0; }
+html:not([data-rr-theme="light"]) .rr-library-dock::before { background:rgba(48,48,50,.94); border-color:#ffffff30; }
+html:not([data-rr-theme="light"]) .rr-library-dock button[data-view="Search"] { background:#184c41; color:#c4ffea; }
+html:not([data-rr-theme="light"]) .rr-library-dock button[data-view="Search"][aria-current="page"] { background:#286957; color:#fff; }
+}
+
+/* Apple Books-inspired chrome. The reading engine and tap layer stay intact. */
+html.rr-books-controls .reader-actions{visibility:hidden!important;pointer-events:none!important}
+html.rr-books-controls .rr-panel-close,html.rr-books-controls .rr-hide-btn,html.rr-books-controls .rr-text-mode{display:none!important}
+html.rr-books-controls .rr-sheet-btn,html.rr-books-controls .rr-close-btn{
+ width:46px!important;height:46px!important;border-radius:50%!important;
+ border:1px solid #ffffff80!important;background:color-mix(in srgb,var(--rr-control-bg,#f3f2ee) 66%,transparent)!important;
+ color:inherit;backdrop-filter:blur(22px) saturate(1.2);-webkit-backdrop-filter:blur(22px) saturate(1.2);font:32px/1 -apple-system,BlinkMacSystemFont,sans-serif!important;
+ right:20px!important;box-shadow:0 3px 16px #00000014;
+}
+html.rr-books-controls .rr-close-btn{top:calc(env(safe-area-inset-top,0px) + 16px)!important}
+html.rr-books-controls .rr-sheet-btn{top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 20px)!important}
+/* The book title used to reserve a real grid row. Toggling chrome therefore
+   changed the page viewport and repaginated the text. Controls now float over
+   a permanently full-height reading stage, and the redundant title bar is
+   removed entirely. */
+html.rr-books-controls .reader-header{visibility:hidden!important;opacity:0!important;overflow:hidden!important;pointer-events:none!important;height:0!important;min-height:0!important;padding:0!important;border:0!important}
+html.rr-books-controls .reader-footer{background:transparent!important;border:0!important;min-height:70px;padding:14px 76px!important;justify-content:center!important;font:14px -apple-system,BlinkMacSystemFont,sans-serif}
+html.rr-books-pages .reader-footer>button{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden;clip-path:inset(50%)}
+html.rr-books-controls.rr-hide-chrome .reader-footer{min-height:0!important;padding:0!important}
+.rr-books-menu{position:fixed;z-index:150;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 78px);width:min(330px,calc(100vw - 32px));max-height:calc(100dvh - env(safe-area-inset-top,0px) - 120px);overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:6px;color:#242424;font:16px/1.35 -apple-system,BlinkMacSystemFont,sans-serif;scrollbar-width:thin}
+.rr-books-menu[hidden]{display:none!important}
+.rr-books-menu>button,.rr-books-menu>header,.rr-books-menu>label,.rr-books-actions>button{border:0;background:#eeeeeeed;backdrop-filter:blur(28px);color:inherit;border-radius:28px;min-height:50px;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;font:inherit;text-align:left;cursor:pointer}
+.rr-books-menu>header{padding:8px 12px 8px 20px}
+.rr-books-menu>header>button{border:0;background:#8882;border-radius:50%;width:36px;height:36px;color:inherit;font:26px/1 sans-serif;flex-shrink:0}
+.rr-books-menu>header>button>span:first-child{display:none}
+.rr-books-menu>button>span:last-child:not(:first-child){font-size:25px}
+.rr-books-actions{display:flex;gap:6px}
+.rr-books-actions>button{flex:1;justify-content:center;text-align:center;flex-direction:column;gap:2px;padding:10px 6px;font-size:12px;min-width:0}
+.rr-books-actions>button>span:last-child:not(:first-child){font-size:24px;order:-1}
+.rr-books-menu[data-view="Themes & Settings"],.rr-books-menu[data-view="Contents"],.rr-books-menu[data-view="Read Aloud"]{background:#f2f2f2f5;border-radius:28px;padding:12px;box-shadow:0 10px 45px #0003;backdrop-filter:blur(30px)}
+.rr-books-menu>label{flex-wrap:wrap;border-radius:16px;cursor:default}
+.rr-books-menu input[type=range]{width:100%;accent-color:#555;min-height:30px}
+.rr-books-menu select{max-width:100%;min-height:38px;font:inherit;color:inherit;background:transparent;border:0}
+.rr-books-themes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.rr-books-themes button{min-height:75px;border:2px solid transparent;border-radius:18px;font:16px Georgia,serif}
+.rr-books-themes button[data-theme=light]{background:#fff;color:#222}
+.rr-books-themes button[data-theme=sepia]{background:#f4e8ce;color:#433526}
+.rr-books-themes button[data-theme=dark]{background:#191919;color:#ddd}
+.rr-books-themes button[data-theme=original]{background:#fff;color:#222}
+.rr-books-themes button[data-theme=quiet]{background:#4d4c52;color:#eee}
+.rr-books-themes button[data-theme=paper]{background:#eeeae1;color:#332f29}
+.rr-books-themes button[data-theme=bold]{background:#fff;color:#111;font-family:-apple-system,sans-serif;font-weight:750}
+.rr-books-themes button[data-theme=calm]{background:#f0dfbd;color:#443526}
+.rr-books-themes button[data-theme=focus]{background:#fffdf5;color:#221f18;border:2px solid #222}
+.rr-books-menu [aria-pressed=true]{outline:2px solid #999;outline-offset:-3px}
+html.rr-theme-dark .rr-books-menu{color:#eee;--rr-control-bg:#34332b}
+html.rr-theme-dark .rr-books-menu>button,html.rr-theme-dark .rr-books-menu>header,html.rr-theme-dark .rr-books-menu>label,html.rr-theme-dark .rr-books-actions>button{background:#4b4a40ed}
+html.rr-theme-dark .rr-books-menu[data-view]:not([data-view=menu]){background:#35342ded}
+html.rr-theme-dark .rr-sheet-btn,html.rr-theme-dark .rr-close-btn{--rr-control-bg:#28271f;color:#ddd!important}
+
+/* No footer row: let the book reflow into the freed space in both modes.
+   Keep native navigation buttons in the DOM for the existing tap handlers. */
+html.rr-books-controls .reader-shell,
+html.rr-books-controls.rr-hide-chrome .reader-shell{grid-template-rows:0 minmax(0,1fr) 0!important}
+html.rr-books-controls .reader-footer{display:none!important}
+html.rr-books-controls.rr-books-pages .reader-footer{
+ display:block!important;position:fixed!important;z-index:110;
+ top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 28px)!important;
+ left:50%!important;right:auto!important;transform:translateX(-50%);
+ width:max-content!important;max-width:calc(100vw - 160px)!important;
+ height:auto!important;min-height:0!important;max-height:none!important;
+ margin:0!important;padding:7px 13px!important;border:1px solid #8882!important;
+ border-radius:18px!important;background:#f6f6f0df!important;color:#555!important;
+ backdrop-filter:blur(18px);box-shadow:0 2px 10px #00000008;
+ opacity:1!important;overflow:hidden!important;pointer-events:none!important;
+ font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif!important;
+ text-align:center;white-space:nowrap;text-overflow:ellipsis;
+}
+html.rr-books-controls .reader-footer>button{display:none!important}
+html.rr-books-controls.rr-books-pages.rr-theme-dark .reader-footer{background:#292922df!important;color:#d8d8cf!important}
+
+/* Compact three-row menu, with secondary actions in a single icon strip. */
+.rr-books-menu[data-view=menu]{width:min(258px,calc(100vw - 32px));gap:5px;padding:6px;border:1px solid #ffffff80;border-radius:25px;background:#e8e8e1b8;box-shadow:0 12px 34px #0004;backdrop-filter:blur(32px) saturate(1.25);-webkit-backdrop-filter:blur(32px) saturate(1.25)}
+.rr-books-menu[data-view=menu]>button{min-height:42px;padding:8px 15px;font-size:15px;background:#f4f4efdc!important;color:#111!important;border-radius:21px}
+.rr-books-menu[data-view=menu]>button:first-child{background:#303029!important;color:#fff!important}
+.rr-books-menu[data-view=menu]>.rr-books-actions>button{min-height:42px;height:42px;padding:3px;background:#f4f4efdc!important;color:#111!important;border-radius:21px}
+.rr-books-menu[data-view=menu]>.rr-books-actions>button>span:first-child{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.rr-books-menu[data-view=menu]>.rr-books-actions>button>span:last-child{font-size:25px}
+.rr-books-dismiss{position:fixed;z-index:140;top:0;bottom:0;left:30%;width:40%;border:0;padding:0;background:transparent;touch-action:pan-y;cursor:default}
+.rr-books-dismiss[hidden]{display:none!important}
+.rr-books-dismiss>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.rr-books-menu>p{padding:10px 16px;margin:0;font-size:14px}
+.rr-books-menu[data-view=Contents]{width:min(420px,calc(100vw - 32px));max-height:65dvh;min-height:min(320px,50dvh)}
+.rr-books-menu[data-view=Contents]>header{position:sticky;top:0;z-index:1;flex-shrink:0}
+.rr-books-menu[data-view=Contents]>button{flex-shrink:0;border-radius:12px;min-height:44px}
+.rr-books-menu[data-view=Contents]>button[aria-current=location]{background:#303029!important;color:white!important}
+.rr-books-menu[data-view="Themes & Settings"],.rr-books-menu[data-view="Customise Theme"]{width:min(380px,calc(100vw - 24px));max-height:78dvh}
+.rr-books-menu[data-view=More]{width:min(258px,calc(100vw - 32px));background:#f2f2f2e8;border:1px solid #ffffff70;border-radius:25px;padding:8px;box-shadow:0 12px 34px #0004;backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px)}
+html.rr-theme-dark .rr-books-menu[data-view=menu],html.rr-theme-dark .rr-books-menu[data-view=More]{background:#2e2e2abf;border-color:#ffffff25;color:#f5f5f2}
+html.rr-theme-dark .rr-books-menu[data-view=menu]>button,html.rr-theme-dark .rr-books-menu[data-view=menu]>.rr-books-actions>button{background:#484843dc!important;color:#f7f7f4!important}
+html.rr-theme-dark .rr-books-menu[data-view=menu]>button:first-child{background:#171714e8!important}
+.rr-books-menu[data-view="Customise Theme"]>label{display:grid;grid-template-columns:1fr auto;gap:6px 12px}
+.rr-books-menu[data-view="Customise Theme"]>label>output{font-variant-numeric:tabular-nums;color:#777}
+.rr-books-menu[data-view="Customise Theme"]>label>input{grid-column:1/-1}
+.rr-books-menu[data-view="Customise Theme"]>button:last-child{color:#d33;justify-content:center}
+
+/* Centre tap is a single, reversible chrome toggle. The invisible reading tap
+   layer stays active, so another centre tap restores every control. */
+html.rr-books-controls.rr-hide-chrome .rr-sheet-btn,
+html.rr-books-controls.rr-hide-chrome .rr-close-btn,
+html.rr-books-controls.rr-hide-chrome .reader-footer{
+ visibility:hidden!important;opacity:0!important;pointer-events:none!important;
+}
+
+
+/* ==== v44: carousel scroll performance ================================= *
+ * The rails were re-rastering and re-anchoring on every frame of a drag.
+ * Nothing here changes layout or palette; it changes what the browser has
+ * to redo while your finger is moving.
+ *
+ * overflow-anchor:none  — scroll anchoring was adjusting scrollLeft when a
+ *   cover finished loading (or failed and hid itself) mid-gesture.  That is
+ *   the rail "skipping back".
+ * scroll-snap-type:none — snap re-resolves every time the strip's content
+ *   changes; with lazily-loaded covers that is constantly.
+ * contain:layout style  — a change inside one rail stops invalidating the
+ *   other eleven.
+ * ---------------------------------------------------------------------- */
+html .shelf-strip, html .series-strip {
+  overflow-anchor: none;
+  scroll-snap-type: none;
+  scroll-behavior: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  mask-image: none;
+  contain: layout style;
+}
+html .shelf-book, html .series-strip > * { scroll-snap-align: none; }
+
+/* Twelve shelves are built, styled and painted on every load even though two
+ * fit on screen.  Let the browser skip the ones nobody can see; it remembers
+ * each shelf's real height after the first pass, so nothing jumps.
+ * (If anything ever looks off during fast vertical scrolling, this block is
+ * the first thing to delete — it is independent of everything above.) */
+html .discovery .smart-shelf + .smart-shelf {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 360px;
+}
+
+
+/* ==== v45: a dark mode you can choose ================================== *
+ * Derived from the @media (prefers-color-scheme:dark) rules above rather
+ * than written twice, so the two cannot drift apart. Setting
+ * data-rr-theme="dark" on <html> forces it; "light" forces light even on a
+ * phone in dark mode; absent means follow the system, as before.
+ * ---------------------------------------------------------------------- */
+html[data-rr-theme="dark"].rr-library-visible body { background:#000; }
+html[data-rr-theme="dark"] main > :is(.topbar, html[data-rr-theme="dark"] .hero, html[data-rr-theme="dark"] .discovery, html[data-rr-theme="dark"] .catalog, html[data-rr-theme="dark"] footer, html[data-rr-theme="dark"] .modal-backdrop), html[data-rr-theme="dark"] .rr-library-dock { --paper:#000; --paper-2:#1c1c1e; --white:#242426; --ink:#f5f5f7;
+    --muted:#a1a1a6; --sage:#a1a1a6; --line:#303034; --accent:#f4ad78; color-scheme:dark; }
+html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book { background:#0a2c57; color:#fff; }
+html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book:nth-child(3n+2) { background:#591e21; color:#fff; }
+html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book:nth-child(3n) { background:#173e36; color:#fff; }
+html[data-rr-theme="dark"] .discovery .smart-shelf { background:linear-gradient(180deg,#000 0%,#000 22%,#101823 100%); }
+html[data-rr-theme="dark"] .discovery .smart-shelf:nth-child(3n+2) { background:linear-gradient(180deg,#000 0%,#000 22%,#1b1211 100%); }
+html[data-rr-theme="dark"] .discovery .smart-shelf:nth-child(3n) { background:linear-gradient(180deg,#000 0%,#000 22%,#101914 100%); }
+html[data-rr-theme="dark"] .rr-library-dock { background:rgba(48,48,50,.94); border-color:#ffffff30; }
+html[data-rr-theme="dark"] .rr-library-dock button[aria-current="page"] { background:#5b5b60; color:#fff; }
+html[data-rr-theme="dark"] .rr-library-dock { background:none; border:0; }
+html[data-rr-theme="dark"] .rr-library-dock::before { background:rgba(48,48,50,.94); border-color:#ffffff30; }
+html[data-rr-theme="dark"] .rr-library-dock button[data-view="Search"] { background:#184c41; color:#c4ffea; }
+html[data-rr-theme="dark"] .rr-library-dock button[data-view="Search"][aria-current="page"] { background:#286957; color:#fff; }
+
+@media (prefers-color-scheme:dark) {
+
+/* ---- Apple Books shelf bands (dark) ---------------------------------- *
+ * Sampled from the app: #1e1e1e at the top of each band, pure black at the
+ * bottom, and no per-shelf tinting. Applies to both the system-dark and the
+ * explicitly-chosen dark theme.
+ * ---------------------------------------------------------------------- */
+html:not([data-rr-theme="light"]) .discovery .smart-shelf,
+html:not([data-rr-theme="light"]) .discovery .smart-shelf:nth-child(3n+2),
+html:not([data-rr-theme="light"]) .discovery .smart-shelf:nth-child(3n) {
+  background: linear-gradient(180deg, #1e1e1e 0%, #000 100%);
+}
+
+}
+
+/* ---- Apple Books shelf bands (dark) ---------------------------------- *
+ * Sampled from the app: #1e1e1e at the top of each band, pure black at the
+ * bottom, and no per-shelf tinting. Applies to both the system-dark and the
+ * explicitly-chosen dark theme.
+ * ---------------------------------------------------------------------- */
+html[data-rr-theme="dark"] .discovery .smart-shelf,
+html[data-rr-theme="dark"] .discovery .smart-shelf:nth-child(3n+2),
+html[data-rr-theme="dark"] .discovery .smart-shelf:nth-child(3n) {
+  background: linear-gradient(180deg, #1e1e1e 0%, #000 100%);
+}
+
+/* ---- Settings entry point -------------------------------------------- */
+html .topbar { position: relative; }
+html #rr-settings-link {
+  display: inline-grid; place-items: center;
+  width: 38px; height: 38px; margin-left: auto;
+  color: var(--muted); border-radius: 50%;
+  flex: none; text-decoration: none;
+}
+html #rr-settings-link svg { width: 22px; height: 22px; }
+html #rr-settings-link:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+
+/* ---- shelf chevron alignment ----------------------------------------- *
+ * The chevron is a 9px square showing two borders and rotated 45deg, so the
+ * visible arrow sits in the upper-right of its box — its optical centre is
+ * well above the box centre that `place-items:center` lines up. Against a
+ * 28px Georgia heading that read as 8px too high (measured on an iPhone
+ * screenshot: heading glyph band centred at y=564, chevron at y=540, at 3x).
+ * The old -1px nudge made it slightly worse, so this replaces it outright.
+ * ---------------------------------------------------------------------- */
+html .rr-shelf-chevron::before {
+  transform: translate(-2px, 7px) rotate(45deg);
+}

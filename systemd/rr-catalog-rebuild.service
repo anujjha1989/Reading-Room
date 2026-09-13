@@ -1,0 +1,11 @@
+[Unit]
+Description=Reading Room: rebuild the catalogue from Drive
+# A failing scan must not be retriggered endlessly by the path unit.
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=anujjha1989
+ExecStart=/usr/local/lib/reading-room/rr-catalog-rebuild.sh
+TimeoutStartSec=3600
