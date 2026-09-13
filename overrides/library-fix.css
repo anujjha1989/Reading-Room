@@ -1,0 +1,101 @@
+/* The Reading Room — library layout refinements.
+ * Overrides only. Nothing here changes the palette or type; it changes what
+ * you see first and how much chrome sits between you and the books.
+ */
+
+/* --- 1. Books above the fold ---------------------------------------------
+ * The catalogue moves directly under the hero; the discovery rails keep their
+ * place but move below it, so opening the app lands on your library rather
+ * than on two rows of promos. */
+main { display: flex; flex-direction: column; }
+main > * { width: 100%; }   /* flex items must not shrink to their content */
+main > .topbar    { order: 0; }
+main > .hero      { order: 1; }
+main > .catalog   { order: 2; }
+main > .discovery { order: 3; }
+main > footer     { order: 4; }
+
+.compact-hero {
+  align-items: center;
+  gap: 12px 40px;
+  padding: 24px 24px 16px;
+}
+.compact-hero h1 {
+  margin: 4px 0 0;
+  font-size: clamp(26px, 3vw, 38px);
+}
+.search { height: 50px; }
+.catalog-toolbar { margin-bottom: 4px; }
+.discovery { padding-top: 26px; border-top: 1px solid var(--line); }
+
+/* --- 2. Filters collapsed by default -------------------------------------
+ * Reuses the pattern the stylesheet already applies below 780px, at every
+ * width: a Filters button that shows the active count, panel hidden until
+ * asked for. Recovers ~175px above the grid. */
+.catalog-toolbar { justify-content: space-between; }
+.mobile-filter-toggle {
+  display: block;
+  border: 1px solid var(--ink);
+  background: 0 0;
+  color: var(--ink);
+  cursor: pointer;
+  height: 38px;
+  padding: 0 15px;
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.mobile-filter-toggle[aria-expanded="true"] { background: var(--ink); color: var(--paper); }
+.expanded-filters { display: none; }
+.expanded-filters.open { display: grid; }
+
+/* --- 3. Rails that show they scroll --------------------------------------
+ * `.rail-start` / `.rail-end` are set by library-fix.js when there is content
+ * out of view on that side. */
+.smart-shelf { position: relative; }
+.series-strip, .shelf-strip { scroll-behavior: smooth; }
+.rail-end   { mask-image: linear-gradient(to right, #000 calc(100% - 64px), transparent); }
+.rail-start { mask-image: linear-gradient(to left,  #000 calc(100% - 64px), transparent); }
+.rail-start.rail-end {
+  mask-image: linear-gradient(to right, transparent, #000 64px,
+                              #000 calc(100% - 64px), transparent);
+}
+.rail-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--ink);
+  cursor: pointer;
+  font: 15px/1 Georgia, serif;
+  box-shadow: 0 4px 14px #26332f1f;
+  transition: opacity .15s;
+}
+.rail-nav[hidden] { display: none; }
+.rail-nav:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.rail-nav.prev { left: -14px; }
+.rail-nav.next { right: -14px; }
+@media (hover: none) { .rail-nav { display: none; } }
+
+/* --- 4. Covers first, controls on demand ---------------------------------
+ * The format and Series chips stay (they are information); the tick and heart
+ * buttons fade in on hover or keyboard focus. Space is reserved either way,
+ * so nothing shifts. */
+.book-tools button { opacity: 0; transition: opacity .14s ease; }
+.book:hover .book-tools button,
+.book:focus-within .book-tools button { opacity: 1; }
+@media (hover: none) { .book-tools button { opacity: 1; } }
+.grid { gap: 22px 20px; padding-top: 20px; }
+.results { padding: 20px 2px 14px; }
+
+/* --- Reader toolbar ------------------------------------------------------
+ * "Open in Drive" was already hidden below 780px; hide it at every width so
+ * the toolbar holds only reading controls. The book is still reachable from
+ * Drive itself, and the reader's own download fallback is unaffected. */
+.reader-actions > a {
+  display: none !important;
+}
