@@ -48,7 +48,13 @@ async function loadSettings() {
   return s;
 }
 
-const saveSettings = (s) => writeFile(SETTINGS, JSON.stringify(s, null, 2));
+// The service runs UMask=0077, so this would land 0600 and the rebuild (a
+// different user) could not read which sources were configured - it would
+// silently fall back to the defaults and skip every local folder.
+const saveSettings = async (s) => {
+  await writeFile(SETTINGS, JSON.stringify(s, null, 2));
+  await chmod(SETTINGS, 0o644);
+};
 
 // A title the scanner derived from a filename rather than real metadata:
 // "0f 8 - Gotham Knights #056", "031228716XImmediate Fiction B", "31".
@@ -124,18 +130,25 @@ export async function settingsRoute(request, response, url) {
       const p = clean(payload.path);
       // Anything outside Books/ or Scripts/ would be silently dropped by
       // drive-scan.mjs, so refuse it here rather than appear to accept it.
-      if (!p || !/^(Books|Scripts)(\/|$)/.test(p)) {
-        json(response, 400, { error: "Source must be inside Books/ or Scripts/." });
+      // Two kinds of source now: a path inside Drive, or an absolute path on
+      // this Pi (anything starting with "/").
+      const isLocal = String(payload.path || "").trim().startsWith("/");
+      if (!isLocal && (!p || !/^(Books|Scripts)(\/|$)/.test(p))) {
+        json(response, 400, {
+          error: "A Drive source must be inside Books/ or Scripts/. For a folder on the Pi, give a full path starting with /.",
+        });
         return true;
       }
       if (settings.sources.some((s) => s.path === p)) {
         json(response, 409, { error: "That folder is already a source." });
         return true;
       }
+      const localPath = String(payload.path || "").trim().replace(/\/+$/, "");
       settings.sources.push({
         id: "s" + Date.now().toString(36),
-        name: clean(payload.name) || p.split("/").pop(),
-        path: p,
+        name: clean(payload.name) || (isLocal ? localPath : p).split("/").pop(),
+        path: isLocal ? localPath : p,
+        kind: isLocal ? "local" : "drive",
         enabled: true,
       });
     } else if (payload.action === "remove") {

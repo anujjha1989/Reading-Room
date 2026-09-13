@@ -218,14 +218,14 @@ function addSourcePage(){
   page('Add a folder',
     `<section class="set-section"><div class="set-rows" style="padding:16px">
       <label class="set-title" for="p">Folder path in Drive</label>
-      <p class="set-sub" style="margin:6px 0 10px">Relative to your Drive root, without a leading slash.</p>
-      <input type="text" id="p" placeholder="Books/Archive/New Imports" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <p class="set-sub" style="margin:6px 0 10px">A Drive path like <code>Books/Archive/New Imports</code>, or a full path on the Pi starting with <code>/</code>.</p>
+      <input type="text" id="p" placeholder="Books/Archive/New Imports or /mnt/seagate/..." autocapitalize="off" autocorrect="off" spellcheck="false">
       <label class="set-title" for="n" style="display:block;margin-top:14px">Name (optional)</label>
       <input type="text" id="n" placeholder="New Imports" style="margin-top:6px">
      </div></section>
      <div class="set-actions"><button class="primary" id="add-save">Add source</button>
      <button class="secondary" id="add-cancel">Cancel</button></div>
-     <p class="set-footer">Must sit inside <code>Books/</code> or <code>Scripts/</code> — the scanner ignores anything else.</p>`,
+     <p class="set-footer">A Drive source must sit inside <code>Books/</code> or <code>Scripts/</code>. A folder on the Pi can be anywhere the Reading Room can read, such as <code>/mnt/seagate/Books</code>.</p>`,
     sourcesPage);
   $('#add-cancel').onclick = sourcesPage;
   $('#add-save').onclick = async () => {
@@ -244,7 +244,7 @@ function maintenancePage(){
   const s = state.status || {state:'idle'};
   const running = s.state === 'running';
   page('Library maintenance',
-    `<div class="set-actions"><button class="primary" id="scan-run"${running?' disabled':''}>${running?'Working…':'Scan for new books'}</button></div>`
+    `<div class="set-actions"><button class="primary" id="scan-run"${running?' disabled':''}>${running?'Working…':'Rescan Database'}</button></div>`
     + section('', [
         row({icon:'book', title:'Sync new additions', sub:'Only ' + (state.dropFolder || 'the drop folder'), chevron:true, id:'sync-run'}),
         row({icon:'folder', title:'Drop folder', sub:'Where new books are dropped', value:'Change', chevron:true, id:'drop-set'}),

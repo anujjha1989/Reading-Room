@@ -1096,11 +1096,57 @@ async function fetchDriveFile(id, range, signal) {
   return { resp, ctype };
 }
 
+// Books that live on this Pi rather than in Drive. The scan writes this map;
+// ids are "L" + sha1(path), which satisfies driveIdPattern, so only this one
+// lookup has to know the difference.
+const LOCAL_FILE_MAP = process.env.READING_ROOM_LOCAL_MAP
+  || "/mnt/seagate/ReadingRoom/local-files.json";
+let localMapCache = { at: 0, map: {} };
+
+async function localBookPath(id) {
+  if (Date.now() - localMapCache.at > 30000) {
+    try {
+      localMapCache = { at: Date.now(), map: JSON.parse(await readFile(LOCAL_FILE_MAP, "utf8")) };
+    } catch { localMapCache = { at: Date.now(), map: {} }; }
+  }
+  return localMapCache.map[id] || null;
+}
+
+async function sendLocalBook(request, response, file, mimeType) {
+  const info = await stat(file);
+  const base = { "content-type": mimeType, "accept-ranges": "bytes",
+                 "cache-control": "private, max-age=300" };
+  const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.range || "");
+  if (range) {
+    let start = range[1] === "" ? null : Number(range[1]);
+    let end = range[2] === "" ? null : Number(range[2]);
+    if (start === null) { start = Math.max(0, info.size - (end || 0)); end = info.size - 1; }
+    if (end === null || end >= info.size) end = info.size - 1;
+    if (Number.isFinite(start) && Number.isFinite(end) && start <= end) {
+      response.writeHead(206, { ...base, "content-length": end - start + 1,
+        "content-range": `bytes ${start}-${end}/${info.size}` });
+      createReadStream(file, { start, end }).pipe(response);
+      return;
+    }
+    response.writeHead(416, { ...base, "content-range": `bytes */${info.size}` }).end();
+    return;
+  }
+  response.writeHead(200, { ...base, "content-length": info.size });
+  createReadStream(file).pipe(response);
+}
+
 async function proxyBook(request, response, url) {
   const id = decodeURIComponent(url.pathname.slice("/api/book/".length));
   if (!driveIdPattern.test(id)) { response.writeHead(400).end("Invalid book identifier"); return; }
   const format = (url.searchParams.get("format") || "EPUB").toUpperCase();
   const mimeType = bookMimeTypes[format] || "application/octet-stream";
+
+  // A book on this Pi never goes near Drive.
+  const onDisk = await localBookPath(id);
+  if (onDisk) {
+    try { await sendLocalBook(request, response, onDisk, mimeType); return; }
+    catch { if (!response.headersSent) { response.writeHead(404).end("Book file missing"); return; } }
+  }
 
   // Abort the upstream transfer if the reader navigates away mid-download.
   const controller = new AbortController();

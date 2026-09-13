@@ -23,6 +23,7 @@ CATALOG=/opt/reading-room/current/site/catalog.json
 MANIFEST=$DIR/drive-manifest.json
 LOG=$DIR/last-scan.log
 SCOPED=$DIR/drive-manifest.scoped.json
+LOCALMAP=/mnt/seagate/ReadingRoom/local-files.json
 FILTERED=$DIR/drive-manifest.filtered.json
 EMPTY=$DIR/empty-catalog.json
 NEXT=$DIR/catalog.next.json
@@ -117,7 +118,55 @@ if [ "$SCAN_MODE" = "incremental" ]; then
     exit 0
   fi
 else
-  echo "[]" > "$EMPTY"
+  # Fold in any source that is a folder on this Pi rather than in Drive.
+status running "Reading local folders…"
+node - "$SETTINGS" "$FILTERED" "$LOCALMAP" <<'NODE'
+import fs from "node:fs";
+import path from "node:path";
+import { createHash } from "node:crypto";
+const [, , settingsPath, manifestPath, mapPath] = process.argv;
+const SUPPORTED = new Set(["EPUB","PDF","MOBI","AZW","AZW3","CBR","CBZ","DOC","DOCX","RTF","TXT","FDX"]);
+let sources = [];
+try { sources = (JSON.parse(fs.readFileSync(settingsPath,"utf8")).sources||[]) } catch {}
+const local = sources.filter(s => s.kind === "local" && s.enabled !== false);
+const rows = JSON.parse(fs.readFileSync(manifestPath,"utf8"));
+const map = {};
+for (const src of local) {
+  const root = String(src.path||"").replace(/\/+$/,"");
+  if (!root || !fs.existsSync(root)) { console.log(`local source missing: ${root}`); continue; }
+  const label = String(src.name || path.basename(root)).replace(/[\/]/g,"-");
+  let n = 0;
+  const walk = (dir) => {
+    let entries = [];
+    try { entries = fs.readdirSync(dir,{withFileTypes:true}) } catch { return }
+    for (const e of entries) {
+      if (e.name.startsWith(".")) continue;
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(full); continue; }
+      if (!e.isFile()) continue;
+      const ext = path.extname(e.name).slice(1).toUpperCase();
+      if (!SUPPORTED.has(ext)) continue;
+      // Derived from the path, so a rescan produces the same id and reading
+      // progress survives.
+      const id = "L" + createHash("sha1").update(full).digest("hex");
+      let st; try { st = fs.statSync(full) } catch { continue }
+      rows.push({
+        Path: `Books/${label}/${path.relative(root, full).split(path.sep).join("/")}`,
+        ID: id, ModTime: st.mtime.toISOString(), IsDir: false,
+      });
+      map[id] = full;
+      n++;
+    }
+  };
+  walk(root);
+  console.log(`local source ${label}: ${n} files`);
+}
+fs.writeFileSync(manifestPath, JSON.stringify(rows));
+fs.writeFileSync(mapPath, JSON.stringify(map));
+console.log(`local files served from disk: ${Object.keys(map).length}`);
+NODE
+
+echo "[]" > "$EMPTY"
   status running "Rebuilding the catalogue…"
   node /usr/local/lib/reading-room/drive-scan.mjs "$EMPTY" "$FILTERED" "$NEXT" "$SUMMARY"
 fi
