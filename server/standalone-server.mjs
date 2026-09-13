@@ -580,12 +580,44 @@ const DRIVE_THUMB_FORMATS = new Set(["PDF", "DOC", "DOCX", "RTF", "TXT", "FDX"])
 const isFreshMiss = (entry) => entry?.none === true &&
   (!entry.at || Date.now() - entry.at < NEGATIVE_COVER_TTL);
 
+// Cover art extracted from the books themselves by rr-cover-extract.py.
+// Open Library cannot match a title like "0f 8 - Gotham Knights #056", but the
+// art is inside the file: an EPUB carries it in the archive, a CBZ's first
+// page is it, a MOBI points at it with EXTH 201. Serving from disk turns each
+// cover from a WAN redirect into a local read.
+const COVER_ART_DIR = process.env.READING_ROOM_COVER_ART
+  || "/mnt/seagate/ReadingRoom/covers";
+
+const localCoverPath = (id) =>
+  driveIdPattern.test(id) ? join(COVER_ART_DIR, `${id}.jpg`) : null;
+
+async function sendLocalCover(response, id) {
+  const file = localCoverPath(id);
+  if (!file) return false;
+  let info;
+  try {
+    info = await stat(file);
+    if (!info.isFile() || info.size < 256) return false;
+  } catch { return false; }
+  response.writeHead(200, {
+    "content-type": "image/jpeg",
+    "content-length": info.size,
+    // Content-addressed by Drive id: a given book's art never changes.
+    "cache-control": "public, max-age=31536000, immutable",
+  });
+  createReadStream(file).pipe(response);
+  return true;
+}
+
 async function cover(response, url) {
   const title = (url.searchParams.get("title") || "").slice(0, 180).trim();
   const author = (url.searchParams.get("author") || "").slice(0, 100).trim();
   const id = url.searchParams.get("id") || "";
   const format = (url.searchParams.get("format") || "").toUpperCase();
   if (!title) { response.writeHead(400).end("Missing title"); return; }
+
+  // Local art wins over every remote source, including the Drive thumbnail.
+  if (id && await sendLocalCover(response, id)) return;
 
   if (DRIVE_THUMB_FORMATS.has(format) && driveIdPattern.test(id)) {
     response.writeHead(302, {
