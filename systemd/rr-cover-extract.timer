@@ -1,0 +1,10 @@
+[Unit]
+Description=Reading Room: pick up covers deferred by Drive throttling
+
+[Timer]
+OnBootSec=10min
+OnUnitInactiveSec=30min
+Unit=rr-cover-extract.service
+
+[Install]
+WantedBy=timers.target

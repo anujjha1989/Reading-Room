@@ -31,12 +31,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 from PIL import Image
 
-CATALOG   = "/tmp/rrstage/catalog.json"
+CATALOG   = "/opt/reading-room/current/site/catalog.json"
 OUT_DIR   = "/mnt/seagate/ReadingRoom/covers"
 STATE     = "/mnt/seagate/ReadingRoom/covers/.extract-state.json"
 LOG       = "/mnt/seagate/ReadingRoom/covers/.extract.log"
 UA        = "Mozilla/5.0 (compatible; ReadingRoomCoverBot/1)"
-WORKERS   = 12
+WORKERS   = 6
 TARGET_W  = 400
 JPEG_Q    = 82
 MIN_BYTES = 1200            # smaller than this is a spacer, not a cover
@@ -46,9 +46,36 @@ ZIP_FORMATS  = {"EPUB", "CBZ"}
 MOBI_FORMATS = {"MOBI", "AZW", "AZW3"}
 IMG_RE = re.compile(r"\.(jpe?g|png|gif|webp)$", re.I)
 
+class Transient(Exception):
+    """Throttling, timeouts, 5xx — retry later, never record as permanent."""
+
+
+def with_retry(fn, tries=3, base=8):
+    """Drive throttles aggressively; back off rather than give up on a book."""
+    last = None
+    for attempt in range(tries):
+        try:
+            return fn()
+        except urllib.error.HTTPError as e:
+            last = Transient("HTTP %s" % e.code) if e.code in (403, 408, 429, 500, 502, 503, 504) \
+                else RuntimeError("HTTP %s" % e.code)
+            if not isinstance(last, Transient):
+                raise last
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            last = Transient(str(e)[:60])
+        except RuntimeError as e:
+            if "html" in str(e):            # quota page
+                last = Transient("quota html")
+            else:
+                raise
+        if attempt < tries - 1:
+            time.sleep(base * (2 ** attempt))
+    raise last or Transient("unknown")
+
+
 state_lock = threading.Lock()
 log_lock = threading.Lock()
-counts = {"ok": 0, "fail": 0, "skip": 0, "bytes": 0, "reqs": 0}
+counts = {"ok": 0, "fail": 0, "skip": 0, "defer": 0, "bytes": 0, "reqs": 0}
 state = {}
 t0 = time.time()
 
@@ -75,6 +102,10 @@ def _open(fid, headers, timeout):
 
 
 def fetch_range(fid, start=None, end=None, tail=None, timeout=60):
+    return with_retry(lambda: _fetch_range(fid, start, end, tail, timeout))
+
+
+def _fetch_range(fid, start=None, end=None, tail=None, timeout=60):
     headers = {}
     if tail is not None:
         headers["Range"] = "bytes=-%d" % tail
@@ -94,6 +125,10 @@ def fetch_range(fid, start=None, end=None, tail=None, timeout=60):
 
 
 def fetch_whole(fid, cap=WHOLE_CAP, timeout=120):
+    return with_retry(lambda: _fetch_whole(fid, cap, timeout))
+
+
+def _fetch_whole(fid, cap=WHOLE_CAP, timeout=120):
     """Whole file in one request.  Returns None if it exceeds `cap` — we stop
     reading rather than pull 80MB of comic to get one page."""
     with _open(fid, {}, timeout) as r:
@@ -268,9 +303,14 @@ def handle(book):
         counts["ok"] += 1
         if counts["ok"] % 25 == 0:
             rate = counts["ok"] / max(1e-9, (time.time() - t0) / 3600)
-            log("ok=%d fail=%d skip=%d  %.0f MB  %.0f/hr"
-                % (counts["ok"], counts["fail"], counts["skip"],
+            log("ok=%d fail=%d defer=%d skip=%d  %.0f MB  %.0f/hr"
+                % (counts["ok"], counts["fail"], counts["defer"], counts["skip"],
                    counts["bytes"] / 1e6, rate))
+    except Transient as e:
+        # Throttled or timed out: leave no mark, so the next run tries again.
+        counts["defer"] += 1
+        if counts["defer"] % 25 == 0:
+            log("  deferred %d (throttled): last %s" % (counts["defer"], str(e)[:50]))
     except Exception as e:
         counts["fail"] += 1
         with state_lock:
@@ -305,8 +345,8 @@ def main():
         with state_lock:
             try: json.dump(state, open(STATE, "w"))
             except OSError: pass
-        log("done: ok=%d fail=%d skip=%d  %.0f MB in %d requests"
-            % (counts["ok"], counts["fail"], counts["skip"],
+        log("done: ok=%d fail=%d defer=%d skip=%d  %.0f MB in %d requests"
+            % (counts["ok"], counts["fail"], counts["defer"], counts["skip"],
                counts["bytes"] / 1e6, counts["reqs"]))
 
 

@@ -1,0 +1,12 @@
+[Unit]
+Description=Reading Room: extract cover art from the books themselves
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -u /opt/reading-room/tools/rr-cover-extract.py
+# Drive throttling means a run can be long; let it work rather than killing it.
+TimeoutStartSec=infinity
+Nice=10
+IOSchedulingClass=idle
