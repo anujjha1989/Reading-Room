@@ -28,7 +28,7 @@ fi
 
 {
   echo "=== enrich $(date -Is) ==="
-  for step in swapfix.py merge.py authors.py series.py prose_series.py; do
+  for step in swapfix.py stubfix.py merge.py authors.py series.py prose_series.py; do
     echo "--- $step"
     case "$step" in
       merge.py) python3 "$LIB/$step" ;;

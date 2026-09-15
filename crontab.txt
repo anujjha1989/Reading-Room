@@ -1,0 +1,2 @@
+*/20 * * * * /home/anujjha1989/rr-enrich.sh
+13 3 * * 0 /home/anujjha1989/rr-weekly-scan.sh
