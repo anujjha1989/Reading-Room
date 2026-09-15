@@ -34,17 +34,20 @@ cp overrides/sw.js dist/stage/sw.js
 
 echo "==> uploading"
 "${SSH[@]}" "$PI" "rm -rf ~/rr-deploy/stage && mkdir -p ~/rr-deploy/stage"
-tar czf - -C dist/stage . | "${SSH[@]}" "$PI" "tar xzf - -C ~/rr-deploy/stage"
+COPYFILE_DISABLE=1 tar czf - -C dist/stage . | "${SSH[@]}" "$PI" "tar xzf - -C ~/rr-deploy/stage"
+# macOS tar can still emit AppleDouble sidecars, and ._foo.js matches the
+# installer's *.js glob. Belt and braces: never let one reach the site tree.
+"${SSH[@]}" "$PI" "find ~/rr-deploy/stage -name '._*' -delete"
 
 # The override bundle lives on the Seagate, which is symlinked into the site as
 # /assets/book-art/images and is the one place there we can write unprivileged.
-tar czf - -C overrides/book-art fullscreen-bundle.js fullscreen-bundle.css read-aloud.js \
+COPYFILE_DISABLE=1 tar czf - -C overrides/book-art fullscreen-bundle.js fullscreen-bundle.css read-aloud.js \
   | "${SSH[@]}" "$PI" "set -e
       tmp=\$(mktemp -d) && tar xzf - -C \$tmp
       mv \$tmp/fullscreen-bundle.js  $BOOK_ART/fullscreen-bundle-v$VERSION.js
       mv \$tmp/fullscreen-bundle.css $BOOK_ART/fullscreen-bundle-v$VERSION.css
       mv \$tmp/read-aloud.js         $BOOK_ART/read-aloud-v$VERSION.js
-      rmdir \$tmp"
+      rm -rf \$tmp"
 
 echo "==> installing"
 "${SSH[@]}" "$PI" "sudo -n /usr/local/sbin/reading-room-deploy"
