@@ -41,3 +41,4 @@ tsconfig.tsbuildinfo
 /.wrangler/
 /outputs/
 /work/
+work/cloudflare-token.txt

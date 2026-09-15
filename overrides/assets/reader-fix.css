@@ -1,0 +1,112 @@
+/* The Reading Room — reader responsiveness fix.
+ *
+ * Symptom: between roughly 700px and 900px wide, the reader stops reflowing.
+ * Book text is laid out wider than the window and runs off the right edge,
+ * and the toolbar is sliced off rather than scrolled.
+ *
+ * Cause: the built stylesheet has a single breakpoint, `width <= 700px`, and
+ * `.reader-shell` is a grid with `grid-template-rows` but no explicit
+ * `grid-template-columns`. Its implicit column sizes as `auto`, and an `auto`
+ * grid track cannot shrink below the min-content width of its contents — here
+ * the header, a no-wrap flex row holding a 210px chapter select, Pages/Scroll,
+ * A-/A+, Aa, Search and Bookmarks. That floor lands near 900px, so below it
+ * the track overflows the viewport, and `.reader-shell { overflow: hidden }`
+ * clips the overflow instead of scrolling it. The paginator observes resizes
+ * correctly; it is simply handed a container wider than the window.
+ *
+ * Fix: pin the grid column to `minmax(0, 1fr)` so it always tracks the
+ * viewport, clear the min-width floors along the header chain, and let the
+ * toolbar wrap onto a second line in the gap between the two breakpoints.
+ * Nothing here changes behaviour at or below 700px, where the built
+ * stylesheet's own mobile rules already work.
+ */
+
+/* --- Applies at every width: never let a child dictate the shell's width. -- */
+.reader-shell {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+.reader-header {
+  min-width: 0;
+}
+.reader-header > div:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.reader-header h1 {
+  max-width: 100%;
+}
+.reader-actions {
+  min-width: 0;
+  max-width: 100%;
+}
+.epub-stage,
+.document-reader {
+  min-width: 0;
+  max-width: 100%;
+}
+.reader-footer {
+  min-width: 0;
+}
+
+/* --- The gap the built stylesheet never covered: wrap instead of overflow. --
+ * Deliberately no `justify-content: flex-end` here — with an overflowing flex
+ * row that pushes content past the *left* edge, which cannot be scrolled back
+ * into view. `margin-left: auto` right-aligns the block without that risk.
+ */
+@media (width > 700px) {
+  .reader-header {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+  }
+  .reader-actions {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    margin-left: auto;
+  }
+  .reader-actions > * {
+    flex: 0 0 auto;
+  }
+  .reader-actions select {
+    max-width: min(210px, 45vw);
+  }
+}
+
+/* --- Reader banner -------------------------------------------------------
+ * Drop the "THE READING ROOM" eyebrow — you know where you are — and put every
+ * control and the title on one type size, so the bar reads as a single row
+ * rather than three competing ones. */
+.reader-header > div:first-child > span {
+  display: none;
+}
+.reader-header h1 {
+  margin: 0;
+  font: 500 13px/1.3 Georgia, serif;
+  letter-spacing: 0;
+  max-width: 100%;
+}
+.reader-header,
+.reader-actions,
+.reader-actions button,
+.reader-actions > a,
+.reader-actions select,
+.reader-actions label > span,
+.reader-settings summary,
+.rr-rate,
+.rr-voice {
+  font-size: 13px;
+}
+.reader-actions label > span {
+  letter-spacing: .06em;
+  margin-bottom: 2px;
+}
+.reader-actions select,
+.reader-actions button,
+.reader-settings summary {
+  height: 34px;
+  line-height: 1;
+}
+.reader-header {
+  min-height: 56px;
+}

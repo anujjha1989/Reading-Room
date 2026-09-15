@@ -1,0 +1,40 @@
+#!/bin/bash
+# Installs a built Reading Room client into the live release.
+#
+# The build happens on the Mac; this script is the only privileged step. It
+# reads from one fixed staging directory and writes only into the site tree,
+# so there is nothing for a caller to redirect. Asset filenames are content
+# hashed, so copying is additive: pages already open keep working against the
+# files they loaded.
+#
+# It deliberately does NOT touch standalone-server.mjs, catalog.json, or
+# anything under /var/lib/reading-room.
+set -euo pipefail
+umask 022
+
+STAGE=/home/anujjha1989/rr-deploy/stage
+SITE=/opt/reading-room/current/site
+
+[ -d "$STAGE/assets" ] || { echo "reading-room-deploy: no staged assets" >&2; exit 1; }
+[ -f "$STAGE/index.html" ] || { echo "reading-room-deploy: no staged index.html" >&2; exit 1; }
+[ -d "$SITE/assets" ] || { echo "reading-room-deploy: $SITE/assets missing" >&2; exit 1; }
+
+# Regular files only, one level deep, only the two extensions we serve.
+find "$STAGE/assets" -maxdepth 1 -type f \( -name '*.js' -o -name '*.css' \) -print0 \
+  | xargs -0 -r cp -f -t "$SITE/assets/"
+
+cp -f "$STAGE/index.html" "$SITE/index.html"
+[ -f "$STAGE/sw.js" ] && cp -f "$STAGE/sw.js" "$SITE/sw.js"
+
+chown root:root "$SITE"/index.html
+chmod 0644 "$SITE"/index.html
+for f in "$SITE"/assets/*.js "$SITE"/assets/*.css "$SITE"/sw.js; do
+  [ -f "$f" ] || continue
+  chown root:root "$f"
+  chmod 0644 "$f"
+done
+
+# The server caches static files in memory at startup, so a copy alone is not
+# enough for the new files to be served.
+systemctl restart reading-room
+echo "reading-room-deploy: installed and restarted"
