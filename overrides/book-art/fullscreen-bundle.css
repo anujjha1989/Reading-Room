@@ -1234,3 +1234,74 @@ html.rr-book-open main > .hero { display: none !important; }
 html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
   display: grid !important;
 }
+
+
+/* ==== v75: smaller library cards ========================================= *
+ * The library grid forced two columns on mobile, so each cover was ~48% of the
+ * viewport - roughly a third larger than the Home shelves, and only four books
+ * visible at a time. Home gets its size from a fixed shelf-book width rather
+ * than a column count, which is why the two views disagreed.
+ *
+ * Auto-fill with a Home-sized minimum instead of a fixed column count: three
+ * columns on a phone, more on a tablet, and the same card size as Home. The
+ * type and controls are scaled with the cover - shrinking the artwork alone is
+ * what makes a grid look cramped rather than smaller.
+ * ---------------------------------------------------------------------- */
+html[data-rr-library-view="library"] .catalog .thumbnail-view,
+html[data-rr-library-view="search"] .catalog .thumbnail-view,
+html[data-rr-library-view="favorites"] .catalog .thumbnail-view {
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 22px 14px;
+}
+/* Mobile: the earlier repeat(2,...) is more specific by media query, so it has
+   to be restated rather than relying on the rule above. */
+@media (width <= 780px) {
+  html[data-rr-library-view="library"] .catalog .thumbnail-view,
+  html[data-rr-library-view="search"] .catalog .thumbnail-view,
+  html[data-rr-library-view="favorites"] .catalog .thumbnail-view {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px 12px;
+  }
+}
+
+/* Type scaled to match Home's shelf cards (12.5px title, 11.5px author). */
+html[data-rr-library-view="library"] .catalog .card > strong,
+html[data-rr-library-view="search"] .catalog .card > strong,
+html[data-rr-library-view="favorites"] .catalog .card > strong {
+  font-size: 12.5px; line-height: 1.28; margin-top: 8px;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden; min-height: 2.56em;
+}
+html[data-rr-library-view="library"] .catalog .card > small,
+html[data-rr-library-view="search"] .catalog .card > small,
+html[data-rr-library-view="favorites"] .catalog .card > small {
+  font-size: 11.5px; line-height: 1.25; margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* A smaller card cannot carry a 32px control row and still breathe. */
+html[data-rr-library-view="library"] .catalog .book-tools,
+html[data-rr-library-view="search"] .catalog .book-tools,
+html[data-rr-library-view="favorites"] .catalog .book-tools {
+  margin-top: 7px; min-height: 26px; gap: 4px;
+}
+html[data-rr-library-view="library"] .catalog .book-tools :is(.finish, .series-link),
+html[data-rr-library-view="search"] .catalog .book-tools :is(.finish, .series-link),
+html[data-rr-library-view="favorites"] .catalog .book-tools :is(.finish, .series-link) {
+  min-height: 26px; border-radius: 7px;
+}
+html[data-rr-library-view="library"] .catalog .heart,
+html[data-rr-library-view="search"] .catalog .heart,
+html[data-rr-library-view="favorites"] .catalog .heart {
+  min-width: 26px; min-height: 26px;
+}
+html[data-rr-library-view="library"] .catalog .chips span,
+html[data-rr-library-view="search"] .catalog .chips span,
+html[data-rr-library-view="favorites"] .catalog .chips span {
+  font-size: 9px; padding: 1px 0;
+}
+/* Lighter shadow: the original was tuned for a card half again as large. */
+html[data-rr-library-view="library"] .catalog .cover,
+html[data-rr-library-view="search"] .catalog .cover,
+html[data-rr-library-view="favorites"] .catalog .cover {
+  box-shadow: 2px 4px 11px #00000026;
+}

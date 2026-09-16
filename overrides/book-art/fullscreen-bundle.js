@@ -698,7 +698,16 @@
   const open = () => root.classList.contains('rr-sheet-open');
   function close() { root.classList.remove('rr-sheet-open'); view = 'menu'; sync(); }
   function native(label) {
-    return reader && [...reader.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === label);
+    // Prefix match, not equality: some native controls interpolate state into
+    // their label - the text-size buttons render "Decrease text size (100%)" -
+    // so an exact comparison silently found nothing and the proxied tap did
+    // nothing at all. Falls back to a contains match for safety.
+    if (!reader) return undefined;
+    const buttons = [...reader.querySelectorAll('button')];
+    const get = (b) => b.getAttribute('aria-label') || '';
+    return buttons.find(b => get(b) === label)
+      || buttons.find(b => get(b).startsWith(label))
+      || buttons.find(b => get(b).indexOf(label) !== -1);
   }
   function button(label, action, icon) {
     const b = document.createElement('button'); b.type = 'button';
