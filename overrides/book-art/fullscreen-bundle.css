@@ -938,3 +938,151 @@ html .catalog .thumbnail-view .book { contain-intrinsic-size:156px 330px; }
   /* Shift content right to clear the sidebar. */
   html.rr-library-visible body { padding-left:220px; }
 }
+
+
+/* ---- v72: iOS Books-style library header ---------------------------------
+ * The library view had four stacked control layers above the first cover:
+ * title, search, category chips, then a toolbar carrying Filters, a sort
+ * select, the unique-title count and a Thumbnails/List switch. Books puts all
+ * of that behind two icons beside the title and starts the grid directly under
+ * the search field. The controls still exist in the DOM - React owns them and
+ * the filter panel is genuinely useful - they are moved into popovers and
+ * driven from the icon rail instead of being rebuilt.
+ * ------------------------------------------------------------------------- */
+
+/* Title + search stay put while the grid scrolls under them. */
+html[data-rr-library-view="library"] main > .hero {
+  position: sticky;
+  top: 0;
+  z-index: 120;
+  background: var(--paper);
+  padding-top: calc(18px + env(safe-area-inset-top));
+  padding-bottom: 10px;
+  gap: 12px;
+}
+/* Leave room for the icon rail so a long title never runs under it. */
+html[data-rr-library-view="library"] .hero h1 {
+  font-size: 34px;
+  line-height: 1.1;
+  padding-right: 150px;
+}
+html[data-rr-library-view="library"] .hero .category-chips { display: none; }
+html[data-rr-library-view="library"] .catalog .catalog-toolbar { display: none; }
+html[data-rr-library-view="library"] .catalog .results { display: none; }
+html[data-rr-library-view="library"] main > .catalog { padding-top: 4px; }
+
+/* ---- fixed icon rail: filter, sort, gear -------------------------------- */
+/* The gear is already fixed at the right edge and re-adds itself to <body> on a
+   timer, so these sit beside it at the same offsets rather than wrapping it in
+   a new container that the re-add would fight. */
+html #rr-filter-btn,
+html #rr-sort-btn {
+  position: fixed;
+  top: calc(22px + env(safe-area-inset-top));
+  display: inline-grid; place-items: center;
+  width: 42px; height: 42px;
+  border-radius: 50%; z-index: 130;
+  border: 1px solid rgba(38, 51, 47, .12);
+  background: rgba(255, 255, 255, .72);
+  color: #26332f;
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  cursor: pointer; padding: 0;
+}
+html #rr-sort-btn   { right: calc(64px + env(safe-area-inset-right)); }
+html #rr-filter-btn { right: calc(114px + env(safe-area-inset-right)); }
+html #rr-filter-btn svg,
+html #rr-sort-btn svg { width: 20px; height: 20px; }
+/* Match the gear's own offset so all three line up on the title. */
+html #rr-settings-link { top: calc(22px + env(safe-area-inset-top)); }
+/* Library-only controls; the reader and the settings overlay own the screen. */
+html.rr-strip #rr-filter-btn,
+html.rr-strip #rr-sort-btn,
+html.rr-settings-open #rr-filter-btn,
+html.rr-settings-open #rr-sort-btn { display: none; }
+html:not([data-rr-library-view="library"]) #rr-filter-btn,
+html:not([data-rr-library-view="library"]) #rr-sort-btn { display: none; }
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-rr-theme="light"]) #rr-filter-btn,
+  html:not([data-rr-theme="light"]) #rr-sort-btn {
+    background: rgba(48, 48, 50, .82);
+    border-color: rgba(255, 255, 255, .16);
+    color: #f5f5f7;
+  }
+}
+html[data-rr-theme="dark"] #rr-filter-btn,
+html[data-rr-theme="dark"] #rr-sort-btn {
+  background: rgba(48, 48, 50, .82);
+  border-color: rgba(255, 255, 255, .16);
+  color: #f5f5f7;
+}
+
+/* ---- filter panel as a sheet ------------------------------------------- */
+/* React keeps .filters mounted and toggles .expanded-filters itself, so the
+   panel is hidden by position rather than display: a display:none ancestor
+   would stop its selects reporting sizes when it opens. */
+html[data-rr-library-view="library"] .catalog .filters {
+  position: fixed;
+  left: 50%; transform: translate(-50%, 8px);
+  top: calc(76px + env(safe-area-inset-top));
+  width: min(560px, calc(100vw - 28px));
+  max-height: min(70vh, 620px); overflow-y: auto;
+  z-index: 140;
+  background: var(--white);
+  border: 1px solid var(--line) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .22);
+  opacity: 0; pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease;
+}
+html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
+  opacity: 1; pointer-events: auto; transform: translate(-50%, 0);
+}
+
+/* ---- sort / view menu --------------------------------------------------- */
+#rr-sort-menu {
+  position: fixed;
+  top: calc(76px + env(safe-area-inset-top));
+  right: calc(14px + env(safe-area-inset-right));
+  width: 232px; z-index: 140;
+  background: var(--white, #fff);
+  color: var(--ink, #1c1c1e);
+  border: 1px solid var(--line, #e5e5ea);
+  border-radius: 14px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .22);
+  padding: 6px; margin: 0;
+  opacity: 0; pointer-events: none; transform: translateY(8px);
+  transition: opacity .16s ease, transform .16s ease;
+}
+html.rr-sort-open #rr-sort-menu { opacity: 1; pointer-events: auto; transform: translateY(0); }
+#rr-sort-menu button {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; min-height: 40px; padding: 0 10px;
+  border: 0; background: none; color: inherit;
+  font: inherit; font-size: 15px; text-align: left;
+  border-radius: 9px; cursor: pointer;
+}
+#rr-sort-menu button:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
+#rr-sort-menu .rr-tick { width: 16px; flex: 0 0 16px; opacity: 0; }
+#rr-sort-menu button[aria-checked="true"] .rr-tick { opacity: 1; }
+#rr-sort-menu hr { border: 0; border-top: 1px solid var(--line, #e5e5ea); margin: 6px 4px; }
+#rr-sort-menu .rr-menu-label {
+  padding: 8px 10px 4px; font-size: 12px; letter-spacing: .3px;
+  text-transform: uppercase; opacity: .55;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-rr-theme="light"]) #rr-sort-menu {
+    background: #242426; color: #f5f5f7; border-color: #3a3a3e;
+  }
+}
+html[data-rr-theme="dark"] #rr-sort-menu {
+  background: #242426; color: #f5f5f7; border-color: #3a3a3e;
+}
+
+/* Scrim so a tap outside either popover closes it. */
+#rr-popover-scrim {
+  position: fixed; inset: 0; z-index: 135;
+  background: transparent; display: none;
+}
+html.rr-filters-open #rr-popover-scrim,
+html.rr-sort-open #rr-popover-scrim { display: block; }

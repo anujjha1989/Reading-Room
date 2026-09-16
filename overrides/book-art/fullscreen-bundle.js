@@ -652,7 +652,7 @@
     document.documentElement.classList.toggle('rr-library-visible',!reading);
     document.documentElement.dataset.rrLibraryView = selected.toLowerCase();
     var heading = document.querySelector('.hero h1');
-    var title = selected === 'Home' ? 'Home' : selected === 'Search' ? 'Search' : selected === 'Favorites' ? 'Favorites' : 'Your Library';
+    var title = selected === 'Home' ? 'Home' : selected === 'Search' ? 'Search' : selected === 'Favorites' ? 'Favorites' : 'Library';
     if (heading && heading.textContent !== title) heading.textContent = title;
     document.querySelectorAll('.smart-shelf').forEach(function (shelf) {
       var title = shelf.querySelector('h2');
@@ -1141,4 +1141,171 @@
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") close();
   });
+})();
+
+// --- rr-library-chrome: Books-style filter + sort rail ----------------------
+//
+// The library header stacked title, search, category chips and a toolbar
+// (Filters, sort select, title count, Thumbnails/List) above the first cover.
+// Books shows two icons beside the title instead. This drives React's own
+// controls rather than reimplementing them: the sort <select> and the display
+// buttons stay the source of truth, so nothing here has to know how sorting or
+// grid rendering works. CSS hides the originals; these are remote controls.
+(function () {
+  "use strict";
+  var FILTER_ID = "rr-filter-btn", SORT_ID = "rr-sort-btn";
+  var MENU_ID = "rr-sort-menu", SCRIM_ID = "rr-popover-scrim";
+  var root = document.documentElement;
+
+  var svg = function (paths) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"'
+      + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
+  };
+  // Three stacked rules, shortening downward - the Books filter/sort glyph.
+  var FILTER_ICON = svg('<path d="M4 7h16M6.5 12h11M10 17h4"/>');
+  var SORT_ICON = svg('<circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/>'
+    + '<circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>'
+    + '<circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/>');
+  var TICK = '<svg class="rr-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<path d="M4 12.5l5 5L20 6.5"/></svg>';
+
+  var q = function (sel) { return document.querySelector(sel); };
+  var sortSelect = function () { return q(".catalog .sort-control select"); };
+  var displayButtons = function () {
+    return Array.prototype.slice.call(document.querySelectorAll(".catalog .display-switch button"));
+  };
+
+  function closeAll() {
+    root.classList.remove("rr-filters-open", "rr-sort-open");
+    var t = q("#" + FILTER_ID), s = q("#" + SORT_ID);
+    if (t) t.setAttribute("aria-expanded", "false");
+    if (s) s.setAttribute("aria-expanded", "false");
+  }
+
+  function toggleFilters() {
+    var opening = !root.classList.contains("rr-filters-open");
+    closeAll();
+    if (!opening) return;
+    // React owns .expanded-filters; make sure the panel is in its open state so
+    // the fields inside are laid out, then reveal it via our own class.
+    var panel = q(".catalog .filters");
+    if (panel && !panel.classList.contains("expanded-filters")) {
+      var toggle = q(".catalog .mobile-filter-toggle");
+      if (toggle) toggle.click();
+    }
+    root.classList.add("rr-filters-open");
+    var btn = q("#" + FILTER_ID);
+    if (btn) btn.setAttribute("aria-expanded", "true");
+  }
+
+  function buildMenu() {
+    var menu = q("#" + MENU_ID);
+    if (!menu) {
+      menu = document.createElement("div");
+      menu.id = MENU_ID;
+      menu.setAttribute("role", "menu");
+      document.body.appendChild(menu);
+    }
+    var sel = sortSelect();
+    var display = displayButtons();
+    if (!sel) return menu;
+
+    var html = "";
+    if (display.length) {
+      display.forEach(function (b, i) {
+        var on = b.classList.contains("active") || b.getAttribute("aria-pressed") === "true";
+        html += '<button type="button" role="menuitemradio" data-rr-display="' + i + '"'
+          + ' aria-checked="' + (on ? "true" : "false") + '">' + TICK
+          + "<span>" + (b.textContent || "").trim() + "</span></button>";
+      });
+      html += "<hr>";
+    }
+    html += '<div class="rr-menu-label">Sort by</div>';
+    Array.prototype.forEach.call(sel.options, function (opt) {
+      html += '<button type="button" role="menuitemradio" data-rr-sort="' + opt.value + '"'
+        + ' aria-checked="' + (opt.selected ? "true" : "false") + '">' + TICK
+        + "<span>" + opt.textContent + "</span></button>";
+    });
+    menu.innerHTML = html;
+    return menu;
+  }
+
+  function toggleSort() {
+    var opening = !root.classList.contains("rr-sort-open");
+    closeAll();
+    if (!opening) return;
+    buildMenu();
+    root.classList.add("rr-sort-open");
+    var btn = q("#" + SORT_ID);
+    if (btn) btn.setAttribute("aria-expanded", "true");
+  }
+
+  // Delegated: the menu is rebuilt on every open, so per-item listeners would
+  // have to be re-attached each time.
+  document.addEventListener("click", function (e) {
+    var item = e.target.closest && e.target.closest("#" + MENU_ID + " button");
+    if (!item) return;
+    var sortValue = item.getAttribute("data-rr-sort");
+    if (sortValue !== null) {
+      var sel = sortSelect();
+      if (sel) {
+        sel.value = sortValue;
+        // React listens for change, not input, and needs it to bubble.
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+    var displayIndex = item.getAttribute("data-rr-display");
+    if (displayIndex !== null) {
+      var b = displayButtons()[Number(displayIndex)];
+      if (b) b.click();
+    }
+    closeAll();
+  });
+
+  function add() {
+    if (!document.body) return;
+    if (!q("#" + SCRIM_ID)) {
+      var scrim = document.createElement("div");
+      scrim.id = SCRIM_ID;
+      scrim.addEventListener("click", closeAll);
+      document.body.appendChild(scrim);
+    }
+    if (!q("#" + FILTER_ID)) {
+      var f = document.createElement("button");
+      f.id = FILTER_ID;
+      f.type = "button";
+      f.setAttribute("aria-label", "Filter library");
+      f.setAttribute("aria-expanded", "false");
+      f.innerHTML = FILTER_ICON;
+      f.addEventListener("click", function (e) { e.preventDefault(); toggleFilters(); });
+      document.body.appendChild(f);
+    }
+    if (!q("#" + SORT_ID)) {
+      var s = document.createElement("button");
+      s.id = SORT_ID;
+      s.type = "button";
+      s.setAttribute("aria-label", "Sort and view options");
+      s.setAttribute("aria-expanded", "false");
+      s.innerHTML = SORT_ICON;
+      s.addEventListener("click", function (e) { e.preventDefault(); toggleSort(); });
+      document.body.appendChild(s);
+    }
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && (root.classList.contains("rr-filters-open")
+      || root.classList.contains("rr-sort-open"))) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      closeAll();
+    }
+  }, true);
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", add);
+  else add();
+  // Same reasoning as the gear: React sweeps parts of the tree, so re-add
+  // cheaply rather than watching with an observer.
+  [0, 200, 800, 2000, 5000].forEach(function (t) { setTimeout(add, t); });
+  setInterval(add, 4000);
 })();
