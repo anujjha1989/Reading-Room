@@ -1391,3 +1391,94 @@ html[data-rr-library-view="home"] .shelf-book > small {
 html[data-rr-library-view="home"] .rr-continue-shelf .shelf-strip {
   grid-auto-columns: 132px;
 }
+
+
+/* ==== v77: Continue tiles, and the shelf gradient back ===================
+ * Two corrections after comparing against Books side by side.
+ *
+ * 1. Continue is not a row of portrait cards in Books - it is a horizontal
+ *    tile: small cover on the left, title/author/progress stacked on the
+ *    right, all inside one rounded tinted card. Mine was a vertical card
+ *    identical to every other shelf, which is why it read as wrong even
+ *    though the contents matched.
+ *
+ * 2. v76 removed the per-shelf gradient outright. That was an over-correction:
+ *    Books does tint its shelf sections, just far more subtly than the old
+ *    three-tint nth-child cycle. One faint wash, same for every shelf.
+ * ---------------------------------------------------------------------- */
+
+/* --- a subtle section wash, not three cycling tints ---------------------- */
+html[data-rr-library-view="home"] .discovery .smart-shelf,
+html[data-rr-library-view="home"] .discovery .smart-shelf:nth-child(3n+2),
+html[data-rr-library-view="home"] .discovery .smart-shelf:nth-child(3n) {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--ink) 4%, var(--paper)) 0%,
+    var(--paper) 78%) !important;
+}
+/* Continue sits directly under the header and reads better untinted. */
+html[data-rr-library-view="home"] .discovery .rr-continue-shelf {
+  background: var(--paper) !important;
+}
+
+/* --- Continue as horizontal tiles ---------------------------------------- */
+html[data-rr-library-view="home"] .rr-continue-shelf .shelf-strip {
+  grid-auto-columns: 274px;
+  gap: 12px;
+}
+html[data-rr-library-view="home"] .rr-continue-shelf .shelf-book {
+  /* cover | text — two columns, not four stacked rows. */
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  grid-template-rows: auto auto auto;
+  column-gap: 14px;
+  row-gap: 0;
+  align-content: center;
+  align-items: start;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ink) 7%, var(--paper));
+  min-height: 86px;
+  text-align: left;
+}
+/* The cover spans all three text rows and keeps its book proportions. */
+html[data-rr-library-view="home"] .rr-continue-shelf .shelf-cover {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  width: 54px;
+  aspect-ratio: 2 / 3;
+  align-self: center;
+  border-radius: 2px 4px 4px 2px;
+  box-shadow: 1px 2px 7px #0004;
+}
+html[data-rr-library-view="home"] .rr-continue-shelf .shelf-book > strong {
+  grid-column: 2; grid-row: 1;
+  margin: 0;
+  font-size: 13.5px; line-height: 1.28;
+  -webkit-line-clamp: 2; min-height: 0;
+}
+html[data-rr-library-view="home"] .rr-continue-shelf .shelf-book > small {
+  grid-column: 2; grid-row: 2;
+  margin-top: 3px;
+  font-size: 12px;
+}
+html[data-rr-library-view="home"] .rr-continue-shelf .shelf-book > .rr-continue-meta {
+  grid-column: 2; grid-row: 3;
+  margin-top: 7px;
+  font-size: 10.5px;
+}
+/* The progress bar spans the text column only, so it starts under the title. */
+html[data-rr-library-view="home"] .rr-continue-shelf .shelf-book > .rr-continue-meta::before {
+  height: 3px; margin-bottom: 5px;
+}
+/* The generated title-card label was sized for a 132px cover; at 54px its
+   text is unreadable, so show the artwork or the plain tint instead. */
+html[data-rr-library-view="home"] .rr-continue-shelf .rr-cover-label {
+  padding: 4px 2px;
+}
+html[data-rr-library-view="home"] .rr-continue-shelf .rr-cover-label small,
+html[data-rr-library-view="home"] .rr-continue-shelf .rr-cover-label em {
+  display: none;
+}
+html[data-rr-library-view="home"] .rr-continue-shelf .rr-cover-label strong {
+  font-size: 7px; line-height: 1.15; -webkit-line-clamp: 4;
+}
