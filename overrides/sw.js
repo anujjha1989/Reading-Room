@@ -21,7 +21,10 @@
  * book files themselves needs a "download" control in the React app, and the
  * app's source is not on the Pi — only the built bundle.
  */
-const VERSION = 'rr-v2';
+// rr-v3: rr-v2's shell cache is poisoned. Every navigation was stored under
+// '/', so a cached settings document could be served as the home page. activate
+// deletes any cache not in KEEP, so renaming discards it.
+const VERSION = 'rr-v3';
 const SHELL = `${VERSION}-shell`;
 const ASSETS = `${VERSION}-assets`;
 const COVERS = `${VERSION}-covers`;
@@ -115,7 +118,17 @@ async function navigationStrategy(request) {
   const cache = await caches.open(SHELL);
   try {
     const response = await fetch(request);
-    if (response.ok) cache.put('/', response.clone());
+    // Key each document under its own URL. This used to cache every navigation
+    // as '/', which collided: settings.html loads in an iframe, so its request
+    // mode is "navigate" too, and opening Settings overwrote the cached home
+    // page with the settings document (and the reverse). The offline fallback
+    // then matched '/' and could serve either one. Also keep '/' updated from
+    // the real home page so the offline shell still works.
+    if (response.ok) {
+      cache.put(request, response.clone());
+      const path = new URL(request.url).pathname;
+      if (path === '/' || path === '/index.html') cache.put('/', response.clone());
+    }
     return response;
   } catch (err) {
     const cached = (await cache.match(request)) || (await cache.match('/'));
