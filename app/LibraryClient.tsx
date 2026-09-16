@@ -441,17 +441,24 @@ export default function LibraryClient() {
     const editions = book.rrEditions;
     const close = () => setMenuFor(null);
     const act = (fn: () => void) => () => { close(); fn(); };
-    // Clamp into the viewport: a ⋯ near the right edge or low on screen would
-    // otherwise push the menu off it. Width and a rough height are known from
-    // the CSS, so no measure-then-reposition flash.
-    const W = 224, H = 300, M = 8;
-    const left = Math.min(Math.max(M, (menuFor?.x ?? 0) - W + 30), window.innerWidth - W - M);
-    const below = (menuFor?.y ?? 0) + 34;
-    const top = below + H > window.innerHeight - M ? Math.max(M, (menuFor?.y ?? 0) - H) : below;
+    // Anchored to the button: right edge aligned with the ⋯, opening downwards,
+    // flipping above only when there is genuinely no room. The height is
+    // measured from the item count rather than assumed - a fixed 300 estimate
+    // pushed short menus far above their button.
+    const rows = 2 + (editions && editions.length > 1 ? 1 : 0)
+      + (book.copies.length > 1 ? 1 + book.copies.length : 0)
+      + (book.series ? 1 : 0) + 2;
+    const W = 224, M = 8;
+    const H = rows * 40 + 24;
+    const ax = menuFor?.x ?? 0, ay = menuFor?.y ?? 0;
+    const left = Math.min(Math.max(M, ax - W), window.innerWidth - W - M);
+    const top = ay + 6 + H > window.innerHeight - M
+      ? Math.max(M, ay - H - 30)
+      : ay + 6;
     // Portalled to <body>. position:fixed was not enough: .shelf-strip sets
     // `contain: layout style`, which makes it a containing block for fixed
     // descendants, so the menu was still clipped to the scrolling strip.
-    return createPortal(<div className="rr-card-menu" role="menu" style={{ left, top }} onClick={(event) => event.stopPropagation()}>
+    return createPortal(<><div className="rr-card-scrim" onClick={(event) => { event.stopPropagation(); close(); }} /><div className="rr-card-menu" role="menu" style={{ left, top }} onClick={(event) => event.stopPropagation()}>
       <button role="menuitem" onClick={act(() => toggleFinished(book.id))}>
         {finished ? "Mark as Unread" : "Mark as Finished"}
       </button>
@@ -479,16 +486,18 @@ export default function LibraryClient() {
       <button role="menuitem" className="danger" onClick={act(() => window.dispatchEvent(new CustomEvent("rr-edit-book", { detail: { id: book.id, focus: "delete" } })))}>
         Delete…
       </button>
-    </div>, document.body);
+    </div></>, document.body);
   }
 
-  // A tap anywhere else closes an open card menu.
+  // Dismissal is the scrim's job - a document-level click listener let the same
+  // tap through to another card's ⋯, which closed one menu and opened the next.
+  // Scrolling still closes, since the menu is fixed and would otherwise detach
+  // from its button.
   useEffect(() => {
     if (!menuFor) return;
     const close = () => setMenuFor(null);
-    document.addEventListener("click", close);
     document.addEventListener("scroll", close, true);
-    return () => { document.removeEventListener("click", close); document.removeEventListener("scroll", close, true); };
+    return () => document.removeEventListener("scroll", close, true);
   }, [menuFor]);
 
   function handleReaderLocation(location: ReaderLocation) {
@@ -588,8 +597,8 @@ export default function LibraryClient() {
           {/* Always the author. The edition count used to sit here on compact
               shelves, but "1 edition" is noise - the count belongs in the ⋯
               menu, and only when there is more than one. */}
-          <small>{book.author || "Author unknown"}</small>
-          {isContinue && <small className="rr-continue-meta" style={{"--rr-p": continueProgress(savedStates[book.id]) || "0%"} as React.CSSProperties}>{continueProgress(savedStates[book.id])}</small>}
+          <small className="rr-shelf-author">{book.author || "Author unknown"}</small>
+          {isContinue && <small className="rr-continue-meta">{continueProgress(savedStates[book.id])}</small>}
         </button>
         {/* Sibling, not child: .shelf-book is itself a <button> and nesting one
             inside another is invalid and swallows the inner tap. */}
@@ -665,9 +674,13 @@ export default function LibraryClient() {
         const state = savedStates[book.id];
         return <article className="book" key={book.id}>
           <button className="cover" aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`} style={{ "--cover": palette[0], "--ink": palette[1] } as React.CSSProperties} onClick={() => openBook(book)}><img src={coverUrl(book)} alt="" loading="lazy" onLoad={(event) => event.currentTarget.parentElement?.classList.add("has-cover")} onError={(event) => { event.currentTarget.hidden = true; }} /><span className="cover-copy">{book.series && <small>{book.series}</small>}<strong>{book.title}</strong>{book.author && <em>{book.author}</em>}</span>{state?.progressLabel && <span className="cover-progress">{state.progressLabel}</span>}</button>
-          <div className="book-caption" aria-hidden="true"><strong>{book.title}</strong>{book.author && <small>{book.author}</small>}</div>
+          {/* The ⋯ lives in the author row rather than a block below it: that is
+              the only way it is guaranteed to sit on the author line whatever
+              the title wraps to. The title reserves two lines so the author -
+              and therefore the ⋯ - lands at the same height on every card. */}
+          <div className="book-caption"><strong>{book.title}</strong><span className="rr-byline"><small>{book.author || "Author unknown"}</small><button className="rr-card-more" aria-label={`Options for ${book.title}`} aria-haspopup="menu" aria-expanded={menuFor?.id === book.id} onClick={(event) => { event.stopPropagation(); const r = event.currentTarget.getBoundingClientRect(); setMenuFor(menuFor?.id === book.id ? null : { id: book.id, x: r.right, y: r.bottom }); }}>⋯</button></span></div>
           <div className="list-copy"><button onClick={() => openBook(book)} aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`}><small>{book.series || book.category || "Book"}</small><strong>{book.title}</strong><em>{book.author || "Author not listed"}</em>{state?.progressLabel && <span>{state.progressLabel}</span>}</button></div>
-          <div className="book-tools"><button className="rr-card-more" aria-label={`Options for ${book.title}`} aria-haspopup="menu" aria-expanded={menuFor?.id === book.id} onClick={(event) => { event.stopPropagation(); const r = event.currentTarget.getBoundingClientRect(); setMenuFor(menuFor?.id === book.id ? null : { id: book.id, x: r.right, y: r.bottom }); }}>⋯</button>{menuFor?.id === book.id && <BookMenu book={book} />}</div>
+          {menuFor?.id === book.id && <BookMenu book={book} />}
         </article>;
       })}</div> : <div className="empty"><b>No books found</b><p>Try clearing one or more filters.</p><button onClick={() => { setQuery(""); clearFilters(); }}>Reset search</button></div>}
       {visible < filtered.length && <button className="load" onClick={() => setVisible((count) => count + 20)}>Show more books</button>}
