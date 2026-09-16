@@ -521,10 +521,15 @@
     var turns = 0;
     var sig = signature(state.doc);
     while (playing && turns < MAX_TURNS && !isVisible(state, item.range)) {
+      // The screen can lock part-way through: layout freezes, so no turn ever
+      // looks like it moved and the loop would keep turning pages blindly until
+      // MAX_TURNS. Stop chasing and just speak.
+      if (screenAsleep()) return true;
       var beforeRect = rectKey(item.range);
       state.turn();
       await sleep(TURN_SETTLE);
       if (!playing) return false;
+      if (screenAsleep()) return true;
       var now = reader();
       if (!now || signature(now.doc) !== sig) return false;   // section changed
       var moved = false;
@@ -534,10 +539,19 @@
         await sleep(TURN_SETTLE);
         if (!playing) return false;
       }
-      if (!moved && rectKey(item.range) === beforeRect) return false;
+      // A turn that did not move the page means we are at the end of the
+      // section: hand back to step(), which advances via the cursor. Returning
+      // false for "the sentence is still not on screen" is what made paginated
+      // mode rewind - step() nulls the queue and restarts from the first
+      // visible sentence, i.e. the top of the current page.
+      if (!moved && rectKey(item.range) === beforeRect) break;
       turns += 1;
     }
-    return isVisible(state, item.range);
+    // Speak it regardless. Same reasoning as scroll mode: failing to bring a
+    // sentence on screen is not a reason to rewind or stop, and the highlight
+    // simply lands off-view for one sentence. The genuine end of a section is
+    // still detected by the cursor running past the queue.
+    return true;
   }
 
   function rectKey(range) {
