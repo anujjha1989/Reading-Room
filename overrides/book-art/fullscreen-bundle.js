@@ -1046,7 +1046,7 @@
       'Clear a box to go back to the scanned value.</p>' +
       '<div class="rr-mf-row">' +
       '<button type="button" class="rr-mf-cancel">Cancel</button>' +
-      '<button type="button" class="rr-mf-quarantine">Move to Quarantine</button>' +
+      '<button type="button" class="rr-mf-quarantine">Delete</button>' +
       '<button type="button" class="rr-mf-save">Save</button>' +
       '</div><p class="rr-mf-status" role="status"></p></div>';
 
@@ -1066,8 +1066,10 @@
     overlay.querySelector(".rr-mf-cancel").addEventListener("click", close);
 
     overlay.querySelector(".rr-mf-quarantine").addEventListener("click", function () {
-      if (!confirm('Move "' + (titleEl.value || book.id) + '" to the quarantine folder?')) return;
-      status.textContent = "Moving…";
+      // Labelled Delete, still a quarantine move: the file is set aside rather
+      // than destroyed, which is the behaviour we want to keep.
+      if (!confirm('Delete "' + (titleEl.value || book.id) + '" from the library?')) return;
+      status.textContent = "Deleting…";
       fetch("/api/quarantine", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1076,12 +1078,12 @@
         if (!r.ok) throw new Error("quarantine failed (" + r.status + ")");
         return r.json();
       }).then(function () {
-        status.textContent = "Moved to quarantine.";
+        status.textContent = "Deleted.";
         // Grey out the card so it is visually clear even before a reload.
         if (book.card) book.card.style.opacity = "0.3";
         setTimeout(close, 1200);
       }).catch(function (err) {
-        status.textContent = err.message || "Could not quarantine";
+        status.textContent = err.message || "Could not delete";
       });
     });
 
