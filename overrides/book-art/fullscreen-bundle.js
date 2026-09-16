@@ -649,6 +649,10 @@
     }
     var reading = !!document.querySelector('.reader-shell');
     dock.hidden = reading || !!document.querySelector('.modal-backdrop');
+    // Every library chrome element keys off this. rr-strip is not enough: it is
+    // only set for text-mode reading, so a PDF or comic left the header and the
+    // icon rail painted over the open book.
+    document.documentElement.classList.toggle('rr-book-open', reading);
     document.documentElement.classList.toggle('rr-library-visible',!reading);
     document.documentElement.dataset.rrLibraryView = selected.toLowerCase();
     var heading = document.querySelector('.hero h1');

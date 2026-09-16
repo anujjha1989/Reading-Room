@@ -1086,3 +1086,112 @@ html[data-rr-theme="dark"] #rr-sort-menu {
 }
 html.rr-filters-open #rr-popover-scrim,
 html.rr-sort-open #rr-popover-scrim { display: block; }
+
+
+/* ==== v73: fixes to the v72 header ======================================= *
+ * Found by using the app rather than reading the diff:
+ *
+ *  - the icons were fixed while the title and search were sticky, so pulling
+ *    the page down slid the text out from under them;
+ *  - the gear kept its v49 bare-icon styling, so it read smaller and flatter
+ *    than the two new discs;
+ *  - the title sat tight against the search field;
+ *  - .reader-shell is z-index:100 and my rail was 130, so the filter and sort
+ *    icons floated over an open book. rr-strip hid them, but rr-strip is only
+ *    set for text-mode reading - a PDF or comic left them on screen.
+ * ---------------------------------------------------------------------- */
+
+/* One frozen header band: title, icons and search move as a single unit. */
+html[data-rr-library-view="library"] main > .hero {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 128;
+  padding: calc(14px + env(safe-area-inset-top)) max(20px, calc((100vw - 1200px)/2)) 14px;
+  gap: 18px;
+  background: var(--paper);
+  border-bottom: 1px solid transparent;
+}
+/* The grid scrolls under it, so reserve the band's height. */
+html[data-rr-library-view="library"] main > .catalog {
+  padding-top: calc(150px + env(safe-area-inset-top));
+}
+html[data-rr-library-view="library"] .hero h1 {
+  font-size: 32px;
+  line-height: 1.15;
+  padding-right: 0;
+  /* Sit on the icon row rather than above it: the rail is centred on this line. */
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+}
+html[data-rr-library-view="library"] .hero .search { margin: 0; }
+
+/* All three icons share one origin so they cannot drift apart. */
+html[data-rr-library-view="library"] #rr-filter-btn,
+html[data-rr-library-view="library"] #rr-sort-btn,
+html[data-rr-library-view="library"] #rr-settings-link {
+  top: calc(14px + env(safe-area-inset-top));
+  width: 42px; height: 42px;
+  z-index: 129;
+}
+/* Give the gear back the disc the other two have. v49 stripped it when it was
+   alone in an empty corner; in a rail of three, matching matters more. */
+html[data-rr-library-view="library"] #rr-settings-link,
+html[data-rr-theme="dark"][data-rr-library-view="library"] #rr-settings-link {
+  background: rgba(120, 120, 128, .20);
+  border: 0;
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  filter: none;
+}
+html[data-rr-library-view="library"] #rr-filter-btn,
+html[data-rr-library-view="library"] #rr-sort-btn {
+  background: rgba(120, 120, 128, .20);
+  border: 0;
+}
+html[data-rr-library-view="library"] #rr-settings-link svg { width: 21px; height: 21px; }
+html[data-rr-library-view="library"] #rr-filter-btn svg,
+html[data-rr-library-view="library"] #rr-sort-btn svg { width: 21px; height: 21px; }
+html[data-rr-library-view="library"] #rr-settings-link { right: calc(20px + env(safe-area-inset-right)); }
+html[data-rr-library-view="library"] #rr-sort-btn      { right: calc(70px + env(safe-area-inset-right)); }
+html[data-rr-library-view="library"] #rr-filter-btn    { right: calc(120px + env(safe-area-inset-right)); }
+
+/* Popovers hang below the frozen band. */
+html[data-rr-library-view="library"] .catalog .filters,
+#rr-sort-menu { top: calc(66px + env(safe-area-inset-top)); }
+
+/* ---- the reader owns the screen ---------------------------------------- *
+ * A book is open whenever .reader-shell exists, regardless of format. Keyed on
+ * a body class set from JS because CSS cannot ask "does this element exist".
+ * ---------------------------------------------------------------------- */
+html.rr-book-open main > .hero,
+html.rr-book-open #rr-filter-btn,
+html.rr-book-open #rr-sort-btn,
+html.rr-book-open #rr-settings-link,
+html.rr-book-open .rr-library-dock,
+html.rr-book-open #rr-sort-menu,
+html.rr-book-open #rr-popover-scrim { display: none !important; }
+
+
+/* ---- reader controls need to be visible on any page ---------------------- *
+ * The close and menu buttons took --white/--ink, which on a light book page is
+ * near-white on near-white: the screenshot showed both as faint ghosts. They
+ * float over arbitrary content, so state a definite contrast rather than
+ * inheriting the page's.
+ * ---------------------------------------------------------------------- */
+.rr-sheet-btn,
+.rr-close-btn {
+  background: rgba(120, 120, 128, .28) !important;
+  border: 0 !important;
+  color: #1c1c1e !important;
+  border-radius: 50% !important;
+  width: 36px !important; height: 36px !important;
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .18);
+}
+html.rr-theme-dark .rr-sheet-btn,
+html.rr-theme-dark .rr-close-btn {
+  background: rgba(120, 120, 128, .40) !important;
+  color: #f5f5f7 !important;
+}
+.rr-sheet-btn:active,
+.rr-close-btn:active { opacity: .6; }

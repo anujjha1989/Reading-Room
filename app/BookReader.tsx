@@ -301,7 +301,15 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     const savedMargin = Number(localStorage.getItem("reading-room-reader-margin")) || 4;
     const savedFontSize = Number(localStorage.getItem("reading-room-font-size")) || 100;
     readingModeRef.current = mode;
-    themeRef.current = savedTheme === "dark" || savedTheme === "sepia" ? savedTheme : "light";
+    // Follow the app's theme on first open rather than always starting light.
+    // The reader keeps its own preference once set, but until then a dark
+    // library opening a white page is jarring - and looks like a bug.
+    const appTheme = localStorage.getItem("reading-room-theme");
+    const prefersDark = appTheme === "dark"
+      || (appTheme !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    themeRef.current = savedTheme === "dark" || savedTheme === "sepia" || savedTheme === "light"
+      ? savedTheme
+      : prefersDark ? "dark" : "light";
     lineHeightRef.current = Math.min(2, Math.max(1.35, savedLineHeight));
     marginRef.current = Math.min(12, Math.max(2, savedMargin));
     fontSizeRef.current = Math.min(160, Math.max(75, savedFontSize));
