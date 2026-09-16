@@ -43,6 +43,7 @@ cp dist/client/assets/*.js dist/client/assets/*.css dist/stage/assets/
 cp overrides/assets/* dist/stage/assets/
 cp dist/index.html dist/stage/index.html
 cp overrides/sw.js dist/stage/sw.js
+cp dist/settings.html dist/stage/settings.html
 
 echo "==> uploading"
 "${SSH[@]}" "$PI" "rm -rf ~/rr-deploy/stage && mkdir -p ~/rr-deploy/stage"
@@ -61,22 +62,48 @@ COPYFILE_DISABLE=1 tar czf - -C overrides/book-art fullscreen-bundle.js fullscre
       mv \$tmp/read-aloud.js         $BOOK_ART/read-aloud-v$VERSION.js
       rm -rf \$tmp"
 
+echo "==> capturing rollback"
+# reading-room-deploy is additive for assets (filenames are content hashed), so
+# the only files a deploy destroys are the three HTML/JS documents it overwrites.
+# Capture them BEFORE the install: afterwards the previous ones are gone.
+ROLLBACK=deployment-backups/$(date +%Y%m%d-%H%M%S)-before-v$VERSION
+mkdir -p "$ROLLBACK"
+"${SSH[@]}" "$PI" "cd /opt/reading-room/current/site && tar czf - index.html \
+  \$([ -f sw.js ] && echo sw.js) \$([ -f settings.html ] && echo settings.html)" \
+  > "$ROLLBACK/site-html.tar.gz"
+cp deploy/reading-room-deploy "$ROLLBACK/reading-room-deploy"
+echo "    $ROLLBACK"
+
+rollback() {
+  echo "==> ROLLING BACK to the previous release" >&2
+  # Restore through the same staging channel the installer already reads, so no
+  # new privileged path is introduced. Assets are left alone: they are additive
+  # and the old hashed files were never removed.
+  "${SSH[@]}" "$PI" "rm -rf ~/rr-deploy/stage && mkdir -p ~/rr-deploy/stage/assets"
+  "${SSH[@]}" "$PI" "tar xzf - -C ~/rr-deploy/stage" < "$ROLLBACK/site-html.tar.gz"
+  "${SSH[@]}" "$PI" "sudo -n /usr/local/sbin/reading-room-deploy" >&2
+  echo "==> rolled back; overrides for v$VERSION remain on disk but are unreferenced" >&2
+}
+
 echo "==> installing"
 "${SSH[@]}" "$PI" "sudo -n /usr/local/sbin/reading-room-deploy"
+
+# Everything past this point has already changed the live site, so a failure
+# must restore the previous documents rather than only abort.
+fail() { echo "FAILED: $1" >&2; rollback; exit 1; }
 
 echo "==> verifying"
 sleep 3
 library_asset=$(grep -o 'LibraryClient-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)
-[ -n "$library_asset" ] || { echo "FAILED: no LibraryClient asset in rendered HTML" >&2; exit 1; }
+[ -n "$library_asset" ] || fail "no LibraryClient asset in rendered HTML"
 for asset_path in / \
+  /settings.html \
   /assets/$library_asset \
   /assets/book-art/images/fullscreen-bundle-v$VERSION.js \
   /assets/book-art/images/fullscreen-bundle-v$VERSION.css \
   /assets/book-art/images/read-aloud-v$VERSION.js; do
-  headers=$(curl -fsSI "http://anujrpi.local:4311$asset_path") || {
-    echo "FAILED: $asset_path could not be fetched" >&2
-    exit 1
-  }
+  headers=$(curl -fsSI "http://anujrpi.local:4311$asset_path") \
+    || fail "$asset_path could not be fetched"
   content_type=$(printf '%s\n' "$headers" | awk -F': *' 'tolower($1)=="content-type" {print tolower($2)}' | tr -d '\r')
   case "$asset_path" in
     *.js)  expected='javascript' ;;
@@ -86,13 +113,19 @@ for asset_path in / \
   printf '  %-58s %s\n' "$asset_path" "$content_type"
   case "$content_type" in
     *"$expected"*) ;;
-    *) echo "FAILED: $asset_path returned $content_type, expected $expected" >&2; exit 1 ;;
+    *) fail "$asset_path returned $content_type, expected $expected" ;;
   esac
 done
 served=$("${SSH[@]}" "$PI" "grep -o 'fullscreen-bundle-v[0-9]*' /opt/reading-room/current/site/index.html | head -1")
-expected="fullscreen-bundle-v$VERSION"
-[ "$served" = "$expected" ] || {
-  echo "FAILED: live HTML references $served, expected $expected" >&2
-  exit 1
-}
-echo "==> live: $served"
+[ "$served" = "fullscreen-bundle-v$VERSION" ] \
+  || fail "live HTML references $served, expected fullscreen-bundle-v$VERSION"
+
+# The version the user actually sees, fetched over HTTP rather than read off
+# disk: this is the check that proves the About row reached the device.
+settings_version=$(curl -fsS "http://anujrpi.local:4311/settings.html" \
+  | sed -n "s/.*title:'Version', value:'\([0-9][0-9]*\)'.*/\1/p" | head -1)
+[ "$settings_version" = "$VERSION" ] \
+  || fail "settings.html reports version '${settings_version:-none}', expected $VERSION"
+printf '  %-58s %s\n' "settings.html About version" "$settings_version"
+
+echo "==> live: $served, settings reports v$settings_version"

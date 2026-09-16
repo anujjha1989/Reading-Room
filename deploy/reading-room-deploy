@@ -25,9 +25,24 @@ find "$STAGE/assets" -maxdepth 1 -type f \( -name '*.js' -o -name '*.css' \) -pr
 
 cp -f "$STAGE/index.html" "$SITE/index.html"
 [ -f "$STAGE/sw.js" ] && cp -f "$STAGE/sw.js" "$SITE/sw.js"
+# settings.html is a standalone page the build does not produce. It is optional
+# here so an older stage, or a rollback that only carries index.html, still
+# installs. Its group is reading-room, not root: the server reads it as that
+# group, so preserve the ownership the live file already had.
+#
+# An `if` rather than `[ -f ... ] && cp`: under `set -e` a failing test as the
+# whole command makes the script exit, so the guard would abort the install
+# instead of skipping the file.
+if [ -f "$STAGE/settings.html" ]; then
+  cp -f "$STAGE/settings.html" "$SITE/settings.html"
+fi
 
 chown root:root "$SITE"/index.html
 chmod 0644 "$SITE"/index.html
+if [ -f "$SITE/settings.html" ]; then
+  chown root:reading-room "$SITE/settings.html"
+  chmod 0644 "$SITE/settings.html"
+fi
 for f in "$SITE"/assets/*.js "$SITE"/assets/*.css "$SITE"/sw.js; do
   [ -f "$f" ] || continue
   chown root:root "$f"

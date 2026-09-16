@@ -45,4 +45,17 @@ const unresolved = html.match(/\{\{[A-Z_]+\}\}/g);
 if (unresolved) throw new Error(`unresolved placeholders: ${[...new Set(unresolved)].join(", ")}`);
 
 await writeFile(join(root, "dist/index.html"), html);
+
+// settings.html is a standalone static page, not part of the RSC build. It was
+// live on the Pi with no source in the repo, so a deploy could never regenerate
+// it and any edit survived only until the next one. It is a template here for
+// the same reason index.html is: the only thing that varies is the version.
+let settings = await readFile(join(root, "overrides/settings.template.html"), "utf8");
+settings = settings.replaceAll("{{V}}", version);
+const settingsUnresolved = settings.match(/\{\{[A-Z_]+\}\}/g);
+if (settingsUnresolved) {
+  throw new Error(`unresolved placeholders in settings: ${[...new Set(settingsUnresolved)].join(", ")}`);
+}
+await writeFile(join(root, "dist/settings.html"), settings);
+
 console.log(Object.entries(values).map(([k, v]) => `  ${k} = ${v}`).join("\n"));
