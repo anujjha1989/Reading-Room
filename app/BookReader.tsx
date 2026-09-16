@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
+import { driveDownloadUrl } from "./drive";
 import type { Book as EpubBook, Location, Rendition } from "epubjs";
 import type { RenditionOptions } from "epubjs/types/rendition";
 import PdfReader, { type PdfReaderHandle } from "./PdfReader";
@@ -99,10 +100,6 @@ function flattenToc(items: TocItem[], depth = 0): TocEntry[] {
     { href: item.href, label: item.label.trim(), depth },
     ...flattenToc(item.subitems || [], depth + 1),
   ]);
-}
-
-function driveDownloadUrl(id: string) {
-  return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`;
 }
 
 function readerUrl(id: string, format: string) {
@@ -302,14 +299,17 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     const savedTheme = localStorage.getItem("reading-room-reader-theme") as ReaderTheme | null;
     const savedLineHeight = Number(localStorage.getItem("reading-room-line-height")) || 1.65;
     const savedMargin = Number(localStorage.getItem("reading-room-reader-margin")) || 4;
+    const savedFontSize = Number(localStorage.getItem("reading-room-font-size")) || 100;
     readingModeRef.current = mode;
     themeRef.current = savedTheme === "dark" || savedTheme === "sepia" ? savedTheme : "light";
     lineHeightRef.current = Math.min(2, Math.max(1.35, savedLineHeight));
     marginRef.current = Math.min(12, Math.max(2, savedMargin));
+    fontSizeRef.current = Math.min(160, Math.max(75, savedFontSize));
     setReadingMode(mode);
     setTheme(themeRef.current);
     setLineHeight(lineHeightRef.current);
     setMargin(marginRef.current);
+    setFontSize(fontSizeRef.current);
   }, [file.id]);
 
   useEffect(() => {
@@ -364,11 +364,12 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         }
         rendition.on("relocated", (location: Location) => {
           const page = location.start.displayed;
+          const atEnd = (location as Location & { atEnd?: boolean }).atEnd ?? false;
           const label = readingModeRef.current === "scroll" ? "In progress" : page?.total ? `Page ${page.page} of ${page.total}` : "In progress";
           setProgress(label);
           if (location.start.cfi) {
             localStorage.setItem(`reading-room-position-${file.id}`, location.start.cfi);
-            reportLocation({ label, position: location.start.cfi, status: "reading" });
+            reportLocation({ label, position: location.start.cfi, status: atEnd ? "finished" : "reading" });
           }
         });
         try {
@@ -402,11 +403,21 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     updateSpread();
     media.addEventListener("change", updateSpread);
     window.addEventListener("resize", updateSpread);
+    // After a screen rotation EPUB.js re-flows the content but can lose the
+    // scroll position. Wait for the layout to settle then restore it.
+    const handleOrientation = () => {
+      setTimeout(() => {
+        const saved = localStorage.getItem(`reading-room-position-${file.id}`);
+        if (saved && renditionRef.current) renditionRef.current.display(saved).catch(() => {});
+      }, 250);
+    };
+    window.addEventListener("orientationchange", handleOrientation);
     return () => {
       media.removeEventListener("change", updateSpread);
       window.removeEventListener("resize", updateSpread);
+      window.removeEventListener("orientationchange", handleOrientation);
     };
-  }, [isEpub, readerModeReady]);
+  }, [file.id, isEpub, readerModeReady]);
 
   useEffect(() => {
     if (!isMobi || !viewerRef.current || !readerModeReady) return;
@@ -493,6 +504,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     localStorage.setItem("reading-room-reader-theme", theme);
     localStorage.setItem("reading-room-line-height", String(lineHeight));
     localStorage.setItem("reading-room-reader-margin", String(margin));
+    localStorage.setItem("reading-room-font-size", String(fontSize));
   }, [fontSize, lineHeight, margin, theme]);
 
   useEffect(() => {
@@ -507,7 +519,30 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [isBookReader, onClose, panel]);
+
+  // Keep keyboard focus inside the reader so Tab cannot reach the frozen library behind it.
+  useEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+    function handleFocusTrap(event: KeyboardEvent) {
+      if (event.key !== "Tab") return;
+      const focusable = [...shell.querySelectorAll<HTMLElement>(FOCUSABLE)];
+      if (focusable.length < 2) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", handleFocusTrap);
+    return () => document.removeEventListener("keydown", handleFocusTrap);
+  }, []);
 
   function chooseReadingMode(mode: ReadingMode) {
     if (mode === readingModeRef.current) return;
@@ -625,20 +660,20 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     const touch = event.changedTouches[0];
     const dx = touch.clientX - start.x;
     const dy = touch.clientY - start.y;
-    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.35) {
+    if (Math.abs(dx) > Math.round(window.innerWidth * 0.12) && Math.abs(dx) > Math.abs(dy) * 1.35) {
       if (dx < 0) mangaMode && isComic ? previous() : next();
       else mangaMode && isComic ? next() : previous();
     }
   }
 
   return (
-    <section className={`reader-shell reader-theme-${theme}`} ref={shellRef} aria-label={`Reading ${displayTitle}`}>
+    <section className={`reader-shell reader-theme-${theme}`} ref={shellRef} role="dialog" aria-modal="true" aria-labelledby="reader-title">
       <header className="reader-header">
-        <div><span>THE READING ROOM</span><h1>{displayTitle}</h1></div>
+        <div><h1 id="reader-title">{displayTitle}</h1></div>
         <div className="reader-actions">
           {isReflowable && toc.length > 0 && <label><span>Chapter</span><select defaultValue="" onChange={(event) => event.target.value && goToChapter(event.target.value)}><option value="" disabled>Contents</option>{toc.map((item, index) => <option key={`${item.href}-${index}`} value={item.href}>{`${"— ".repeat(item.depth)}${item.label}`}</option>)}</select></label>}
           {isBookReader && readingMode && <div className="reader-modes" aria-label="Reading mode"><button className={readingMode === "pages" ? "active" : ""} aria-pressed={readingMode === "pages"} onClick={() => chooseReadingMode("pages")}>Pages</button><button className={readingMode === "scroll" ? "active" : ""} aria-pressed={readingMode === "scroll"} onClick={() => chooseReadingMode("scroll")}>Scroll</button></div>}
-          {isReflowable && <div className="font-controls" aria-label="Text size"><button onClick={() => setFontSize((size) => Math.max(75, size - 10))} aria-label="Decrease text size">A−</button><button onClick={() => setFontSize((size) => Math.min(160, size + 10))} aria-label="Increase text size">A+</button></div>}
+          {isReflowable && <div className="font-controls" aria-label="Text size"><button onClick={() => setFontSize((size) => Math.max(75, size - 10))} aria-label={`Decrease text size (${fontSize}%)`} title={`${fontSize}%`} disabled={fontSize <= 75}>A−</button><button onClick={() => setFontSize((size) => Math.min(160, size + 10))} aria-label={`Increase text size (${fontSize}%)`} title={`${fontSize}%`} disabled={fontSize >= 160}>A+</button></div>}
           {isBookReader && <details className="reader-settings"><summary aria-label="Reading appearance">Aa</summary><div><span>Theme</span><div className="theme-options"><button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}>Light</button><button className={theme === "sepia" ? "active" : ""} onClick={() => setTheme("sepia")}>Sepia</button><button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>Dark</button></div>{isReflowable && <><span>Line spacing</span><input type="range" min="1.35" max="2" step="0.05" value={lineHeight} onChange={(event) => setLineHeight(Number(event.target.value))} /><span>Margins</span><input type="range" min="2" max="12" step="1" value={margin} onChange={(event) => setMargin(Number(event.target.value))} /></>}</div></details>}
           {isComic && <button className={mangaMode ? "active" : ""} onClick={() => setMangaMode((enabled) => !enabled)} aria-pressed={mangaMode}>Manga</button>}
           {(seriesNavigation?.previous || seriesNavigation?.next) && <div className="reader-series-nav"><button disabled={!seriesNavigation.previous} title={seriesNavigation.previous} onClick={seriesNavigation.onPrevious}>Previous issue</button><button disabled={!seriesNavigation.next} title={seriesNavigation.next} onClick={seriesNavigation.onNext}>Next issue</button></div>}
@@ -665,7 +700,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
 
       {isBookReader ? <>
         <div className="epub-stage" onTouchStart={(event) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={endSwipe}>{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{isComic && readingMode && <ComicReader ref={comicReaderRef} fileId={file.id} format={file.format} mode={readingMode} direction={mangaMode ? "rtl" : "ltr"} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download {format}</a>}</div>}</div>
-        <footer className="reader-footer"><button onClick={previous}>← Previous</button><span>{progress || (readingMode === "scroll" ? "Continuous scroll" : "Use the arrow keys to turn pages")}</span><button onClick={next}>Next →</button></footer>
+        <footer className="reader-footer"><button onClick={previous}>{readingMode === "scroll" ? "↑ Up" : "← Previous"}</button><span>{progress || (readingMode === "scroll" ? "Continuous scroll" : "Use the arrow keys to turn pages")}</span><button onClick={next}>{readingMode === "scroll" ? "Down ↓" : "Next →"}</button></footer>
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
     </section>
   );

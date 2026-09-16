@@ -13,5 +13,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+  return <html lang="en"><head><link rel="preconnect" href="https://covers.openlibrary.org" /><link rel="preconnect" href="https://openlibrary.org" /></head><body>{children}</body></html>;
 }

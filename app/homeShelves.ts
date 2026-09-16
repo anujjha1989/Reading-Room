@@ -28,7 +28,6 @@ export type ShelfBook = {
   rrEditions?: ShelfBook[];
   rrGroupTitle?: string;
   rrGroupAuthor?: string;
-  [key: string]: unknown;
 };
 
 export type ShelfState = { favorite?: boolean; lastOpened?: number | null; progressLabel?: string | null };

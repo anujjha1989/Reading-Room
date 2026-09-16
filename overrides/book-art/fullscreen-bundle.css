@@ -288,17 +288,17 @@ html .hero .category-chips button { flex-shrink:0; border:0; background:var(--pa
 html main > .discovery { order:2; max-width:1248px; padding:0 24px 32px; border:0; }
 html .discovery .smart-shelf {
   margin:0 -24px; padding:24px 24px 20px; border-bottom:1px solid var(--line);
-  background:linear-gradient(180deg,var(--paper) 0%,var(--paper) 22%,#eef3f9 100%);
+  background:var(--paper);
   overflow:hidden;
 }
-html .discovery .smart-shelf:nth-child(3n+2) { background:linear-gradient(180deg,var(--paper) 0%,var(--paper) 22%,#f5eeeb 100%); }
-html .discovery .smart-shelf:nth-child(3n) { background:linear-gradient(180deg,var(--paper) 0%,var(--paper) 22%,#eef4f0 100%); }
+html .discovery .smart-shelf:nth-child(3n+2) { background:var(--paper); }
+html .discovery .smart-shelf:nth-child(3n) { background:var(--paper); }
 html .shelf-heading { align-items:center; margin-bottom:16px; gap:0; }
 html .shelf-heading span { display:none; }
 html .shelf-heading > div { display:flex; align-items:center; min-width:0; gap:1px; }
-html .shelf-heading h2 { font:700 28px/1.12 Georgia,serif; letter-spacing:-.025em; margin:0; }
-html .rr-shelf-chevron { border:0; background:transparent; color:#98989d; padding:0; width:18px; min-width:18px; min-height:40px; font-size:0; cursor:pointer; display:grid; place-items:center; }
-html .rr-shelf-chevron::before { content:""; width:9px; height:9px; border-top:2.5px solid currentColor; border-right:2.5px solid currentColor; transform:translate(-2px,-1px) rotate(45deg); }
+html .shelf-heading h2 { font:600 19px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:-.01em; margin:0; }
+html .rr-shelf-chevron { border:0; background:transparent; color:#007AFF; padding:0 2px 0 8px; min-width:0; min-height:40px; font:600 13px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; cursor:pointer; display:grid; place-items:center; white-space:nowrap; }
+html .rr-shelf-chevron::before { display:none; }
 html .rr-shelf-chevron:focus-visible { outline:2px solid var(--accent); border-radius:9px; }
 html .shelf-strip { grid-auto-columns:168px; align-items:start; gap:20px; padding:2px 2px 10px; scroll-snap-type:none; scroll-behavior:auto; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:none; mask-image:none; contain:layout style; }
 html .shelf-book { align-self:start; display:grid; grid-template-rows:auto auto auto; align-content:start; }
@@ -328,18 +328,23 @@ html .shelf-book > small { font-size:11.5px; line-height:1.25; margin-top:3px; w
 .rr-edition-list button::before { content:counter(edition); position:absolute; left:14px; top:16px; display:grid; place-items:center; width:26px; height:26px; border-radius:50%; background:var(--ink); color:var(--paper); font:600 12px/1 system-ui; }
 .rr-edition-list strong,.rr-edition-list small { display:block; white-space:normal; }
 .rr-edition-list small { margin-top:8px; opacity:.7; }
-html .rr-continue-shelf .shelf-strip { grid-auto-columns:244px; gap:14px; }
+html .rr-continue-shelf .shelf-strip { grid-auto-columns:168px; gap:20px; }
 html .rr-continue-shelf .shelf-book {
-  display:grid; grid-template-columns:42px minmax(0,1fr); grid-template-rows:auto auto auto;
-  gap:1px 10px; align-content:center; align-items:center; padding:7px 10px; border-radius:14px;
-  background:#e7edf7; color:#172d4c; min-height:78px;
+  display:grid; grid-template-rows:auto auto auto auto;
+  align-content:start; padding:0; border-radius:0;
+  background:transparent; color:var(--ink); min-height:0; gap:0;
 }
-html .rr-continue-shelf .shelf-book:nth-child(3n+2) { background:#f4e7e1; color:#502b24; }
-html .rr-continue-shelf .shelf-book:nth-child(3n) { background:#e4eee8; color:#244437; }
-html .rr-continue-shelf .shelf-cover { grid-row:1/4; width:42px; }
-html .rr-continue-shelf .shelf-book > strong { margin:0; font-size:14px; line-height:1.14; -webkit-line-clamp:2; }
-html .rr-continue-shelf .shelf-book > small { margin:0; color:inherit; opacity:.82; font-size:11.5px; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-html .rr-continue-shelf .shelf-book > .rr-continue-meta { opacity:.62; font-size:10.5px; }
+html .rr-continue-shelf .shelf-cover { grid-row:auto; width:100%; }
+html .rr-continue-shelf .shelf-book > strong { margin-top:9px; font-size:12.5px; line-height:1.28; -webkit-line-clamp:2; }
+html .rr-continue-shelf .shelf-book > small { margin-top:3px; color:var(--muted); opacity:1; font-size:11.5px; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+html .rr-continue-shelf .shelf-book > .rr-continue-meta {
+  display:block; margin:6px 0 0; font-size:9.5px; color:var(--muted); opacity:.8;
+  font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+html .rr-continue-shelf .shelf-book > .rr-continue-meta::before {
+  content:""; display:block; height:3px; margin-bottom:4px; border-radius:2px;
+  background:linear-gradient(to right,#007AFF var(--rr-p,0%),var(--line) var(--rr-p,0%));
+}
 html .series-strip { grid-auto-columns:240px; gap:16px; mask-image:none; scrollbar-width:none; }
 html .series-strip button { min-height:116px; border:0; border-radius:16px; background:var(--paper-2); padding:20px; }
 html .series-strip strong { font:600 20px/1.2 Georgia,serif; }
@@ -399,9 +404,9 @@ html.rr-library-visible body { padding-bottom:0; }
   html .hero .search kbd { display:none; }
   html .hero .category-chips { margin-right:-24px; padding-right:24px; }
   html .discovery .smart-shelf { padding-top:22px; padding-bottom:18px; }
-  html .shelf-heading h2 { font-size:26px; }
+  html .shelf-heading h2 { font-size:17px; }
   html .shelf-strip { grid-auto-columns:145px; gap:17px; margin-right:-24px; padding-right:24px; }
-  html .rr-continue-shelf .shelf-strip { grid-auto-columns:min(244px,76vw); }
+  html .rr-continue-shelf .shelf-strip { grid-auto-columns:min(145px,48vw); }
   html .series-strip { margin-right:-24px; padding-right:24px; }
   html .catalog .thumbnail-view { grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px 20px; }
   html .catalog .list-view .book-tools { min-width:0; }
@@ -413,9 +418,9 @@ html.rr-library-visible body { padding-bottom:0; }
 html:not([data-rr-theme="light"]).rr-library-visible body { background:#000; }
 html:not([data-rr-theme="light"]) main > :is(.topbar, html:not([data-rr-theme="light"]) .hero, html:not([data-rr-theme="light"]) .discovery, html:not([data-rr-theme="light"]) .catalog, html:not([data-rr-theme="light"]) footer, html:not([data-rr-theme="light"]) .modal-backdrop), html:not([data-rr-theme="light"]) .rr-library-dock { --paper:#000; --paper-2:#1c1c1e; --white:#242426; --ink:#f5f5f7;
     --muted:#a1a1a6; --sage:#a1a1a6; --line:#303034; --accent:#f4ad78; color-scheme:dark; }
-html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book { background:#0a2c57; color:#fff; }
-html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book:nth-child(3n+2) { background:#591e21; color:#fff; }
-html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book:nth-child(3n) { background:#173e36; color:#fff; }
+html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book { background:transparent; color:var(--ink); }
+html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book:nth-child(3n+2) { background:transparent; }
+html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book:nth-child(3n) { background:transparent; }
 html:not([data-rr-theme="light"]) .discovery .smart-shelf { background:linear-gradient(180deg,#000 0%,#000 22%,#101823 100%); }
 html:not([data-rr-theme="light"]) .discovery .smart-shelf:nth-child(3n+2) { background:linear-gradient(180deg,#000 0%,#000 22%,#1b1211 100%); }
 html:not([data-rr-theme="light"]) .discovery .smart-shelf:nth-child(3n) { background:linear-gradient(180deg,#000 0%,#000 22%,#101914 100%); }
@@ -603,9 +608,9 @@ html .discovery .smart-shelf + .smart-shelf {
 html[data-rr-theme="dark"].rr-library-visible body { background:#000; }
 html[data-rr-theme="dark"] main > :is(.topbar, html[data-rr-theme="dark"] .hero, html[data-rr-theme="dark"] .discovery, html[data-rr-theme="dark"] .catalog, html[data-rr-theme="dark"] footer, html[data-rr-theme="dark"] .modal-backdrop), html[data-rr-theme="dark"] .rr-library-dock { --paper:#000; --paper-2:#1c1c1e; --white:#242426; --ink:#f5f5f7;
     --muted:#a1a1a6; --sage:#a1a1a6; --line:#303034; --accent:#f4ad78; color-scheme:dark; }
-html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book { background:#0a2c57; color:#fff; }
-html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book:nth-child(3n+2) { background:#591e21; color:#fff; }
-html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book:nth-child(3n) { background:#173e36; color:#fff; }
+html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book { background:transparent; color:var(--ink); }
+html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book:nth-child(3n+2) { background:transparent; }
+html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book:nth-child(3n) { background:transparent; }
 html[data-rr-theme="dark"] .discovery .smart-shelf { background:linear-gradient(180deg,#000 0%,#000 22%,#101823 100%); }
 html[data-rr-theme="dark"] .discovery .smart-shelf:nth-child(3n+2) { background:linear-gradient(180deg,#000 0%,#000 22%,#1b1211 100%); }
 html[data-rr-theme="dark"] .discovery .smart-shelf:nth-child(3n) { background:linear-gradient(180deg,#000 0%,#000 22%,#101914 100%); }
@@ -657,20 +662,16 @@ html #rr-settings-link {
 }
 /* The reader takes over the screen; the gear belongs to the library. */
 html.rr-strip #rr-settings-link { display: none; }
+/* While settings is open the gear sits behind the iframe — hide it to prevent a ghost. */
+html.rr-settings-open #rr-settings-link { visibility: hidden; }
 html #rr-settings-link svg { width: 22px; height: 22px; }
 html #rr-settings-link:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
 
-/* ---- shelf chevron alignment ----------------------------------------- *
- * The chevron is a 9px square showing two borders and rotated 45deg, so the
- * visible arrow sits in the upper-right of its box — its optical centre is
- * well above the box centre that `place-items:center` lines up. Against a
- * 28px Georgia heading that read as 8px too high (measured on an iPhone
- * screenshot: heading glyph band centred at y=564, chevron at y=540, at 3x).
- * The old -1px nudge made it slightly worse, so this replaces it outright.
- * ---------------------------------------------------------------------- */
-html .rr-shelf-chevron::before {
-  transform: translate(-2px, 7px) rotate(45deg);
+/* Dark mode chevron */
+@media (prefers-color-scheme:dark) {
+  html:not([data-rr-theme="light"]) .rr-shelf-chevron { color:#409CFF; }
 }
+html[data-rr-theme="dark"] .rr-shelf-chevron { color:#409CFF; }
 
 
 /* ---- settings gear: colours that do not depend on the hero's scope ----- *
@@ -700,7 +701,7 @@ html[data-rr-theme="dark"] #rr-settings-link {
 #rr-settings-overlay {
   position: fixed; inset: 0; z-index: 200;
   border: 0; width: 100%; height: 100%;
-  background: #f3efe5;
+  background: var(--paper, #f3efe5);
 }
 @media (prefers-color-scheme: dark) {
   html:not([data-rr-theme="light"]) #rr-settings-overlay { background: #000; }
@@ -809,6 +810,7 @@ html.rr-metafix-open { overflow: hidden; }
   border-radius: 10px; padding: 12px 18px; border: 0; cursor: pointer;
 }
 #rr-metafix .rr-mf-cancel { background: rgba(38, 51, 47, .08); color: #26332f; }
+#rr-metafix .rr-mf-quarantine { background: rgba(160, 64, 0, .08); color: #a04000; margin-right: auto; }
 #rr-metafix .rr-mf-save { background: #26332f; color: #f3efe5; font-weight: 600; }
 #rr-metafix button:active { opacity: .7; }
 
@@ -826,6 +828,7 @@ html.rr-metafix-open { overflow: hidden; }
   html:not([data-rr-theme="light"]) #rr-metafix .rr-mf-note,
   html:not([data-rr-theme="light"]) #rr-metafix .rr-mf-status { color: rgba(245, 245, 247, .6); }
   html:not([data-rr-theme="light"]) #rr-metafix .rr-mf-cancel { background: rgba(255, 255, 255, .12); color: #f5f5f7; }
+  html:not([data-rr-theme="light"]) #rr-metafix .rr-mf-quarantine { background: rgba(255, 160, 80, .12); color: #ffb060; }
   html:not([data-rr-theme="light"]) #rr-metafix .rr-mf-save { background: #f5f5f7; color: #1c1c1e; }
 }
 html[data-rr-theme="dark"] #rr-metafix .rr-mf-sheet { background: #1c1c1e; color: #f5f5f7; }
@@ -836,4 +839,99 @@ html[data-rr-theme="dark"] #rr-metafix input {
 html[data-rr-theme="dark"] #rr-metafix .rr-mf-note,
 html[data-rr-theme="dark"] #rr-metafix .rr-mf-status { color: rgba(245, 245, 247, .6); }
 html[data-rr-theme="dark"] #rr-metafix .rr-mf-cancel { background: rgba(255, 255, 255, .12); color: #f5f5f7; }
+html[data-rr-theme="dark"] #rr-metafix .rr-mf-quarantine { background: rgba(255, 160, 80, .12); color: #ffb060; }
 html[data-rr-theme="dark"] #rr-metafix .rr-mf-save { background: #f5f5f7; color: #1c1c1e; }
+
+/* ==== Apple Books catalog: text below covers, clean artwork ============= */
+
+/* Show book caption below covers in thumbnail view. */
+html .catalog .thumbnail-view .book-caption { display:block; margin-top:8px; }
+html .catalog .thumbnail-view .book-caption > strong {
+  display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
+  overflow:hidden; white-space:normal;
+  font:600 12.5px/1.28 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color:var(--ink);
+}
+html .catalog .thumbnail-view .book-caption > small {
+  display:block; margin-top:2px; font-size:11px; color:var(--muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* Clean cover artwork: no text overlay, no padding in thumbnail view.
+ * No-cover books show a plain colored rectangle; all text lives in .book-caption below. */
+html .catalog .thumbnail-view .cover { padding:0; }
+html .catalog .thumbnail-view .cover-copy { display:none; }
+/* Clean gradient — only for has-cover, and only in list-view (where cover is tiny) */
+html .catalog .thumbnail-view .has-cover::after { opacity:0; }
+/* Progress badge: move from top-right pill to a slim bottom-edge strip. */
+html .catalog .thumbnail-view .cover-progress {
+  top:auto; bottom:0; right:0; left:0;
+  max-width:100%; border-radius:0;
+  padding:4px 8px; text-align:center;
+  background:rgba(0,0,0,.52); font-size:8px;
+}
+
+/* Tighten contain-intrinsic-size for the taller thumbnail cards. */
+html .catalog .thumbnail-view .book { contain-intrinsic-size:156px 330px; }
+
+/* ==== macOS sidebar at ≥1200px ========================================= *
+ * The floating bottom pill becomes a full-height left navigation column,
+ * matching Apple Books on macOS. Content shifts right to make room.
+ * ---------------------------------------------------------------------- */
+@media (min-width:1200px) {
+  html.rr-library-visible .rr-library-dock {
+    left:0; right:auto; top:0; bottom:0;
+    width:220px; height:100dvh;
+    transform:none;
+    border-radius:0;
+    flex-direction:column;
+    align-items:stretch;
+    padding:calc(env(safe-area-inset-top,0px) + 90px) 10px 24px;
+    gap:2px;
+    border:0; background:transparent; box-shadow:none;
+    backdrop-filter:none; -webkit-backdrop-filter:none;
+  }
+  html.rr-library-visible .rr-library-dock::before {
+    border-radius:0;
+    background:var(--paper);
+    border:0;
+    border-right:1px solid var(--line);
+    box-shadow:none;
+    backdrop-filter:none; -webkit-backdrop-filter:none;
+  }
+  html.rr-library-visible .rr-library-dock::after {
+    content:"Library";
+    position:absolute;
+    top:calc(env(safe-area-inset-top,0px) + 36px);
+    left:20px; right:20px;
+    font:600 11px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    color:var(--muted); letter-spacing:.06em; text-transform:uppercase;
+  }
+  html.rr-library-visible .rr-library-dock button {
+    flex:0 0 auto; height:40px;
+    justify-content:flex-start;
+    padding:0 14px; border-radius:10px;
+    gap:12px; font-size:14px; font-weight:500;
+    color:var(--ink);
+  }
+  html.rr-library-visible .rr-library-dock button > span { display:block; }
+  html.rr-library-visible .rr-library-dock button svg { flex-shrink:0; width:20px; height:20px; }
+  html.rr-library-visible .rr-library-dock button[aria-current="page"] {
+    background:var(--paper-2); color:var(--ink); box-shadow:none;
+  }
+  /* Reset the special circular Search button to match the other nav items. */
+  html.rr-library-visible .rr-library-dock button[data-view="Search"] {
+    flex:0 0 auto; height:40px; margin-top:0;
+    background:transparent; border:0; box-shadow:none; color:var(--ink);
+  }
+  html.rr-library-visible .rr-library-dock button[data-view="Search"] svg { width:20px; height:20px; }
+  html.rr-library-visible .rr-library-dock button[data-view="Search"] > span { display:block; }
+  html.rr-library-visible .rr-library-dock button[data-view="Search"][aria-current="page"] {
+    background:var(--paper-2); color:var(--ink);
+  }
+  /* Reset nth-child margins from the pill layout. */
+  html.rr-library-visible .rr-library-dock button:nth-child(1) { margin-left:0; }
+  html.rr-library-visible .rr-library-dock button:nth-child(3) { margin-right:0; }
+  /* Shift content right to clear the sidebar. */
+  html.rr-library-visible body { padding-left:220px; }
+}

@@ -69,6 +69,7 @@ const ComicReader = forwardRef<ComicReaderHandle, {
   const [pageIndex, setPageIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRafRef = useRef(0);
   const spreadSize = mode === "pages" && !isMobile ? 2 : 1;
 
   useEffect(() => {
@@ -127,7 +128,7 @@ const ComicReader = forwardRef<ComicReaderHandle, {
   useEffect(() => {
     if (mode !== "scroll" || !scrollRef.current || !pages.length) return;
     scrollRef.current.querySelector(`[data-comic-page="${pageIndex}"]`)?.scrollIntoView({ block: "start" });
-  }, [mode]);
+  }, [mode, pages.length]);
 
   function previous() {
     if (mode === "scroll") scrollRef.current?.scrollBy({ top: -scrollRef.current.clientHeight * .88, behavior: "smooth" });
@@ -145,7 +146,7 @@ const ComicReader = forwardRef<ComicReaderHandle, {
     if (mode === "scroll") scrollRef.current?.querySelector(`[data-comic-page="${nextPage}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  useImperativeHandle(ref, () => ({ previous, next, goTo }));
+  useImperativeHandle(ref, () => ({ previous, next, goTo }), [mode, pageIndex, pages.length, spreadSize]);
 
   const spread = useMemo(() => {
     const items = pages.slice(pageIndex, pageIndex + spreadSize);
@@ -155,11 +156,14 @@ const ComicReader = forwardRef<ComicReaderHandle, {
 
   if (mode === "pages") return <div className={`comic-pages ${spreadSize === 1 ? "single-spread" : ""}`}>{spread.map((page, index) => <figure key={page.url}><img src={page.url} alt={`Comic page ${pageIndex + index + 1}`} /></figure>)}</div>;
   return <div className="comic-scroll" ref={scrollRef} onScroll={(event) => {
+    cancelAnimationFrame(scrollRafRef.current);
     const container = event.currentTarget;
-    const marker = container.scrollTop + container.clientHeight * .25;
-    let current = 0;
-    container.querySelectorAll<HTMLElement>("[data-comic-page]").forEach((element) => { if (element.offsetTop <= marker) current = Number(element.dataset.comicPage) || 0; });
-    setPageIndex(current);
+    scrollRafRef.current = requestAnimationFrame(() => {
+      const marker = container.scrollTop + container.clientHeight * .25;
+      let current = 0;
+      container.querySelectorAll<HTMLElement>("[data-comic-page]").forEach((element) => { if (element.offsetTop <= marker) current = Number(element.dataset.comicPage) || 0; });
+      setPageIndex(current);
+    });
   }}>{pages.map((page, index) => <img key={page.url} data-comic-page={index} src={page.url} loading={index < 3 ? "eager" : "lazy"} alt={`Comic page ${index + 1}`} />)}</div>;
 });
 

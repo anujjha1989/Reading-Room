@@ -61,6 +61,9 @@
   var floatBtn = null;
   var rateBtn = null;
   var voiceSel = null;
+  var timerBtn = null;
+  var sleepMs = 0;    // remaining ms; 0 = no timer
+  var sleepRef = null;
 
   var synth = function () { return window.speechSynthesis; };
   var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
@@ -148,20 +151,23 @@
     try { rect = range.getBoundingClientRect(); } catch (e) { return; }
     if (!rect) return;
 
+    // Scroll so the highlighted sentence appears near the top of the viewport,
+    // just below the reader header, rather than at the centre. This prevents
+    // the "reverts to top" effect: centering a range that has gone off the
+    // bottom produces a large backwards scroll; top-aligning it does not.
+    var topPad = headerBottom() + 20;
+
     var scroller = doc.scrollingElement || doc.documentElement;
     if (scroller && scroller.scrollHeight > scroller.clientHeight + 4) {
-      var mid = (doc.documentElement.clientHeight || 0) / 2 - rect.height / 2;
-      try { scroller.scrollTo({ top: scroller.scrollTop + rect.top - mid, behavior: "auto" }); } catch (e) {}
+      try { scroller.scrollTo({ top: scroller.scrollTop + rect.top - topPad, behavior: "auto" }); } catch (e) {}
       return;
     }
     if (!frame) return;
     var host = scrollableAncestor(frame);
     if (!host) return;
     var frameBox = frame.getBoundingClientRect();
-    var hostBox = host === document.scrollingElement
-      ? { top: 0, height: window.innerHeight }
-      : host.getBoundingClientRect();
-    var delta = (frameBox.top + rect.top) - (hostBox.top + hostBox.height / 2 - rect.height / 2);
+    var hostTop = host === document.scrollingElement ? 0 : host.getBoundingClientRect().top;
+    var delta = (frameBox.top + rect.top) - (hostTop + topPad);
     try { host.scrollBy({ top: delta, behavior: "auto" }); } catch (e) { host.scrollTop += delta; }
   }
 
@@ -578,6 +584,9 @@
     for (var waited = 0; waited < 2600; waited += 160) {
       await sleep(160);
       if (!playing || mine !== epoch) return;
+      // Re-assert playbackState so iOS does not suspend the audio session
+      // during the gap between the last sentence and the first of the new page.
+      try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; } catch (e) {}
       var now = reader();
       if (now && signature(now.doc) !== before) {
         queueDoc = null;
@@ -637,6 +646,10 @@
         title: String(title).trim().slice(0, 120),
         artist: "The Reading Room",
       });
+      // Tell iOS the audio session is actively playing so it keeps background
+      // audio alive through page-turn gaps (fixes reading stopping after 2-3
+      // pages when the screen is locked).
+      navigator.mediaSession.playbackState = "playing";
       navigator.mediaSession.setActionHandler("play", function () { if (paused) toggle(); });
       navigator.mediaSession.setActionHandler("pause", function () { if (!paused) toggle(); });
       navigator.mediaSession.setActionHandler("stop", stop);
@@ -675,6 +688,46 @@
     prefetch(mine);
   }
 
+  // --- sleep timer -----------------------------------------------------------
+  var SLEEP_SLOT = 30 * 60 * 1000; // 30 min in ms
+
+  function sleepLabel() {
+    if (!sleepMs) return "+30m";
+    var mins = Math.ceil(sleepMs / 60000);
+    if (mins >= 60) {
+      var h = Math.floor(mins / 60), m = mins % 60;
+      return m ? h + "h" + m + "m" : h + "h";
+    }
+    return mins + "m";
+  }
+
+  function renderTimer() {
+    if (!timerBtn) return;
+    timerBtn.textContent = sleepLabel();
+    timerBtn.setAttribute("aria-label", sleepMs
+      ? sleepLabel() + " remaining — tap to add 30 min"
+      : "Sleep timer: tap to set 30 min");
+    timerBtn.classList.toggle("rr-timer-active", sleepMs > 0);
+  }
+
+  function addSleepSlot() {
+    sleepMs += SLEEP_SLOT;
+    if (!sleepRef) {
+      sleepRef = setInterval(function () {
+        if (!playing || paused) return; // pause countdown while paused
+        sleepMs = Math.max(0, sleepMs - 1000);
+        renderTimer();
+        if (!sleepMs) { clearInterval(sleepRef); sleepRef = null; stop(); }
+      }, 1000);
+    }
+    renderTimer();
+  }
+
+  function clearSleepTimer() {
+    sleepMs = 0;
+    if (sleepRef) { clearInterval(sleepRef); sleepRef = null; }
+  }
+
   // --- controls ------------------------------------------------------------
   function play() {
     if (!reader()) return;
@@ -701,6 +754,7 @@
     paused = false;
     epoch += 1;
     queue = []; queueDoc = null; cursor = 0;
+    clearSleepTimer();
     try { if (rrTtsAudio) { rrTtsAudio.pause(); rrTtsAudio.removeAttribute('src'); rrTtsAudio.load(); } } catch (e) { /* ignore */ }
     try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none'; } catch (e) {}
     if (keepAlive) { clearInterval(keepAlive); keepAlive = null; }
@@ -813,6 +867,9 @@
     s.textContent = ".rr-rate{min-width:54px;font-variant-numeric:tabular-nums}" +
       ".rr-listen,.rr-rate{white-space:nowrap}" +
       ".rr-voice{max-width:150px}" +
+      ".rr-timer{min-width:44px;font-variant-numeric:tabular-nums;white-space:nowrap;transition:color .2s}" +
+      ".rr-timer.rr-timer-active{color:var(--rr-timer-ink,#5a7c62)}" +
+      ".rr-theme-dark .rr-timer.rr-timer-active{color:var(--rr-timer-ink-dark,#85b892)}" +
       ".rr-read-toggle{position:fixed;right:18px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:124;width:46px;height:46px;padding:0;border:1px solid rgba(70,70,67,.18);border-radius:50%;background:rgba(245,244,239,.9);color:#202321;box-shadow:0 3px 14px rgba(0,0,0,.12);font:600 17px/1 -apple-system,BlinkMacSystemFont,sans-serif;display:grid;place-items:center;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);-webkit-tap-highlight-color:transparent}" +
       ".rr-read-toggle[hidden]{display:none!important}" +
       ".rr-theme-dark .rr-read-toggle{background:rgba(42,42,40,.9);color:#f7f5ef;border-color:rgba(255,255,255,.18)}";
@@ -829,6 +886,7 @@
       : "▶ <span class=\"reader-action-label\">Listen</span>";
     rateBtn.hidden = !playing;
     rateBtn.textContent = rate.toFixed(1) + "×";
+    if (timerBtn) { timerBtn.hidden = !playing; renderTimer(); }
     if (floatBtn) {
       floatBtn.hidden = !playing;
       floatBtn.textContent = paused ? "▶" : "❚❚";
@@ -884,6 +942,13 @@
     rateBtn.setAttribute("aria-label", "Reading speed");
     rateBtn.addEventListener("click", cycleRate);
 
+    timerBtn = document.createElement("button");
+    timerBtn.type = "button";
+    timerBtn.className = "rr-timer";
+    timerBtn.hidden = true;
+    renderTimer();
+    timerBtn.addEventListener("click", addSleepSlot);
+
     voiceSel = document.createElement("select");
     voiceSel.className = "rr-voice";
     voiceSel.setAttribute("aria-label", "Voice");
@@ -909,7 +974,7 @@
     });
 
     var close = actions.querySelector(".reader-close");
-    var parts = [btn, rateBtn, voiceSel];
+    var parts = [btn, rateBtn, timerBtn, voiceSel];
     for (var i = 0; i < parts.length; i += 1) {
       if (close) actions.insertBefore(parts[i], close); else actions.appendChild(parts[i]);
     }

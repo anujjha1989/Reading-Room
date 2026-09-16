@@ -20,9 +20,21 @@ VERSION=$(( $(cat overrides/VERSION) + 1 ))
 
 if [ "${1:-}" != "--no-build" ]; then
   echo "==> building (version $VERSION)"
-  echo "$VERSION" > overrides/VERSION
-  npx --yes pnpm@10 run build > /dev/null
+
+  # The project lives on an SMB mount. pnpm can't hardlink from its store
+  # across filesystems, so node_modules/.bin is never populated there.
+  # Build in a local temp dir where hardlinks work, then bring dist/ back.
+  BUILD_DIR=$(mktemp -d)
+  trap 'rm -rf "$BUILD_DIR"' EXIT
+  rsync -a --exclude=node_modules --exclude=dist . "$BUILD_DIR/"
+  (cd "$BUILD_DIR" && npx --yes pnpm@10 install --prefer-offline && npx pnpm@10 run build)
+  rsync -a "$BUILD_DIR/dist/" dist/
 fi
+# Persist the version after a successful build (or immediately for --no-build).
+# render-index.mjs reads this file, while the upload step uses $VERSION; keeping
+# the write inside the build branch made --no-build publish HTML for N while
+# uploading the override files as N+1.
+echo "$VERSION" > overrides/VERSION
 node deploy/render-index.mjs
 
 echo "==> staging"
@@ -54,11 +66,33 @@ echo "==> installing"
 
 echo "==> verifying"
 sleep 3
-for path in / /assets/$(basename dist/client/assets/LibraryClient-*.js) \
-            /assets/book-art/images/fullscreen-bundle-v$VERSION.js; do
-  code=$(curl -s -o /dev/null -w '%{http_code}' "http://anujrpi.local:4311$path")
-  printf '  %-58s %s\n' "$path" "$code"
-  [ "$code" = "200" ] || { echo "FAILED: $path returned $code" >&2; exit 1; }
+library_asset=$(grep -o 'LibraryClient-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)
+[ -n "$library_asset" ] || { echo "FAILED: no LibraryClient asset in rendered HTML" >&2; exit 1; }
+for asset_path in / \
+  /assets/$library_asset \
+  /assets/book-art/images/fullscreen-bundle-v$VERSION.js \
+  /assets/book-art/images/fullscreen-bundle-v$VERSION.css \
+  /assets/book-art/images/read-aloud-v$VERSION.js; do
+  headers=$(curl -fsSI "http://anujrpi.local:4311$asset_path") || {
+    echo "FAILED: $asset_path could not be fetched" >&2
+    exit 1
+  }
+  content_type=$(printf '%s\n' "$headers" | awk -F': *' 'tolower($1)=="content-type" {print tolower($2)}' | tr -d '\r')
+  case "$asset_path" in
+    *.js)  expected='javascript' ;;
+    *.css) expected='text/css' ;;
+    *)     expected='text/html' ;;
+  esac
+  printf '  %-58s %s\n' "$asset_path" "$content_type"
+  case "$content_type" in
+    *"$expected"*) ;;
+    *) echo "FAILED: $asset_path returned $content_type, expected $expected" >&2; exit 1 ;;
+  esac
 done
 served=$("${SSH[@]}" "$PI" "grep -o 'fullscreen-bundle-v[0-9]*' /opt/reading-room/current/site/index.html | head -1")
+expected="fullscreen-bundle-v$VERSION"
+[ "$served" = "$expected" ] || {
+  echo "FAILED: live HTML references $served, expected $expected" >&2
+  exit 1
+}
 echo "==> live: $served"

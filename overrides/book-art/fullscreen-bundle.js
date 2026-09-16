@@ -862,8 +862,26 @@
       // drop the overlay: the library underneath never went away.
       try {
         var p = f.contentWindow.location.pathname;
-        if (p === "/" || p === "/index.html") closeOverlay();
-      } catch (e) { /* different origin: leave it alone */ }
+        if (p === "/" || p === "/index.html") { closeOverlay(); return; }
+        // Inject a "Refresh Library" button into the settings page so the user
+        // can reload after batching metadata edits, without an auto-reload on each.
+        var doc = f.contentDocument;
+        if (doc && !doc.getElementById("rr-refresh-btn")) {
+          var btn = doc.createElement("button");
+          btn.id = "rr-refresh-btn";
+          btn.type = "button";
+          btn.textContent = "Refresh Library";
+          btn.style.cssText = [
+            "display:block", "width:calc(100% - 32px)", "margin:16px auto 0",
+            "padding:11px 16px", "background:none",
+            "border:1px solid rgba(128,128,128,.35)", "border-radius:10px",
+            "font:inherit", "font-size:15px", "text-align:left", "cursor:pointer",
+            "color:inherit",
+          ].join(";");
+          btn.addEventListener("click", function () { closeOverlay(); location.reload(); });
+          doc.body.appendChild(btn);
+        }
+      } catch (e) { /* cross-origin or settings page not available */ }
     });
     document.documentElement.classList.add("rr-settings-open");
     document.body.appendChild(f);
@@ -944,6 +962,51 @@
 
   var overlay = null;
 
+  // Patches every book card in the current DOM that matches id, and stores the
+  // correction in localStorage so it is reapplied on the next page load before
+  // the server-side catalogue data arrives (helps with #8: changes not sticking).
+  function applyCorrection(id, title, author) {
+    try {
+      var stored = JSON.parse(localStorage.getItem("rr-meta-corrections") || "{}");
+      stored[id] = { title: title, author: author };
+      localStorage.setItem("rr-meta-corrections", JSON.stringify(stored));
+    } catch (e) {}
+    document.querySelectorAll('img[src*="/api/cover"]').forEach(function (img) {
+      var src = img.getAttribute("src") || "";
+      var m = /[?&]id=([^&]+)/.exec(src);
+      if (!m || decodeURIComponent(m[1]) !== id) return;
+      var card = img.parentElement;
+      for (var hops = 0; card && hops < 8; hops++) {
+        var leaves = [];
+        card.querySelectorAll("*").forEach(function (el) {
+          if (el.children.length === 0) {
+            var t = (el.textContent || "").trim();
+            if (t && t.length < 220 && !/^(EPUB|MOBI|PDF|CBR|CBZ|AZW3?|TXT|DOC|DOCX|RTF)$/i.test(t)) leaves.push(el);
+          }
+        });
+        if (leaves.length >= 2) {
+          if (title) leaves[0].textContent = title;
+          if (author) leaves[1].textContent = author;
+          break;
+        }
+        card = card.parentElement;
+      }
+    });
+  }
+
+  // Reapply any corrections stored from a previous session. Four attempts at
+  // increasing delays handle both fast and slow React hydration on the Pi.
+  (function reapplyStoredCorrections() {
+    var stored;
+    try { stored = JSON.parse(localStorage.getItem("rr-meta-corrections") || "{}"); } catch (e) { stored = {}; }
+    var ids = Object.keys(stored);
+    if (!ids.length) return;
+    function run() {
+      ids.forEach(function (id) { var c = stored[id]; applyCorrection(id, c.title, c.author); });
+    }
+    [100, 600, 1800, 5000].forEach(function (t) { setTimeout(run, t); });
+  })();
+
   function close() {
     if (overlay) { overlay.remove(); overlay = null; }
     document.documentElement.classList.remove("rr-metafix-open");
@@ -964,6 +1027,7 @@
       'Clear a box to go back to the scanned value.</p>' +
       '<div class="rr-mf-row">' +
       '<button type="button" class="rr-mf-cancel">Cancel</button>' +
+      '<button type="button" class="rr-mf-quarantine">Move to Quarantine</button>' +
       '<button type="button" class="rr-mf-save">Save</button>' +
       '</div><p class="rr-mf-status" role="status"></p></div>';
 
@@ -975,12 +1039,32 @@
     var status = overlay.querySelector(".rr-mf-status");
     titleEl.value = guess.title;
     authorEl.value = guess.author;
-    setTimeout(function () { titleEl.focus(); titleEl.select(); }, 40);
+    setTimeout(function () { titleEl.focus(); }, 40);
 
     overlay.addEventListener("click", function (e) {
       if (e.target === overlay) close();
     });
     overlay.querySelector(".rr-mf-cancel").addEventListener("click", close);
+
+    overlay.querySelector(".rr-mf-quarantine").addEventListener("click", function () {
+      if (!confirm('Move "' + (titleEl.value || book.id) + '" to the quarantine folder?')) return;
+      status.textContent = "Moving…";
+      fetch("/api/quarantine", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: book.id }),
+      }).then(function (r) {
+        if (!r.ok) throw new Error("quarantine failed (" + r.status + ")");
+        return r.json();
+      }).then(function () {
+        status.textContent = "Moved to quarantine.";
+        // Grey out the card so it is visually clear even before a reload.
+        if (book.card) book.card.style.opacity = "0.3";
+        setTimeout(close, 1200);
+      }).catch(function (err) {
+        status.textContent = err.message || "Could not quarantine";
+      });
+    });
 
     overlay.querySelector(".rr-mf-save").addEventListener("click", function () {
       status.textContent = "Saving…";
@@ -992,10 +1076,9 @@
         if (!r.ok) throw new Error("save failed (" + r.status + ")");
         return r.json();
       }).then(function () {
-        status.textContent = "Saved. Reloading…";
-        // The catalogue is served pre-merged, so a reload is the simplest way
-        // to show the correction everywhere it appears.
-        setTimeout(function () { location.reload(); }, 350);
+        status.textContent = "Saved.";
+        applyCorrection(book.id, titleEl.value, authorEl.value);
+        setTimeout(close, 900);
       }).catch(function (err) {
         status.textContent = err.message || "Could not save";
       });
@@ -1009,6 +1092,7 @@
 
   document.addEventListener("touchstart", function (e) {
     if (overlay || e.touches.length !== 1) return;
+    if (document.documentElement.classList.contains("rr-strip")) return;
     var book = bookFromNode(e.target);
     if (!book) return;
     startX = e.touches[0].clientX;
@@ -1032,6 +1116,7 @@
 
   // Right-click is the desktop equivalent.
   document.addEventListener("contextmenu", function (e) {
+    if (document.documentElement.classList.contains("rr-strip")) return;
     var book = bookFromNode(e.target);
     if (!book) return;
     e.preventDefault();

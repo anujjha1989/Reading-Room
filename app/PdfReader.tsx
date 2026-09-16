@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, memo, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 
 export type PdfSearchResult = { target: string; label: string; excerpt: string };
@@ -25,7 +25,7 @@ function readerUrl(id: string, format: string) {
   return `/api/book/${encodeURIComponent(id)}?format=${encodeURIComponent(format)}`;
 }
 
-function PdfPage({ pdf, pageNumber, mode, onVisible }: { pdf: PDFDocumentProxy; pageNumber: number; mode: "pages" | "scroll"; onVisible: (page: number) => void }) {
+const PdfPage = memo(function PdfPage({ pdf, pageNumber, mode, onVisible }: { pdf: PDFDocumentProxy; pageNumber: number; mode: "pages" | "scroll"; onVisible: (page: number) => void }) {
   const holderRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [visible, setVisible] = useState(mode === "pages");
@@ -37,17 +37,23 @@ function PdfPage({ pdf, pageNumber, mode, onVisible }: { pdf: PDFDocumentProxy; 
     }
     const node = holderRef.current;
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        setVisible(true);
-      }
+      if (entry.isIntersecting) setVisible(true);
     }, { rootMargin: "900px 0px", threshold: 0.01 });
+    // Unload canvases that are more than 2400px off-screen to free memory on
+    // long PDFs. The 1500px gap between load (900px) and unload (2400px)
+    // prevents thrashing as the user scrolls back and forth.
+    const unloadObserver = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) setVisible(false);
+    }, { rootMargin: "2400px 0px", threshold: 0 });
     const positionObserver = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) onVisible(pageNumber);
     }, { rootMargin: "-42% 0px -42% 0px", threshold: 0 });
     observer.observe(node);
+    unloadObserver.observe(node);
     positionObserver.observe(node);
     return () => {
       observer.disconnect();
+      unloadObserver.disconnect();
       positionObserver.disconnect();
     };
   }, [mode, onVisible, pageNumber]);
@@ -94,13 +100,14 @@ function PdfPage({ pdf, pageNumber, mode, onVisible }: { pdf: PDFDocumentProxy; 
   }, [mode, pageNumber, pdf, visible]);
 
   return <div className={`pdf-page ${mode === "pages" ? "single" : ""}`} data-page={pageNumber} ref={holderRef}><canvas ref={canvasRef} aria-label={`Page ${pageNumber}`} /></div>;
-}
+});
 
 const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId, format, mode, initialPosition, onStatus, onProgress, onLocationChange }, ref) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const searchRunRef = useRef(0);
   const total = pdf?.numPages || 0;
   const spreadSize = mode === "pages" && !isMobile ? 2 : 1;
 
@@ -155,9 +162,9 @@ const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId
   }, [fileId, onLocationChange, onProgress, pageNumber, spreadSize, total]);
 
   useEffect(() => {
-    if (mode !== "scroll") return;
+    if (mode !== "scroll" || !pdf) return;
     requestAnimationFrame(() => scrollRef.current?.querySelector(`[data-page="${pageNumber}"]`)?.scrollIntoView({ block: "start" }));
-  }, [mode]);
+  }, [mode, pdf]);
 
   function goTo(page: number) {
     const nextPage = Math.min(Math.max(1, page), total || 1);
@@ -168,8 +175,10 @@ const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId
   async function search(query: string) {
     if (!pdf || query.trim().length < 2) return [];
     const needle = query.trim().toLocaleLowerCase();
+    const run = ++searchRunRef.current;
     const results: PdfSearchResult[] = [];
     for (let pageNumber = 1; pageNumber <= pdf.numPages && results.length < 80; pageNumber += 1) {
+      if (run !== searchRunRef.current) return [];
       const page = await pdf.getPage(pageNumber);
       const content = await page.getTextContent();
       const text = content.items.map((item) => "str" in item ? item.str : "").join(" ").replace(/\s+/g, " ").trim();
