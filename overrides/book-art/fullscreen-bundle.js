@@ -855,7 +855,7 @@
     if (document.getElementById("rr-settings-overlay")) return;
     var f = document.createElement("iframe");
     f.id = "rr-settings-overlay";
-    f.src = "/settings.html?embedded=1";
+    f.src = SETTINGS_URL + (SETTINGS_URL.indexOf("?") === -1 ? "?" : "&") + "embedded=1";
     f.setAttribute("title", "Library settings");
     f.addEventListener("load", function () {
       // settings.html closes itself by going to "/". Intercept that and just
@@ -868,6 +868,26 @@
     document.documentElement.classList.add("rr-settings-open");
     document.body.appendChild(f);
   }
+
+  // This file is served as fullscreen-bundle-vNN.js, so its own URL carries the
+  // deploy version. settings.html is a fixed URL with no hash and no query, so
+  // iOS serves it from HTTP cache indefinitely: a deploy changed the file on the
+  // Pi and the phone kept showing the previous one. Version the request the same
+  // way index.html versions this script.
+  var RR_V = (function () {
+    try {
+      // The stylesheet link is the reliable source: this script is deferred, so
+      // document.currentScript is null by the time it runs.
+      var link = document.querySelector('link[href*="fullscreen-bundle-v"]');
+      var m = link && /fullscreen-bundle-v(\d+)\./.exec(link.getAttribute("href") || "");
+      if (m) return m[1];
+      var tag = document.querySelector('script[src*="fullscreen-bundle-v"]');
+      m = tag && /fullscreen-bundle-v(\d+)\.js/.exec(tag.getAttribute("src") || "");
+      if (m) return m[1];
+    } catch (e) {}
+    return "";
+  })();
+  var SETTINGS_URL = "/settings.html" + (RR_V ? "?v=" + RR_V : "");
 
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") closeOverlay();
@@ -890,7 +910,7 @@
     if (!document.body || document.getElementById(ID)) return;
     var a = document.createElement("a");
     a.id = ID;
-    a.href = "/settings.html";
+    a.href = SETTINGS_URL;
     a.setAttribute("aria-label", "Library settings");
     a.innerHTML = GEAR;
     a.addEventListener("click", function (e) {
