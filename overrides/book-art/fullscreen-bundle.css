@@ -1573,3 +1573,96 @@ html[data-rr-theme="dark"] .rr-card-menu button.danger { color: #ff6b6b; }
 html[data-rr-theme="dark"] .rr-card-more {
   background: rgba(40, 40, 42, .78); color: #f5f5f7;
 }
+
+
+/* ==== v78: fix ⋯ placement and stop the menu being clipped ================
+ * Three corrections from the screenshots:
+ *
+ * 1. The menu was position:absolute inside .rr-shelf-cell, but the shelf strips
+ *    are horizontal scroll containers - so it was clipped to the card and only
+ *    a sliver showed. It is position:fixed now, placed from the button's
+ *    viewport rect by JS and clamped to the screen.
+ *
+ * 2. The ⋯ was overlapping the caption text. In Books it sits UNDER the cover,
+ *    on the caption's right, vertically aligned with the title - not on the
+ *    artwork at all.
+ *
+ * 3. Menus need to clear the tab dock and the frozen header.
+ * ---------------------------------------------------------------------- */
+
+/* --- ⋯ under the cover, right-aligned with the caption ------------------- */
+html .rr-shelf-cell { position: relative; display: grid; }
+html .rr-shelf-cell .rr-card-more,
+html .catalog .book-tools .rr-card-more,
+html .rr-card-more {
+  position: absolute;
+  top: auto;
+  transform: none;
+  right: 0;
+  width: 28px; height: 28px;
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+  box-shadow: none;
+  font-size: 16px;
+  z-index: 5;
+}
+/* Shelf card: the caption is the last two lines, so anchor to the cell's foot
+   and lift by the caption height to land beside the title. */
+html .rr-shelf-cell .rr-card-more { bottom: 4px; right: 2px; }
+/* Continue tile: vertically centred on the tile, inside its padding. */
+html[data-rr-library-view="home"] .rr-continue-shelf .rr-card-more {
+  top: 50%; bottom: auto; right: 10px; transform: translateY(-50%);
+}
+/* Library grid card: bottom-right of the caption block. */
+html .catalog .book-tools { min-height: 30px; margin-top: 2px; }
+html .catalog .book-tools .rr-card-more { bottom: 0; right: 2px; top: auto; }
+
+/* --- the menu escapes every scroll container ----------------------------- */
+html .rr-card-menu {
+  position: fixed;
+  right: auto;
+  width: 224px; min-width: 0; max-width: none;
+  max-height: min(70vh, 340px);
+  overflow-y: auto;
+  z-index: 200;
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  background: color-mix(in srgb, var(--white) 92%, transparent);
+}
+/* The absolute-position overrides from v77 must not win over the fixed one. */
+html .rr-shelf-cell .rr-card-menu,
+html .catalog .book-tools .rr-card-menu {
+  position: fixed;
+  top: auto; right: auto;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-rr-theme="light"]) .rr-card-menu { background: rgba(44, 44, 46, .94); }
+}
+html[data-rr-theme="dark"] .rr-card-menu { background: rgba(44, 44, 46, .94); }
+
+
+/* ==== v78: the gear looks the same on every view =========================
+ * The disc, blur and 21px glyph were scoped to [data-rr-library-view="library"]
+ * - the same mistake as the 14px offset - so on Home the gear fell back to the
+ * v49 "bare icon" rules: no disc, 25px, drop-shadowed. Beside the filter and
+ * sort discs on Library it matched; alone on Home it did not.
+ *
+ * Scoped to rr-library-visible so all three icons are one family wherever they
+ * appear, in both themes.
+ * ---------------------------------------------------------------------- */
+html.rr-library-visible #rr-settings-link,
+html.rr-library-visible #rr-filter-btn,
+html.rr-library-visible #rr-sort-btn {
+  background: color-mix(in srgb, var(--ink) 10%, transparent) !important;
+  border: 0 !important;
+  -webkit-backdrop-filter: blur(14px) !important; backdrop-filter: blur(14px) !important;
+  filter: none !important;
+  color: var(--ink) !important;
+  width: 42px !important; height: 42px !important;
+}
+html.rr-library-visible #rr-settings-link svg,
+html.rr-library-visible #rr-filter-btn svg,
+html.rr-library-visible #rr-sort-btn svg {
+  width: 21px !important; height: 21px !important;
+}
+html.rr-library-visible #rr-settings-link:active,
+html.rr-library-visible #rr-filter-btn:active,
+html.rr-library-visible #rr-sort-btn:active { opacity: .55; }
