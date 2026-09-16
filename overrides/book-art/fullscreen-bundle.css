@@ -701,7 +701,10 @@ html[data-rr-theme="dark"] #rr-settings-link {
 #rr-settings-overlay {
   position: fixed; inset: 0; z-index: 200;
   border: 0; width: 100%; height: 100%;
-  background: var(--paper, #f3efe5);
+  /* #fff, not var(--paper): the library shell repaints --paper to white in
+     light mode, and settings.html now uses the same palette. A cream fallback
+     here flashed sand before the iframe painted. */
+  background: #fff;
 }
 @media (prefers-color-scheme: dark) {
   html:not([data-rr-theme="light"]) #rr-settings-overlay { background: #000; }

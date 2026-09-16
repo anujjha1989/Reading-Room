@@ -15,8 +15,11 @@ try {
 </script>
 <style>
 :root{
-  --paper:#f3efe5; --paper-2:#e9e4d8; --white:#fff; --ink:#26332f;
-  --muted:#6b736e; --line:#d9d3c5; --accent:#8a5a2b; --danger:#a8322f;
+  /* Match the library shell, not the reader: fullscreen-bundle.css repaints
+     .topbar/.hero/.discovery/.catalog to a white iOS-style palette in light
+     mode, so the old cream --paper made Settings the only sand-coloured page. */
+  --paper:#fff; --paper-2:#f2f2f7; --white:#fff; --ink:#1c1c1e;
+  --muted:#737378; --line:#e5e5ea; --accent:#ad501d; --danger:#a8322f;
 }
 html[data-rr-theme="dark"], html:not([data-rr-theme="light"]) {}
 @media (prefers-color-scheme: dark){
@@ -46,7 +49,12 @@ body{margin:0;background:var(--paper);color:var(--ink);
 .set-back,.set-close{width:36px;min-width:36px;height:36px;display:inline-flex;
   align-items:center;justify-content:center;border:0;background:none;color:var(--ink);
   border-radius:50%;cursor:pointer;font-size:28px;line-height:1;padding:0}
-.set-back:hover,.set-close:hover{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+/* Only the real buttons get a hover/press circle. The root page uses an empty
+   <span class="set-back"> as a spacer, and on a touch device the :hover state
+   sticks after the tap that navigated back, leaving a grey halo beside the
+   title. A span is not interactive, so exclude it rather than the tag. */
+button.set-back:hover,.set-close:hover{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+span.set-back{pointer-events:none;background:none}
 .set-close{font-size:20px}
 
 .set-section{margin:22px 0 0}
@@ -171,12 +179,20 @@ function rootPage(){
     row({icon:'chart', title:'Metadata & artwork', sub:`${nf(g.noCover)} without artwork · ${nf(g.noAuthor)} without an author`, chevron:true, id:'r-gaps'}),
     row({icon:'sun', title:'Appearance', sub:themeLabel(), chevron:true, id:'r-theme'}),
     row({icon:'info', title:'About', sub:'How this works', chevron:true, id:'r-about'})
-  ]));
+  ]) + `<div class="set-actions"><button class="primary" id="r-refresh">Refresh Library</button></div>`);
   $('#r-src').onclick = sourcesPage;
   $('#r-maint').onclick = maintenancePage;
   $('#r-gaps').onclick = gapsPage;
   $('#r-theme').onclick = themePage;
   $('#r-about').onclick = aboutPage;
+  // Reload the library underneath after batching metadata edits. Rendered here,
+  // on the root page only, so it disappears on nested pages; it used to be
+  // appended to document.body by fullscreen-bundle.js, which meant it stayed
+  // visible on every page and sat below the content instead of in the layout.
+  $('#r-refresh').onclick = () => {
+    if (window.parent !== window) window.parent.postMessage({ type: 'rr-refresh-library' }, location.origin);
+    else location.href = '/';
+  };
 }
 
 // ------------------------------------------------------------- sources ----
@@ -356,6 +372,13 @@ function themeApply(v){
   try { v === 'system' ? localStorage.removeItem('reading-room-theme') : localStorage.setItem('reading-room-theme', v); } catch {}
   if (v === 'system') delete document.documentElement.dataset.rrTheme;
   else document.documentElement.dataset.rrTheme = v;
+  // Settings runs in an iframe over the library. localStorage is shared, but the
+  // parent already read it at boot and nothing re-reads it, so the choice only
+  // took effect on the next full load - the library behind stayed in the old
+  // theme. Tell the parent to apply it now.
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'rr-theme', value: v }, location.origin);
+  }
 }
 
 function themePage(){

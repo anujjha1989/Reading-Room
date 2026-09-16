@@ -863,24 +863,6 @@
       try {
         var p = f.contentWindow.location.pathname;
         if (p === "/" || p === "/index.html") { closeOverlay(); return; }
-        // Inject a "Refresh Library" button into the settings page so the user
-        // can reload after batching metadata edits, without an auto-reload on each.
-        var doc = f.contentDocument;
-        if (doc && !doc.getElementById("rr-refresh-btn")) {
-          var btn = doc.createElement("button");
-          btn.id = "rr-refresh-btn";
-          btn.type = "button";
-          btn.textContent = "Refresh Library";
-          btn.style.cssText = [
-            "display:block", "width:calc(100% - 32px)", "margin:16px auto 0",
-            "padding:11px 16px", "background:none",
-            "border:1px solid rgba(128,128,128,.35)", "border-radius:10px",
-            "font:inherit", "font-size:15px", "text-align:left", "cursor:pointer",
-            "color:inherit",
-          ].join(";");
-          btn.addEventListener("click", function () { closeOverlay(); location.reload(); });
-          doc.body.appendChild(btn);
-        }
       } catch (e) { /* cross-origin or settings page not available */ }
     });
     document.documentElement.classList.add("rr-settings-open");
@@ -889,6 +871,19 @@
 
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") closeOverlay();
+  });
+
+  // The settings overlay talks to us instead of reaching into our DOM, which is
+  // what the injected Refresh Library button used to do.
+  window.addEventListener("message", function (e) {
+    if (e.origin !== location.origin || !e.data) return;
+    if (e.data.type === "rr-refresh-library") { closeOverlay(); location.reload(); return; }
+    if (e.data.type === "rr-theme") {
+      // Apply the theme to the library immediately. Both the overlay and this
+      // page key off data-rr-theme on <html>, so setting it here is enough.
+      if (e.data.value === "system") delete document.documentElement.dataset.rrTheme;
+      else document.documentElement.dataset.rrTheme = e.data.value;
+    }
   });
 
   function add() {
