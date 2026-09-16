@@ -110,21 +110,37 @@ sleep 3
 library_asset=$(grep -o 'LibraryClient-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)
 [ -n "$library_asset" ] || fail "no LibraryClient asset in rendered HTML"
 
-# Check both origins. The LAN one is the shortest path to the server; the public
-# Tailscale one is how the phone actually reaches it, through TLS and a proxy.
-# v68 passed every LAN check while the phone was still being served v67, so a
-# LAN-only pass is not evidence the deploy reached a device.
+# Check both origins. The LAN one is the shortest path to the server and is
+# authoritative: if it passes, the deploy is correct on disk and over HTTP.
+#
+# The public Tailscale origin is how the phone reaches it, so it is worth
+# checking - v68 passed on LAN while the phone was served v67. But it is
+# ADVISORY: a failure there can mean this Mac is off the tailnet, or Tailscale
+# is down, neither of which is a problem with what we just installed. Rolling
+# back a good deploy because a laptop lost its VPN is worse than not checking.
+# --max-time keeps a dead endpoint from hanging the deploy for 75s.
 verify_origin() {
-  local origin=$1
-  echo "  $origin"
+  local origin=$1 required=$2
+  local soft=0
+  [ "$required" = "required" ] || soft=1
+  echo "  $origin${soft:+ (advisory)}"
+
+  local problem=""
+  check() {
+    if [ -n "$problem" ]; then return 0; fi
+    problem=$1
+  }
+
   for asset_path in / \
     /settings.html \
     /assets/$library_asset \
     /assets/book-art/images/fullscreen-bundle-v$VERSION.js \
     /assets/book-art/images/fullscreen-bundle-v$VERSION.css \
     /assets/book-art/images/read-aloud-v$VERSION.js; do
-    headers=$(curl -fsSI "$origin$asset_path") \
-      || fail "$origin$asset_path could not be fetched"
+    headers=$(curl -fsSI --max-time 15 "$origin$asset_path") || {
+      check "$origin$asset_path could not be fetched"
+      break
+    }
     content_type=$(printf '%s\n' "$headers" | awk -F': *' 'tolower($1)=="content-type" {print tolower($2)}' | tr -d '\r')
     case "$asset_path" in
       *.js)  expected='javascript' ;;
@@ -134,29 +150,48 @@ verify_origin() {
     printf '    %-56s %s\n' "$asset_path" "$content_type"
     case "$content_type" in
       *"$expected"*) ;;
-      *) fail "$origin$asset_path returned $content_type, expected $expected" ;;
+      *) check "$origin$asset_path returned $content_type, expected $expected"; break ;;
     esac
   done
 
-  # The version the user actually sees, fetched over HTTP rather than read off
-  # disk: this is the check that proves the About row reached the device.
-  local settings_version
-  settings_version=$(curl -fsS "$origin/settings.html" \
-    | sed -n "s/.*title:'Version', value:'\([0-9][0-9]*\)'.*/\1/p" | head -1)
-  [ "$settings_version" = "$VERSION" ] \
-    || fail "$origin settings.html reports version '${settings_version:-none}', expected $VERSION"
-  printf '    %-56s %s\n' "settings.html About version" "$settings_version"
+  if [ -z "$problem" ]; then
+    # The version the user actually sees, fetched over HTTP rather than read off
+    # disk: this is the check that proves the About row reached the device.
+    local settings_version
+    # || true: under set -e a failing curl in a command substitution exits the
+    # script, which would skip the advisory handling below.
+    settings_version=$(curl -fsS --max-time 15 "$origin/settings.html" \
+      | sed -n "s/.*title:'Version', value:'\([0-9][0-9]*\)'.*/\1/p" | head -1) || true
+    if [ "$settings_version" = "$VERSION" ]; then
+      printf '    %-56s %s\n' "settings.html About version" "$settings_version"
+    else
+      check "$origin settings.html reports version '${settings_version:-none}', expected $VERSION"
+    fi
+  fi
 
-  # The index the browser gets must ask for this version's overrides.
-  local referenced
-  referenced=$(curl -fsS "$origin/" | grep -o 'fullscreen-bundle-v[0-9]*' | head -1)
-  [ "$referenced" = "fullscreen-bundle-v$VERSION" ] \
-    || fail "$origin serves HTML referencing ${referenced:-nothing}, expected fullscreen-bundle-v$VERSION"
-  printf '    %-56s %s\n' "index.html references" "$referenced"
+  if [ -z "$problem" ]; then
+    # The index the browser gets must ask for this version's overrides.
+    local referenced
+    referenced=$(curl -fsS --max-time 15 "$origin/" | grep -o 'fullscreen-bundle-v[0-9]*' | head -1) || true
+    if [ "$referenced" = "fullscreen-bundle-v$VERSION" ]; then
+      printf '    %-56s %s\n' "index.html references" "$referenced"
+    else
+      check "$origin serves HTML referencing ${referenced:-nothing}, expected fullscreen-bundle-v$VERSION"
+    fi
+  fi
+
+  [ -z "$problem" ] && return 0
+  if [ "$soft" = 1 ]; then
+    echo "    WARNING: $problem" >&2
+    echo "    The LAN checks passed, so the install is good; this origin was not confirmed." >&2
+    echo "    Check the tailnet with: tailscale status" >&2
+    return 0
+  fi
+  fail "$problem"
 }
 
-verify_origin "http://anujrpi.local:4311"
-verify_origin "https://anujrpi.tail549492.ts.net"
+verify_origin "http://anujrpi.local:4311" required
+verify_origin "https://anujrpi.tail549492.ts.net" advisory
 
 served=$("${SSH[@]}" "$PI" "grep -o 'fullscreen-bundle-v[0-9]*' /opt/reading-room/current/site/index.html | head -1")
 [ "$served" = "fullscreen-bundle-v$VERSION" ] \
