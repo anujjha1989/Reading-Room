@@ -1,6 +1,7 @@
 "use client";
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type FocusEvent } from "react";
+import { createPortal } from "react-dom";
 import BookReader, { type ReaderBookmark, type ReaderFile, type ReaderLocation } from "./BookReader";
 import { driveDownloadUrl } from "./drive";
 import { cardTitle, completeLabel, continueProgress, coverOptions, groupShelf, homeShelves, recentlyOpened, reviewBooks, type ShelfBook } from "./homeShelves";
@@ -447,7 +448,10 @@ export default function LibraryClient() {
     const left = Math.min(Math.max(M, (menuFor?.x ?? 0) - W + 30), window.innerWidth - W - M);
     const below = (menuFor?.y ?? 0) + 34;
     const top = below + H > window.innerHeight - M ? Math.max(M, (menuFor?.y ?? 0) - H) : below;
-    return <div className="rr-card-menu" role="menu" style={{ left, top }} onClick={(event) => event.stopPropagation()}>
+    // Portalled to <body>. position:fixed was not enough: .shelf-strip sets
+    // `contain: layout style`, which makes it a containing block for fixed
+    // descendants, so the menu was still clipped to the scrolling strip.
+    return createPortal(<div className="rr-card-menu" role="menu" style={{ left, top }} onClick={(event) => event.stopPropagation()}>
       <button role="menuitem" onClick={act(() => toggleFinished(book.id))}>
         {finished ? "Mark as Unread" : "Mark as Finished"}
       </button>
@@ -475,7 +479,7 @@ export default function LibraryClient() {
       <button role="menuitem" className="danger" onClick={act(() => window.dispatchEvent(new CustomEvent("rr-edit-book", { detail: { id: book.id, focus: "delete" } })))}>
         Delete…
       </button>
-    </div>;
+    </div>, document.body);
   }
 
   // A tap anywhere else closes an open card menu.

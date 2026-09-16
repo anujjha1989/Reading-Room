@@ -426,6 +426,19 @@
            right > 0 && left < window.innerWidth - 1;
   }
 
+  // Visible and still high enough that reading on will not run off the bottom.
+  // Anything below the band triggers a reveal, which top-aligns it.
+  function comfortablyVisible(state, range) {
+    if (!isVisible(state, range)) return false;
+    var r;
+    try { r = range.getBoundingClientRect(); } catch (e) { return false; }
+    if (!r) return false;
+    var doc = state.doc;
+    var h = (doc && (doc.documentElement.clientHeight || doc.body.clientHeight)) || 0;
+    if (!h) return true;
+    return r.top >= 0 && r.bottom <= h * 0.55;
+  }
+
   function visibleInDoc(doc, range) {
     var r;
     try { r = range.getBoundingClientRect(); } catch (e) { return false; }
@@ -448,15 +461,34 @@
     return isVisible(state, range);
   }
 
-  async function bringIntoView(state, item) {
-    if (isVisible(state, item.range)) return true;
+  // With the screen locked iOS stops running layout: getBoundingClientRect
+  // returns stale numbers, so nothing ever looks visible and no page turn ever
+  // looks like it moved. The paginated path below then hits its "did not move"
+  // guard and returns false, which stops playback after a page or two. While
+  // hidden, skip the geometry entirely and let speech continue - the text is
+  // not being looked at, and position is reconciled on the next wake.
+  function screenAsleep() {
+    return typeof document !== "undefined" && document.hidden;
+  }
 
-    // Never scroll a paginated view: doing so fights the pagination engine and
-    // was the source of both skipped text and visible bouncing on iOS.
+  async function bringIntoView(state, item) {
+    if (screenAsleep()) return true;
+    // In scroll mode "visible" is not enough: a sentence sitting on the last
+    // line still counts, so nothing scrolled until it had left the screen and
+    // the next reveal then jumped a long way - which read as reverting to the
+    // top. Keep the spoken line inside the upper band instead, so the text
+    // moves up steadily as it is read.
     if (state.mode === "scroll" && state.reveal) {
-      state.reveal(item.range);
-      return waitUntilVisible(state, item.range, 280);
+      if (!comfortablyVisible(state, item.range)) {
+        state.reveal(item.range);
+        return waitUntilVisible(state, item.range, 280);
+      }
+      return true;
     }
+    // Paginated: never scroll. Doing so fights the pagination engine and was
+    // the source of both skipped text and visible bouncing on iOS - page turns
+    // below are the only way to move.
+    if (isVisible(state, item.range)) return true;
 
     var turns = 0;
     var sig = signature(state.doc);

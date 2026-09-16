@@ -264,12 +264,23 @@ export function recentlyOpened<T extends ShelfBook>(books: T[], states: Record<s
 }
 
 export function continueProgress(state: ShelfState | undefined) {
-  const label = state && state.progressLabel ? String(state.progressLabel) : "In progress";
+  // Always a percentage. This used to fall through to the raw label, so a book
+  // whose progress was not "Page X of Y" showed "In progress" or "UNO" instead
+  // of a number. Try the page form, then any bare percentage in the label, then
+  // the stored fraction; only show 0% when there is genuinely nothing.
+  const label = state && state.progressLabel ? String(state.progressLabel) : "";
   const page = label.match(/Page\s+(\d+)\s+of\s+(\d+)/i);
   if (page && Number(page[2]) > 0) {
     return Math.max(1, Math.min(100, Math.round((Number(page[1]) / Number(page[2])) * 100))) + "%";
   }
-  return label;
+  const percent = label.match(/(\d+(?:\.\d+)?)\s*%/);
+  if (percent) return Math.max(1, Math.min(100, Math.round(Number(percent[1])))) + "%";
+  const fraction = state && typeof (state as { progress?: unknown }).progress === "number"
+    ? (state as { progress: number }).progress : null;
+  if (fraction !== null && fraction > 0) {
+    return Math.max(1, Math.min(100, Math.round(fraction <= 1 ? fraction * 100 : fraction))) + "%";
+  }
+  return "0%";
 }
 
 // Groups display cards only: original ids, copies and progress remain untouched.

@@ -1666,3 +1666,96 @@ html.rr-library-visible #rr-sort-btn svg {
 html.rr-library-visible #rr-settings-link:active,
 html.rr-library-visible #rr-filter-btn:active,
 html.rr-library-visible #rr-sort-btn:active { opacity: .55; }
+
+
+/* ==== v79: ⋯ on the author line, and a menu that actually shows ===========
+ * The menu was invisible even after v78 made it position:fixed, because
+ * .shelf-strip sets `contain: layout style` - that makes it a containing block
+ * for fixed descendants, so it stayed clipped to the scrolling strip. It is
+ * portalled to <body> from React now; these rules only style it.
+ *
+ * The ⋯ moves onto the author line at the card's bottom-right, deliberately
+ * covering the end of the author name, with a frosted-glass fill so the overlap
+ * reads as a control sitting above the text rather than a collision.
+ * ---------------------------------------------------------------------- */
+
+html .rr-card-more {
+  position: absolute !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  top: auto !important;
+  transform: none !important;
+  width: 30px !important; height: 24px !important;
+  border-radius: 12px !important;
+  /* Frosted glass: a translucent fill plus blur, so the author text behind it
+     is muted rather than fighting the glyph. */
+  background: color-mix(in srgb, var(--paper) 62%, transparent) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(1.3) !important;
+  backdrop-filter: blur(8px) saturate(1.3) !important;
+  border: 0 !important;
+  box-shadow: 0 0 10px 6px color-mix(in srgb, var(--paper) 62%, transparent) !important;
+  color: var(--ink) !important;
+  font: 600 15px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  z-index: 6 !important;
+}
+html .rr-card-more:active { opacity: .5 !important; }
+
+/* The author line is the last row of each card type, so anchoring to the
+   card's foot lands the ⋯ on it. Continue is a tile, so it centres instead. */
+html .rr-shelf-cell { position: relative; }
+html[data-rr-library-view="home"] .rr-continue-shelf .rr-card-more {
+  top: 50% !important; bottom: auto !important;
+  right: 8px !important;
+  transform: translateY(-50%) !important;
+  width: 32px !important; height: 32px !important;
+  border-radius: 50% !important;
+}
+/* Library grid: .book-tools is the last block, directly under the author. */
+html .catalog .book-tools { min-height: 0 !important; margin: 0 !important; position: static; }
+html .catalog .book { position: relative; }
+html .catalog .book .rr-card-more { bottom: 0 !important; right: 0 !important; }
+
+/* Author lines end before the button so the covered text is never the start of
+   a word: 34px of padding is the button plus its glow. */
+html .rr-shelf-cell .shelf-book > small:not(.rr-continue-meta) { padding-right: 34px; }
+html .catalog .book-caption small { padding-right: 34px; display: block; }
+
+/* --- the portalled menu -------------------------------------------------- */
+body > .rr-card-menu {
+  position: fixed;
+  width: 224px;
+  max-height: min(70vh, 340px);
+  overflow-y: auto;
+  z-index: 400;
+  padding: 6px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--white, #fff) 94%, transparent);
+  color: var(--ink, #1c1c1e);
+  border: 1px solid var(--line, #e5e5ea);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .3);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4);
+  text-align: left;
+}
+body > .rr-card-menu button {
+  display: block; width: 100%;
+  min-height: 40px; padding: 0 12px;
+  border: 0; background: none;
+  color: inherit; font: inherit; font-size: 15px;
+  text-align: left; border-radius: 9px; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+body > .rr-card-menu button:active { background: color-mix(in srgb, var(--ink) 14%, transparent); }
+body > .rr-card-menu button.danger { color: #d3342f; }
+body > .rr-card-menu hr { border: 0; border-top: 1px solid var(--line, #e5e5ea); margin: 5px 6px; }
+@media (prefers-color-scheme: dark) {
+  html:not([data-rr-theme="light"]) body > .rr-card-menu,
+  html:not([data-rr-theme="light"]) .rr-card-menu {
+    background: rgba(44, 44, 46, .96); border-color: #3a3a3e; color: #f5f5f7;
+  }
+  html:not([data-rr-theme="light"]) .rr-card-menu button.danger { color: #ff6b6b; }
+}
+html[data-rr-theme="dark"] body > .rr-card-menu,
+html[data-rr-theme="dark"] .rr-card-menu {
+  background: rgba(44, 44, 46, .96); border-color: #3a3a3e; color: #f5f5f7;
+}
+html[data-rr-theme="dark"] .rr-card-menu button.danger { color: #ff6b6b; }
