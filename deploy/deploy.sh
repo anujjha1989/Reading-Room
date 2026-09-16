@@ -109,36 +109,57 @@ echo "==> verifying"
 sleep 3
 library_asset=$(grep -o 'LibraryClient-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)
 [ -n "$library_asset" ] || fail "no LibraryClient asset in rendered HTML"
-for asset_path in / \
-  /settings.html \
-  /assets/$library_asset \
-  /assets/book-art/images/fullscreen-bundle-v$VERSION.js \
-  /assets/book-art/images/fullscreen-bundle-v$VERSION.css \
-  /assets/book-art/images/read-aloud-v$VERSION.js; do
-  headers=$(curl -fsSI "http://anujrpi.local:4311$asset_path") \
-    || fail "$asset_path could not be fetched"
-  content_type=$(printf '%s\n' "$headers" | awk -F': *' 'tolower($1)=="content-type" {print tolower($2)}' | tr -d '\r')
-  case "$asset_path" in
-    *.js)  expected='javascript' ;;
-    *.css) expected='text/css' ;;
-    *)     expected='text/html' ;;
-  esac
-  printf '  %-58s %s\n' "$asset_path" "$content_type"
-  case "$content_type" in
-    *"$expected"*) ;;
-    *) fail "$asset_path returned $content_type, expected $expected" ;;
-  esac
-done
+
+# Check both origins. The LAN one is the shortest path to the server; the public
+# Tailscale one is how the phone actually reaches it, through TLS and a proxy.
+# v68 passed every LAN check while the phone was still being served v67, so a
+# LAN-only pass is not evidence the deploy reached a device.
+verify_origin() {
+  local origin=$1
+  echo "  $origin"
+  for asset_path in / \
+    /settings.html \
+    /assets/$library_asset \
+    /assets/book-art/images/fullscreen-bundle-v$VERSION.js \
+    /assets/book-art/images/fullscreen-bundle-v$VERSION.css \
+    /assets/book-art/images/read-aloud-v$VERSION.js; do
+    headers=$(curl -fsSI "$origin$asset_path") \
+      || fail "$origin$asset_path could not be fetched"
+    content_type=$(printf '%s\n' "$headers" | awk -F': *' 'tolower($1)=="content-type" {print tolower($2)}' | tr -d '\r')
+    case "$asset_path" in
+      *.js)  expected='javascript' ;;
+      *.css) expected='text/css' ;;
+      *)     expected='text/html' ;;
+    esac
+    printf '    %-56s %s\n' "$asset_path" "$content_type"
+    case "$content_type" in
+      *"$expected"*) ;;
+      *) fail "$origin$asset_path returned $content_type, expected $expected" ;;
+    esac
+  done
+
+  # The version the user actually sees, fetched over HTTP rather than read off
+  # disk: this is the check that proves the About row reached the device.
+  local settings_version
+  settings_version=$(curl -fsS "$origin/settings.html" \
+    | sed -n "s/.*title:'Version', value:'\([0-9][0-9]*\)'.*/\1/p" | head -1)
+  [ "$settings_version" = "$VERSION" ] \
+    || fail "$origin settings.html reports version '${settings_version:-none}', expected $VERSION"
+  printf '    %-56s %s\n' "settings.html About version" "$settings_version"
+
+  # The index the browser gets must ask for this version's overrides.
+  local referenced
+  referenced=$(curl -fsS "$origin/" | grep -o 'fullscreen-bundle-v[0-9]*' | head -1)
+  [ "$referenced" = "fullscreen-bundle-v$VERSION" ] \
+    || fail "$origin serves HTML referencing ${referenced:-nothing}, expected fullscreen-bundle-v$VERSION"
+  printf '    %-56s %s\n' "index.html references" "$referenced"
+}
+
+verify_origin "http://anujrpi.local:4311"
+verify_origin "https://anujrpi.tail549492.ts.net"
+
 served=$("${SSH[@]}" "$PI" "grep -o 'fullscreen-bundle-v[0-9]*' /opt/reading-room/current/site/index.html | head -1")
 [ "$served" = "fullscreen-bundle-v$VERSION" ] \
   || fail "live HTML references $served, expected fullscreen-bundle-v$VERSION"
 
-# The version the user actually sees, fetched over HTTP rather than read off
-# disk: this is the check that proves the About row reached the device.
-settings_version=$(curl -fsS "http://anujrpi.local:4311/settings.html" \
-  | sed -n "s/.*title:'Version', value:'\([0-9][0-9]*\)'.*/\1/p" | head -1)
-[ "$settings_version" = "$VERSION" ] \
-  || fail "settings.html reports version '${settings_version:-none}', expected $VERSION"
-printf '  %-58s %s\n' "settings.html About version" "$settings_version"
-
-echo "==> live: $served, settings reports v$settings_version"
+echo "==> live on LAN and Tailscale: $served"
