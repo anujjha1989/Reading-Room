@@ -426,17 +426,37 @@
            right > 0 && left < window.innerWidth - 1;
   }
 
-  // Visible and still high enough that reading on will not run off the bottom.
-  // Anything below the band triggers a reveal, which top-aligns it.
+  // Visible AND still in the upper part of the reading area, so speaking on
+  // will not run off the bottom. Anything lower triggers a reveal, which
+  // top-aligns it.
+  //
+  // The frame of reference has to match the mode's own visibility test. In
+  // epub.js scrolled mode the iframe is as tall as the whole chapter and the
+  // host window scrolls, so measuring against the iframe's height - as the
+  // first version of this did - made almost everything look "comfortable",
+  // no reveal ever fired, and playback fell through to page turns that loop
+  // back to the top of the section.
   function comfortablyVisible(state, range) {
     if (!isVisible(state, range)) return false;
     var r;
     try { r = range.getBoundingClientRect(); } catch (e) { return false; }
     if (!r) return false;
+
+    if (state.frame) {
+      // Host coordinates: map the range through the iframe's own offset.
+      var f;
+      try { f = state.frame.getBoundingClientRect(); } catch (e) { return true; }
+      var top = f.top + r.top, bottom = f.top + r.bottom;
+      var head = headerBottom();
+      var limit = head + (window.innerHeight - head) * 0.5;
+      return top >= head - 2 && bottom <= limit;
+    }
+
+    // foliate: the iframe is the visible page, so its viewport is correct.
     var doc = state.doc;
     var h = (doc && (doc.documentElement.clientHeight || doc.body.clientHeight)) || 0;
     if (!h) return true;
-    return r.top >= 0 && r.bottom <= h * 0.55;
+    return r.top >= -2 && r.bottom <= h * 0.55;
   }
 
   function visibleInDoc(doc, range) {
@@ -479,10 +499,18 @@
     // top. Keep the spoken line inside the upper band instead, so the text
     // moves up steadily as it is read.
     if (state.mode === "scroll" && state.reveal) {
-      if (!comfortablyVisible(state, item.range)) {
-        state.reveal(item.range);
-        return waitUntilVisible(state, item.range, 280);
-      }
+      if (comfortablyVisible(state, item.range)) return true;
+      state.reveal(item.range);
+      await waitUntilVisible(state, item.range, 280);
+      // Report success either way. Returning false here made step() null the
+      // queue and restart from the first visible sentence - which, right after
+      // a scroll, is the top of the page. That was the loop: read to the
+      // bottom, fail the check, jump back up, read the same text again.
+      //
+      // A reveal that does not land is not a reason to stop or rewind: the
+      // sentence is still the correct next one, so speak it and let the next
+      // reveal catch up. Only a genuine end of section advances, via the
+      // cursor running past the queue.
       return true;
     }
     // Paginated: never scroll. Doing so fights the pagination engine and was
