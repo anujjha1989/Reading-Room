@@ -1195,3 +1195,42 @@ html.rr-theme-dark .rr-close-btn {
 }
 .rr-sheet-btn:active,
 .rr-close-btn:active { opacity: .6; }
+
+
+/* ==== v74: freeze the header on every library view ====================== *
+ * v73 froze the header for data-rr-library-view="library" only, so Home,
+ * Favorites and Search scrolled their titles away while the gear stayed fixed
+ * - the same mismatch, just on the other three views. The band is now frozen
+ * everywhere and the views differ only in what they put inside it.
+ * ---------------------------------------------------------------------- */
+html.rr-library-visible main > .hero {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 128;
+  padding: calc(14px + env(safe-area-inset-top)) max(20px, calc((100vw - 1200px)/2)) 14px;
+  background: var(--paper);
+}
+html.rr-library-visible main > .hero h1 {
+  font-size: 32px;
+  line-height: 1.15;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+}
+/* Home and Favorites have no search field, so their band is shorter and the
+   content below needs correspondingly less clearance. */
+html[data-rr-library-view="home"] main > .discovery,
+html[data-rr-library-view="favorites"] main > .catalog {
+  padding-top: calc(84px + env(safe-area-inset-top));
+}
+html[data-rr-library-view="search"] main > .catalog {
+  padding-top: calc(150px + env(safe-area-inset-top));
+}
+/* The reader still wins over all of it. */
+html.rr-book-open main > .hero { display: none !important; }
+
+/* The filter panel is a popover now, so it must beat the grid layout
+   globals.css gives .expanded-filters.open at mobile widths. */
+html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
+  display: grid !important;
+}

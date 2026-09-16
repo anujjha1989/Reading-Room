@@ -1182,6 +1182,14 @@
 
   function closeAll() {
     root.classList.remove("rr-filters-open", "rr-sort-open");
+    // Put React's panel back to closed too, or its own Filters button falls out
+    // of step with ours and the next tap does nothing.
+    var panel = q(".catalog .filters");
+    if (panel && panel.classList.contains("open")) {
+      var toggle = q(".catalog .mobile-filter-toggle");
+      if (toggle) toggle.click();
+      else panel.classList.remove("open");
+    }
     var t = q("#" + FILTER_ID), s = q("#" + SORT_ID);
     if (t) t.setAttribute("aria-expanded", "false");
     if (s) s.setAttribute("aria-expanded", "false");
@@ -1191,12 +1199,16 @@
     var opening = !root.classList.contains("rr-filters-open");
     closeAll();
     if (!opening) return;
-    // React owns .expanded-filters; make sure the panel is in its open state so
-    // the fields inside are laid out, then reveal it via our own class.
+    // globals.css hides the panel with `.expanded-filters { display:none }` and
+    // reveals it with `.expanded-filters.open`. Positioning it was not enough:
+    // display:none wins over any amount of position and opacity. React toggles
+    // `open` from its own Filters button, so click that rather than adding the
+    // class directly, which React would revert on its next render.
     var panel = q(".catalog .filters");
-    if (panel && !panel.classList.contains("expanded-filters")) {
+    if (panel && !panel.classList.contains("open")) {
       var toggle = q(".catalog .mobile-filter-toggle");
       if (toggle) toggle.click();
+      else panel.classList.add("open");
     }
     root.classList.add("rr-filters-open");
     var btn = q("#" + FILTER_ID);

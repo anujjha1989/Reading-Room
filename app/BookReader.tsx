@@ -301,13 +301,15 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     const savedMargin = Number(localStorage.getItem("reading-room-reader-margin")) || 4;
     const savedFontSize = Number(localStorage.getItem("reading-room-font-size")) || 100;
     readingModeRef.current = mode;
-    // Follow the app's theme on first open rather than always starting light.
-    // The reader keeps its own preference once set, but until then a dark
-    // library opening a white page is jarring - and looks like a bug.
+    // Follow the app's theme unless the reader's own theme was chosen
+    // deliberately. The effect below writes reading-room-reader-theme on every
+    // run including mount, so its mere presence proves nothing - a separate
+    // explicit flag is the only way to tell a real choice from that echo.
+    const chosen = localStorage.getItem("reading-room-reader-theme-set") === "1";
     const appTheme = localStorage.getItem("reading-room-theme");
     const prefersDark = appTheme === "dark"
       || (appTheme !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    themeRef.current = savedTheme === "dark" || savedTheme === "sepia" || savedTheme === "light"
+    themeRef.current = chosen && (savedTheme === "dark" || savedTheme === "sepia" || savedTheme === "light")
       ? savedTheme
       : prefersDark ? "dark" : "light";
     lineHeightRef.current = Math.min(2, Math.max(1.35, savedLineHeight));
@@ -361,7 +363,10 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         if (mode === "scroll") stabilizeContinuousScroll(rendition);
         rendition.spread(mode === "scroll" || mobile ? "none" : "auto", 980);
         rendition.themes.default(epubStyles(themeRef.current, lineHeightRef.current, marginRef.current));
-        rendition.themes.fontSize("100%");
+        // The saved size, not a hardcoded 100%: this runs after the size has
+        // been restored from localStorage, so pinning it to 100 discarded the
+        // preference and left the A-/A+ buttons fighting a stale baseline.
+        rendition.themes.fontSize(`${fontSizeRef.current}%`);
 
         const saved = localStorage.getItem(`reading-room-position-${file.id}`) || initialPosition || undefined;
         try {
@@ -500,6 +505,13 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
       window.removeEventListener("resize", updateColumns);
     };
   }, [isMobi, readerModeReady]);
+
+  // Only a deliberate tap marks the reader theme as chosen; until then the
+  // reader follows the app theme on open.
+  function chooseTheme(next: ReaderTheme) {
+    try { localStorage.setItem("reading-room-reader-theme-set", "1"); } catch {}
+    setTheme(next);
+  }
 
   useEffect(() => {
     fontSizeRef.current = fontSize;
@@ -682,7 +694,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
           {isReflowable && toc.length > 0 && <label><span>Chapter</span><select defaultValue="" onChange={(event) => event.target.value && goToChapter(event.target.value)}><option value="" disabled>Contents</option>{toc.map((item, index) => <option key={`${item.href}-${index}`} value={item.href}>{`${"— ".repeat(item.depth)}${item.label}`}</option>)}</select></label>}
           {isBookReader && readingMode && <div className="reader-modes" aria-label="Reading mode"><button className={readingMode === "pages" ? "active" : ""} aria-pressed={readingMode === "pages"} onClick={() => chooseReadingMode("pages")}>Pages</button><button className={readingMode === "scroll" ? "active" : ""} aria-pressed={readingMode === "scroll"} onClick={() => chooseReadingMode("scroll")}>Scroll</button></div>}
           {isReflowable && <div className="font-controls" aria-label="Text size"><button onClick={() => setFontSize((size) => Math.max(75, size - 10))} aria-label={`Decrease text size (${fontSize}%)`} title={`${fontSize}%`} disabled={fontSize <= 75}>A−</button><button onClick={() => setFontSize((size) => Math.min(160, size + 10))} aria-label={`Increase text size (${fontSize}%)`} title={`${fontSize}%`} disabled={fontSize >= 160}>A+</button></div>}
-          {isBookReader && <details className="reader-settings"><summary aria-label="Reading appearance">Aa</summary><div><span>Theme</span><div className="theme-options"><button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}>Light</button><button className={theme === "sepia" ? "active" : ""} onClick={() => setTheme("sepia")}>Sepia</button><button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>Dark</button></div>{isReflowable && <><span>Line spacing</span><input type="range" min="1.35" max="2" step="0.05" value={lineHeight} onChange={(event) => setLineHeight(Number(event.target.value))} /><span>Margins</span><input type="range" min="2" max="12" step="1" value={margin} onChange={(event) => setMargin(Number(event.target.value))} /></>}</div></details>}
+          {isBookReader && <details className="reader-settings"><summary aria-label="Reading appearance">Aa</summary><div><span>Theme</span><div className="theme-options"><button className={theme === "light" ? "active" : ""} onClick={() => chooseTheme("light")}>Light</button><button className={theme === "sepia" ? "active" : ""} onClick={() => chooseTheme("sepia")}>Sepia</button><button className={theme === "dark" ? "active" : ""} onClick={() => chooseTheme("dark")}>Dark</button></div>{isReflowable && <><span>Line spacing</span><input type="range" min="1.35" max="2" step="0.05" value={lineHeight} onChange={(event) => setLineHeight(Number(event.target.value))} /><span>Margins</span><input type="range" min="2" max="12" step="1" value={margin} onChange={(event) => setMargin(Number(event.target.value))} /></>}</div></details>}
           {isComic && <button className={mangaMode ? "active" : ""} onClick={() => setMangaMode((enabled) => !enabled)} aria-pressed={mangaMode}>Manga</button>}
           {(seriesNavigation?.previous || seriesNavigation?.next) && <div className="reader-series-nav"><button disabled={!seriesNavigation.previous} title={seriesNavigation.previous} onClick={seriesNavigation.onPrevious}>Previous issue</button><button disabled={!seriesNavigation.next} title={seriesNavigation.next} onClick={seriesNavigation.onNext}>Next issue</button></div>}
           {(isReflowable || isPdf) && <button className={panel === "search" ? "active" : ""} onClick={() => setPanel((current) => current === "search" ? null : "search")} aria-label="Search inside book">⌕ <span className="reader-action-label">Search</span></button>}
