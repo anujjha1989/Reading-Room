@@ -27,10 +27,7 @@ if [ "${1:-}" != "--no-build" ]; then
   BUILD_DIR=$(mktemp -d)
   trap 'rm -rf "$BUILD_DIR"' EXIT
   rsync -a --exclude=node_modules --exclude=dist . "$BUILD_DIR/"
-  # --yes on both: without it the second npx stops to ask "Ok to proceed?" when
-  # it has to fetch pnpm, which makes an otherwise unattended deploy wait for a
-  # keypress. The first call already had it; the second was missed.
-  (cd "$BUILD_DIR" && npx --yes pnpm@10 install --prefer-offline && npx --yes pnpm@10 run build)
+  (cd "$BUILD_DIR" && npx --yes pnpm@10 install --prefer-offline && npx pnpm@10 run build)
   rsync -a "$BUILD_DIR/dist/" dist/
 fi
 # Persist the version after a successful build (or immediately for --no-build).
