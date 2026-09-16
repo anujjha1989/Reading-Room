@@ -959,8 +959,6 @@
 (function () {
   "use strict";
 
-  var PRESS_MS = 550;
-  var MOVE_TOLERANCE = 12;
 
   function bookFromNode(node) {
     var card = node && node.closest ? node.closest("li, article, a, div") : null;
@@ -1115,42 +1113,20 @@
     });
   }
 
-  // Long press, without breaking scrolling: a touch that moves is a scroll.
-  var timer = null, startX = 0, startY = 0;
-
-  function cancel() { if (timer) { clearTimeout(timer); timer = null; } }
-
-  document.addEventListener("touchstart", function (e) {
-    if (overlay || e.touches.length !== 1) return;
-    if (document.documentElement.classList.contains("rr-strip")) return;
-    var book = bookFromNode(e.target);
-    if (!book) return;
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-    cancel();
-    timer = setTimeout(function () {
-      timer = null;
-      if (navigator.vibrate) { try { navigator.vibrate(8); } catch (err) {} }
-      open(book);
-    }, PRESS_MS);
-  }, { passive: true });
-
-  document.addEventListener("touchmove", function (e) {
-    if (!timer || !e.touches.length) return;
-    if (Math.abs(e.touches[0].clientX - startX) > MOVE_TOLERANCE ||
-        Math.abs(e.touches[0].clientY - startY) > MOVE_TOLERANCE) cancel();
-  }, { passive: true });
-
-  document.addEventListener("touchend", cancel, { passive: true });
-  document.addEventListener("touchcancel", cancel, { passive: true });
-
-  // Right-click is the desktop equivalent.
-  document.addEventListener("contextmenu", function (e) {
-    if (document.documentElement.classList.contains("rr-strip")) return;
-    var book = bookFromNode(e.target);
-    if (!book) return;
-    e.preventDefault();
-    open(book);
+  // Opened from the card's ⋯ menu, which replaced long-press: two hidden routes
+  // to the same sheet was worse than one visible one. The React side sends the
+  // book id; find its card so guessFields can still prefill from the DOM.
+  window.addEventListener("rr-edit-book", function (e) {
+    if (overlay || !e.detail || !e.detail.id) return;
+    var id = e.detail.id;
+    var img = document.querySelector('img[src*="id=' + id + '"]');
+    var card = img && img.closest ? img.closest("article, .rr-shelf-cell, li, div") : null;
+    if (!card) return;
+    open({ id: id, card: card, img: img });
+    if (e.detail.focus === "delete") {
+      var btn = overlay && overlay.querySelector(".rr-mf-quarantine");
+      if (btn) setTimeout(function () { btn.focus(); }, 60);
+    }
   });
 
   document.addEventListener("keydown", function (e) {

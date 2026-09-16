@@ -1482,3 +1482,94 @@ html[data-rr-library-view="home"] .rr-continue-shelf .rr-cover-label em {
 html[data-rr-library-view="home"] .rr-continue-shelf .rr-cover-label strong {
   font-size: 7px; line-height: 1.15; -webkit-line-clamp: 4;
 }
+
+
+/* ==== v77: ⋯ menu on every card ==========================================
+ * Cards carried a row of icon buttons (✓ finish, ♡ favourite, Series) plus
+ * format chips and a copies count, and metadata editing was hidden behind a
+ * long press. Books puts all of it behind one ⋯ on the cover and leaves the
+ * card showing title, author and progress.
+ *
+ * Colours come from --paper/--ink/--line rather than fixed hex, so light mode
+ * follows without a second set of rules.
+ * ---------------------------------------------------------------------- */
+
+/* The ⋯ sits on the cover's bottom-right. Both card types need a positioning
+   context; .book already has one, .rr-shelf-cell is new for exactly this. */
+html .rr-shelf-cell { position: relative; display: block; }
+html .book, html .book-tools { position: relative; }
+
+html .rr-card-more {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border: 0; padding: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--paper) 78%, transparent);
+  color: var(--ink);
+  font: 600 17px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .18);
+  z-index: 4;
+}
+html .rr-card-more:active { opacity: .55; }
+/* On a shelf card the ⋯ belongs on the artwork, not the caption below it, so
+   it is offset from the cover's foot rather than the cell's. */
+html .rr-shelf-cell .rr-card-more { bottom: auto; top: 0; right: 4px; transform: translateY(4px); }
+html[data-rr-library-view="home"] .rr-continue-shelf .rr-card-more {
+  top: 50%; right: 8px; transform: translateY(-50%);
+}
+/* The library card's ⋯ hangs off .book-tools, which sits under the cover. */
+html .catalog .book-tools { min-height: 0; margin: 0; }
+html .catalog .book-tools .rr-card-more { bottom: auto; top: -38px; right: 6px; }
+
+/* --- the menu itself ----------------------------------------------------- */
+html .rr-card-menu {
+  position: absolute;
+  right: 4px; top: calc(100% + 2px);
+  min-width: 208px; max-width: 244px;
+  z-index: 60;
+  padding: 6px;
+  border-radius: 13px;
+  background: var(--white, #fff);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .26);
+  text-align: left;
+}
+/* Near the right edge a fixed offset would overflow; flip to the left instead. */
+html .rr-shelf-cell .rr-card-menu { right: 0; left: auto; top: 46%; }
+html .catalog .book-tools .rr-card-menu { top: 6px; }
+html .rr-card-menu button {
+  display: block; width: 100%;
+  min-height: 38px; padding: 0 10px;
+  border: 0; background: none;
+  color: inherit; font: inherit; font-size: 14.5px;
+  text-align: left; border-radius: 8px; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+html .rr-card-menu button:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+html .rr-card-menu button:active { background: color-mix(in srgb, var(--ink) 14%, transparent); }
+html .rr-card-menu button.danger { color: #d3342f; }
+html .rr-card-menu hr { border: 0; border-top: 1px solid var(--line); margin: 5px 4px; }
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-rr-theme="light"]) .rr-card-menu {
+    background: #242426; border-color: #3a3a3e; color: #f5f5f7;
+  }
+  html:not([data-rr-theme="light"]) .rr-card-menu button.danger { color: #ff6b6b; }
+  html:not([data-rr-theme="light"]) .rr-card-more {
+    background: rgba(40, 40, 42, .78); color: #f5f5f7;
+  }
+}
+html[data-rr-theme="dark"] .rr-card-menu {
+  background: #242426; border-color: #3a3a3e; color: #f5f5f7;
+}
+html[data-rr-theme="dark"] .rr-card-menu button.danger { color: #ff6b6b; }
+html[data-rr-theme="dark"] .rr-card-more {
+  background: rgba(40, 40, 42, .78); color: #f5f5f7;
+}

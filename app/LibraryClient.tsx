@@ -276,6 +276,8 @@ export default function LibraryClient() {
   // A shelf opened from the home page narrows the catalogue to its books.
   const [shelfFilter, setShelfFilter] = useState<{ title: string; ids: Set<string> } | null>(null);
   const [editionsFor, setEditionsFor] = useState<Book | null>(null);
+  // Which card's ⋯ menu is open. One at a time, so a plain id rather than a set.
+  const [menuFor, setMenuFor] = useState<string | null>(null);
 
   // Any change to the query, the filters or the view starts the list again.
   useEffect(() => { setVisible(20); }, [query, collection, author, category, series, format, readingStatus, readableOnly, sort, view, shelfFilter]);
@@ -425,6 +427,56 @@ export default function LibraryClient() {
     setReader({ title: book.title, file: copy, bookId: book.id, initialPosition: savedStatesRef.current[book.id]?.position || undefined });
   }
 
+  // Every per-book action lives here, behind the ⋯ on the card, so the card
+  // itself carries nothing but title, author and progress. Previously these
+  // were a row of icon buttons under each cover plus a long-press sheet for
+  // metadata - two routes to the same actions, neither discoverable.
+  function BookMenu({ book }: { book: Book }) {
+    const state = savedStates[book.id];
+    const finished = state?.status === "finished";
+    const editions = book.rrEditions;
+    const close = () => setMenuFor(null);
+    const act = (fn: () => void) => () => { close(); fn(); };
+    return <div className="rr-card-menu" role="menu" onClick={(event) => event.stopPropagation()}>
+      <button role="menuitem" onClick={act(() => toggleFinished(book.id))}>
+        {finished ? "Mark as Unread" : "Mark as Finished"}
+      </button>
+      <button role="menuitem" onClick={act(() => toggleFavorite(book.id))}>
+        {state?.favorite ? "Remove from Favorites" : "Add to Favorites"}
+      </button>
+      {editions && editions.length > 1 && <button role="menuitem" onClick={act(() => setEditionsFor(book))}>
+        {editions.length} editions…
+      </button>}
+      {book.copies.length > 1 && <button role="menuitem" onClick={act(() => setSelected(book))}>
+        {book.copies.length} copies…
+      </button>}
+      {book.copies.length > 1 && <hr />}
+      {/* One row per format, so "open as EPUB" is a choice rather than a guess. */}
+      {book.copies.length > 1 && book.copies.map((copy) => <button key={copy.id} role="menuitem" onClick={act(() => openCopy(book, copy))}>
+        Open as {copy.format}
+      </button>)}
+      {book.series && <button role="menuitem" onClick={act(() => setSeriesFocus(book.series!))}>
+        View series
+      </button>}
+      <hr />
+      <button role="menuitem" onClick={act(() => window.dispatchEvent(new CustomEvent("rr-edit-book", { detail: { id: book.id } })))}>
+        Update Metadata…
+      </button>
+      <button role="menuitem" className="danger" onClick={act(() => window.dispatchEvent(new CustomEvent("rr-edit-book", { detail: { id: book.id, focus: "delete" } })))}>
+        Delete…
+      </button>
+    </div>;
+  }
+
+  // A tap anywhere else closes an open card menu.
+  useEffect(() => {
+    if (!menuFor) return;
+    const close = () => setMenuFor(null);
+    document.addEventListener("click", close);
+    document.addEventListener("scroll", close, true);
+    return () => { document.removeEventListener("click", close); document.removeEventListener("scroll", close, true); };
+  }, [menuFor]);
+
   function handleReaderLocation(location: ReaderLocation) {
     if (!reader) return;
     saveState(reader.bookId, { fileId: reader.file.id, status: location.status || "reading", progressLabel: location.label, position: location.position });
@@ -487,9 +539,8 @@ export default function LibraryClient() {
         </div>
       </div>
       <div className="shelf-strip">
-        {grouped.slice(0, 8).map((book, index) => <button
+        {grouped.slice(0, 8).map((book, index) => <div className="rr-shelf-cell" key={book.id}><button
           className="shelf-book"
-          key={book.id}
           title={`${compact ? shelfLabel(book) : shelfTitle(book)} — ${book.author || "Author unknown"}`}
           onClick={() => book.rrEditions ? setEditionsFor(book) : openBook(book)}
         >
@@ -522,7 +573,12 @@ export default function LibraryClient() {
           <strong>{compact ? shelfLabel(book) : shelfTitle(book)}</strong>
           <small>{compact ? `${book.rrEditions?.length || 1} edition${book.rrEditions?.length === 1 ? "" : "s"}` : book.author || "Author unknown"}</small>
           {isContinue && <small className="rr-continue-meta" style={{"--rr-p": continueProgress(savedStates[book.id]) || "0%"} as React.CSSProperties}>{continueProgress(savedStates[book.id])}</small>}
-        </button>)}
+        </button>
+        {/* Sibling, not child: .shelf-book is itself a <button> and nesting one
+            inside another is invalid and swallows the inner tap. */}
+        <button className="rr-card-more" aria-label={`Options for ${shelfTitle(book)}`} aria-haspopup="menu" aria-expanded={menuFor === book.id} onClick={(event) => { event.stopPropagation(); setMenuFor(menuFor === book.id ? null : book.id); }}>⋯</button>
+        {menuFor === book.id && <BookMenu book={book} />}
+        </div>)}
       </div>
     </section>;
   }
@@ -594,7 +650,7 @@ export default function LibraryClient() {
           <button className="cover" aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`} style={{ "--cover": palette[0], "--ink": palette[1] } as React.CSSProperties} onClick={() => openBook(book)}><img src={coverUrl(book)} alt="" loading="lazy" onLoad={(event) => event.currentTarget.parentElement?.classList.add("has-cover")} onError={(event) => { event.currentTarget.hidden = true; }} /><span className="cover-copy">{book.series && <small>{book.series}</small>}<strong>{book.title}</strong>{book.author && <em>{book.author}</em>}</span>{state?.progressLabel && <span className="cover-progress">{state.progressLabel}</span>}</button>
           <div className="book-caption" aria-hidden="true"><strong>{book.title}</strong>{book.author && <small>{book.author}</small>}</div>
           <div className="list-copy"><button onClick={() => openBook(book)} aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`}><small>{book.series || book.category || "Book"}</small><strong>{book.title}</strong><em>{book.author || "Author not listed"}</em>{state?.progressLabel && <span>{state.progressLabel}</span>}</button></div>
-          <div className="book-tools"><div className="chips">{book.formats.slice(0, 3).map((item) => <span key={item}>{item}</span>)}{book.formats.length > 3 && <span>+{book.formats.length - 3}</span>}{book.copies.length > 1 && <span>{book.copies.length} copies</span>}</div><div className="card-actions">{book.series && <button className="series-link" onClick={() => setSeriesFocus(book.series!)} aria-label={`View ${book.series} series`}>Series</button>}<button className={`finish ${state?.status === "finished" ? "active" : ""}`} onClick={() => toggleFinished(book.id)} aria-label={state?.status === "finished" ? "Reset to unread" : "Mark as finished"} title={state?.status === "finished" ? "Reset to unread" : "Mark as finished"}>✓</button><button className="heart" onClick={() => toggleFavorite(book.id)} aria-label="Toggle favorite">{state?.favorite ? "♥" : "♡"}</button></div></div>
+          <div className="book-tools"><button className="rr-card-more" aria-label={`Options for ${book.title}`} aria-haspopup="menu" aria-expanded={menuFor === book.id} onClick={(event) => { event.stopPropagation(); setMenuFor(menuFor === book.id ? null : book.id); }}>⋯</button>{menuFor === book.id && <BookMenu book={book} />}</div>
         </article>;
       })}</div> : <div className="empty"><b>No books found</b><p>Try clearing one or more filters.</p><button onClick={() => { setQuery(""); clearFilters(); }}>Reset search</button></div>}
       {visible < filtered.length && <button className="load" onClick={() => setVisible((count) => count + 20)}>Show more books</button>}
