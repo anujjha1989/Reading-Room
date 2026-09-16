@@ -43,3 +43,7 @@ tsconfig.tsbuildinfo
 /outputs/
 /work/
 work/cloudflare-token.txt
+
+# deployment history, not source. Kept on the Seagate beside the older
+# before-vNN backups; this only guards against a stray local copy.
+/deployment-backups/

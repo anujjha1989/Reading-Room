@@ -54,24 +54,37 @@ COPYFILE_DISABLE=1 tar czf - -C dist/stage . | "${SSH[@]}" "$PI" "tar xzf - -C ~
 
 # The override bundle lives on the Seagate, which is symlinked into the site as
 # /assets/book-art/images and is the one place there we can write unprivileged.
+#
+# chmod 0644 explicitly: the repo sits on an SMB mount that reports every file
+# as 0700, and tar preserves modes, so without this the files arrive unreadable
+# by the service user and the server falls back to index.html for them - a JS
+# request answered with HTML, which is exactly the failure this looks like.
 COPYFILE_DISABLE=1 tar czf - -C overrides/book-art fullscreen-bundle.js fullscreen-bundle.css read-aloud.js \
   | "${SSH[@]}" "$PI" "set -e
       tmp=\$(mktemp -d) && tar xzf - -C \$tmp
       mv \$tmp/fullscreen-bundle.js  $BOOK_ART/fullscreen-bundle-v$VERSION.js
       mv \$tmp/fullscreen-bundle.css $BOOK_ART/fullscreen-bundle-v$VERSION.css
       mv \$tmp/read-aloud.js         $BOOK_ART/read-aloud-v$VERSION.js
+      chmod 0644 $BOOK_ART/fullscreen-bundle-v$VERSION.js \
+                 $BOOK_ART/fullscreen-bundle-v$VERSION.css \
+                 $BOOK_ART/read-aloud-v$VERSION.js
       rm -rf \$tmp"
 
 echo "==> capturing rollback"
 # reading-room-deploy is additive for assets (filenames are content hashed), so
 # the only files a deploy destroys are the three HTML/JS documents it overwrites.
 # Capture them BEFORE the install: afterwards the previous ones are gone.
-ROLLBACK=deployment-backups/$(date +%Y%m%d-%H%M%S)-before-v$VERSION
+#
+# Backups live beside the existing before-v64/before-v65 ones, outside the repo:
+# they are deployment history, not source, and a repo-relative path would split
+# that history across two directories.
+ROLLBACK=/Volumes/Seagate/ReadingRoom/deployment-backups/$(date +%Y%m%d-%H%M%S)-before-v$VERSION
 mkdir -p "$ROLLBACK"
 "${SSH[@]}" "$PI" "cd /opt/reading-room/current/site && tar czf - index.html \
   \$([ -f sw.js ] && echo sw.js) \$([ -f settings.html ] && echo settings.html)" \
   > "$ROLLBACK/site-html.tar.gz"
-cp deploy/reading-room-deploy "$ROLLBACK/reading-room-deploy"
+# cat, not cp: cp on this SMB mount leaves an ._ AppleDouble sidecar behind.
+cat deploy/reading-room-deploy > "$ROLLBACK/reading-room-deploy"
 echo "    $ROLLBACK"
 
 rollback() {
