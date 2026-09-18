@@ -723,6 +723,10 @@
     back:'<path d="M14 6l-6 6 6 6"/>',
     share:'<path d="M12 16V4M8 8l4-4 4 4"/><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/>',
     chevron:'<path d="M9 6l6 6-6 6"/>',
+    previousSentence:'<path d="M6 5v14"/><path d="m17 6-7 6 7 6"/>',
+    nextSentence:'<path d="M18 5v14"/><path d="m7 6 7 6-7 6"/>',
+    pause:'<path d="M8 5v14M16 5v14"/>',
+    clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/>',
   };
   function glyph(name) {
     if (!ICON[name]) return null;
@@ -894,13 +898,42 @@
     } else if(view === 'Read Aloud') {
       heading(view);
       const listen=$('.rr-listen');
-      const playing=listen?.getAttribute('aria-pressed')==='true';
-      // Primary action, visually dominant. No setTimeout(render): toggling
-      // changes .rr-listen's aria-pressed, and sync()'s signature watcher keys
-      // off !!$('.rr-listen') only - so this one does need its own refresh.
-      const play=button(playing?'Stop reading':'Start reading',()=>{listen?.click();setTimeout(render,120);},playing?'stop':'play');
-      play.className='rr-books-primary';
-      host.append(play);
+      const state=typeof window.rrGetReadAloudState==='function'
+        ? window.rrGetReadAloudState()
+        : {playing:listen?.getAttribute('aria-pressed')==='true',paused:false,sleepMinutes:0};
+      let timer=null, stopReading=null;
+
+      if(!state.playing){
+        const play=button('Start reading',()=>{listen?.click();setTimeout(render,120);},'play');
+        play.className='rr-books-primary';
+        host.append(play);
+      } else {
+        // A compact transport bar keeps the three related actions together;
+        // Stop remains separate because it ends the session rather than moving
+        // within it. The same functions back the collapsed controls.
+        const transport=document.createElement('div');
+        transport.className='rr-books-transport';
+        transport.setAttribute('role','group');
+        transport.setAttribute('aria-label','Read aloud playback');
+        const previous=button('Previous sentence',()=>{window.rrSkipSentence?.(-1);setTimeout(render,40);},'previousSentence');
+        previous.disabled=state.canPrevious===false;
+        const pause=button(state.paused?'Resume reading':'Pause reading',()=>{window.rrToggleReadAloud?.();setTimeout(render,80);},state.paused?'play':'pause');
+        pause.className='rr-books-transport-main';
+        const next=button('Next sentence',()=>{window.rrSkipSentence?.(1);setTimeout(render,40);},'nextSentence');
+        next.disabled=state.canNext===false;
+        transport.append(previous,pause,next);
+        host.append(transport);
+
+        const timerLabel=state.sleepMinutes
+          ? `Sleep timer · ${state.sleepMinutes} min`
+          : 'Sleep timer · Off';
+        timer=button(timerLabel,()=>{window.rrAddSleepTime?.();setTimeout(render,40);},'clock');
+        timer.className='rr-books-sleep';
+        timer.setAttribute('aria-description','Tap to add 30 minutes');
+
+        stopReading=button('Stop reading',()=>{window.rrStopReadAloud?.();setTimeout(render,80);},'stop');
+        stopReading.className='rr-books-stop';
+      }
 
       // Voice as a row that opens a list, not a native <select>. The select had
       // a 30-character label in a space-between row, which is where the empty
@@ -930,6 +963,8 @@
         wrap.append(min,slider,max,out);
         host.append(wrap);
       }
+      if(timer) host.append(timer);
+      if(stopReading) host.append(stopReading);
     } else if(view === 'Voice') {
       heading(view);
       const voice=$('.rr-voice');
@@ -968,7 +1003,10 @@
     lastOpen=isOpen;
     const pages=[...reader.querySelectorAll('.reader-modes button')].some(b=>b.textContent==='Pages'&&(b.classList.contains('active')||b.getAttribute('aria-pressed')==='true'));
     root.classList.toggle('rr-books-pages',pages);
-    const key=reader.className+'|'+($('.reader-actions select:not(.rr-voice)')?.options.length||0)+'|'+!!$('.rr-listen')+'|'+contentsLabel();if(key!==signature){signature=key;if(isOpen)render();}
+    const aloudState=typeof window.rrGetReadAloudState==='function'?window.rrGetReadAloudState():null;
+    const key=reader.className+'|'+($('.reader-actions select:not(.rr-voice)')?.options.length||0)+'|'+!!$('.rr-listen')+'|'+contentsLabel()
+      +'|'+(aloudState?`${aloudState.playing}:${aloudState.paused}:${aloudState.sleepMinutes}`:'');
+    if(key!==signature){signature=key;if(isOpen)render();}
     applyType();
   }
   // Apply the theme the preset implies once the reader exists. Choosing a

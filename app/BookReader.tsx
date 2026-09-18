@@ -44,19 +44,7 @@ type EpubSearchSection = {
   find: (query: string) => Array<{ cfi: string; excerpt: string }>;
   unload: () => void;
 };
-type ContinuousView = {
-  displayed: boolean;
-  display: (request: unknown) => Promise<unknown>;
-  show: () => void;
-  hide: () => void;
-};
 type ContinuousManager = {
-  settings: { offset?: number };
-  request: unknown;
-  bounds: () => unknown;
-  isVisible: (view: ContinuousView, offsetTop: number, offsetBottom: number, bounds: unknown) => boolean;
-  views: { all: () => ContinuousView[] };
-  update: (offset?: number) => Promise<unknown>;
   trim: () => Promise<unknown>;
 };
 
@@ -64,22 +52,12 @@ function stabilizeContinuousScroll(rendition: Rendition) {
   const manager = (rendition as Rendition & { manager?: ContinuousManager }).manager;
   if (!manager) return;
 
-  // EPUB.js normally destroys off-screen chapter views. Removing content above
-  // the viewport forces a compensating scroll jump, which feels like jitter.
-  // Keep rendered views mounted so the book remains one stable scroll surface.
-  manager.update = (requestedOffset?: number) => {
-    const bounds = manager.bounds();
-    const offset = requestedOffset ?? manager.settings.offset ?? 0;
-    const work = manager.views.all().flatMap((view) => {
-      if (!manager.isVisible(view, offset, offset, bounds)) return [];
-      if (view.displayed) {
-        view.show();
-        return [];
-      }
-      return [view.display(manager.request).then(() => view.show(), () => view.hide())];
-    });
-    return work.length ? Promise.all(work) : Promise.resolve();
-  };
+  // Keep EPUB.js's own update routine: it unloads distant iframe contents while
+  // preserving their measured placeholder, which is essential for very large
+  // merged volumes. The previous override retained every live chapter iframe;
+  // William Trevor's ten-book EPUB eventually accumulated enough layout work
+  // to make scrolling visibly stutter. Only suppress `trim`, which removes the
+  // placeholders themselves and can change scrollTop at a chapter boundary.
   manager.trim = () => Promise.resolve();
 }
 type FoliateView = HTMLElement & {

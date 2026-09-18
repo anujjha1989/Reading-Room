@@ -6,6 +6,29 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ### Changed
 
+- Added Previous sentence, Pause/Resume and Next sentence as one compact Read
+  Aloud transport in both the reading sheet and the collapsed view.
+- Added a 30-minute sleep timer to Read Aloud. Each tap adds another 30 minutes
+  and the remaining time stays visible in the sheet.
+- Made continuous EPUB scrolling unload distant chapter contents while keeping
+  their measured placeholders. Large collected works no longer accumulate a
+  live iframe for every chapter as you scroll.
+
+### Fixed
+
+- Fixed Pause occasionally ending the entire Read Aloud session and removing
+  its collapsed controls.
+- Cancelled stale Read Aloud page navigation immediately on Pause or Skip, so
+  an old sentence can no longer keep turning Pages in the background and leave
+  the reader on a blank page.
+- Stopped automatic narration following from fighting a manual scroll; it now
+  waits for the reader's gesture to settle before bringing spoken text back
+  into view.
+
+## v92 — 18 September 2026
+
+### Changed
+
 - Rebuilt the reading menu as a toolbar: Contents keeps a full-width row because
   it carries your position, and Search, Read Aloud, Bookmarks and Text became
   four equal icon tiles with larger icons.
@@ -26,6 +49,13 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 - Narrowed the Bookmarks panel, which filled the screen edge to edge for a list
   that is usually empty. It now matches the reading sheet's width and corner, so
   the two panels read as one family, and an empty list no longer reserves space.
+
+### Deployment
+
+- Git commit: `db99019`
+- Previous version: v91
+- Mode: full build
+- Verification: LAN passed; Tailscale advisory not confirmed
 
 ## v91 — 18 September 2026
 

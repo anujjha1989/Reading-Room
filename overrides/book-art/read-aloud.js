@@ -58,12 +58,20 @@
   var keepAlive = null;
   var sweeper = null;
   var btn = null;
+  var floatTray = null;
   var floatBtn = null;
+  var floatPrev = null;
+  var floatNext = null;
   var rateBtn = null;
   var voiceSel = null;
   var timerBtn = null;
   var sleepMs = 0;    // remaining ms; 0 = no timer
   var sleepRef = null;
+  var manualScrollUntil = 0;
+
+  function markManualScroll() {
+    if (playing && readingMode() === "scroll") manualScrollUntil = Date.now() + 5000;
+  }
 
   var synth = function () { return window.speechSynthesis; };
   var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
@@ -472,13 +480,13 @@
     return state.visible ? state.visible(range) : visibleInDoc(state.doc, range);
   }
 
-  async function waitUntilVisible(state, range, timeout) {
+  async function waitUntilVisible(state, range, timeout, mine) {
     for (var waited = 0; waited < timeout; waited += TURN_SETTLE) {
-      if (!playing) return false;
+      if (!playing || paused || mine !== epoch) return false;
       if (isVisible(state, range)) return true;
       await sleep(TURN_SETTLE);
     }
-    return isVisible(state, range);
+    return playing && !paused && mine === epoch && isVisible(state, range);
   }
 
   // With the screen locked iOS stops running layout: getBoundingClientRect
@@ -491,7 +499,8 @@
     return typeof document !== "undefined" && document.hidden;
   }
 
-  async function bringIntoView(state, item) {
+  async function bringIntoView(state, item, mine) {
+    if (!playing || paused || mine !== epoch) return false;
     if (screenAsleep()) return true;
     // In scroll mode "visible" is not enough: a sentence sitting on the last
     // line still counts, so nothing scrolled until it had left the screen and
@@ -500,8 +509,13 @@
     // moves up steadily as it is read.
     if (state.mode === "scroll" && state.reveal) {
       if (comfortablyVisible(state, item.range)) return true;
+      // A finger drag or wheel belongs to the reader. Do not have narration
+      // immediately yank the chapter back underneath them; keep speaking and
+      // resume visual following only after the interaction has settled.
+      if (Date.now() < manualScrollUntil) return true;
       state.reveal(item.range);
-      await waitUntilVisible(state, item.range, 280);
+      await waitUntilVisible(state, item.range, 280, mine);
+      if (!playing || paused || mine !== epoch) return false;
       // Report success either way. Returning false here made step() null the
       // queue and restart from the first visible sentence - which, right after
       // a scroll, is the top of the page. That was the loop: read to the
@@ -520,7 +534,7 @@
 
     var turns = 0;
     var sig = signature(state.doc);
-    while (playing && turns < MAX_TURNS && !isVisible(state, item.range)) {
+    while (playing && !paused && mine === epoch && turns < MAX_TURNS && !isVisible(state, item.range)) {
       // The screen can lock part-way through: layout freezes, so no turn ever
       // looks like it moved and the loop would keep turning pages blindly until
       // MAX_TURNS. Stop chasing and just speak.
@@ -528,7 +542,7 @@
       var beforeRect = rectKey(item.range);
       state.turn();
       await sleep(TURN_SETTLE);
-      if (!playing) return false;
+      if (!playing || paused || mine !== epoch) return false;
       if (screenAsleep()) return true;
       var now = reader();
       if (!now || signature(now.doc) !== sig) return false;   // section changed
@@ -537,7 +551,7 @@
         if (isVisible(state, item.range)) return true;
         if (rectKey(item.range) !== beforeRect) { moved = true; break; }
         await sleep(TURN_SETTLE);
-        if (!playing) return false;
+        if (!playing || paused || mine !== epoch) return false;
       }
       // A turn that did not move the page means we are at the end of the
       // section: hand back to step(), which advances via the cursor. Returning
@@ -561,13 +575,13 @@
 
   // --- the pump ------------------------------------------------------------
   async function step(mine) {
-    if (!playing || mine !== epoch) return;
+    if (!playing || paused || mine !== epoch) return;
 
     var state = reader();
     if (!state) {                        // mid-transition: wait for the new view
       for (var tries = 0; tries < 16 && !state; tries += 1) {
         await sleep(160);
-        if (!playing || mine !== epoch) return;
+        if (!playing || paused || mine !== epoch) return;
         state = reader();
       }
       if (!state) { stop(); return; }
@@ -585,9 +599,9 @@
     if (cursor >= queue.length) { await advanceSection(state, mine); return; }
 
     var item = queue[cursor];
-    var ok = await bringIntoView(state, item);
-    if (!playing || mine !== epoch) return;
-    if (!ok) { queueDoc = null; step(mine); return; }
+    var ok = await bringIntoView(state, item, mine);
+    if (!playing || paused || mine !== epoch) return;
+    if (!ok) return;
 
     highlight(state.doc, item.range);
     speak(item.text, mine, state.doc);
@@ -606,6 +620,8 @@
   function attachSteering(doc) {
     if (!doc || doc.__rrSteering) return;
     doc.__rrSteering = true;
+    doc.addEventListener("touchmove", markManualScroll, { passive: true });
+    doc.addEventListener("wheel", markManualScroll, { passive: true });
     doc.addEventListener("click", function (event) {
       if (!btn) return;                                   // reader not mounted
       if (ignoreSteeringClick(playing, Date.now())) return;
@@ -657,7 +673,7 @@
     // mounting it — poll rather than guess a delay.
     for (var waited = 0; waited < 2600; waited += 160) {
       await sleep(160);
-      if (!playing || mine !== epoch) return;
+      if (!playing || paused || mine !== epoch) return;
       // Re-assert playbackState so iOS does not suspend the audio session
       // during the gap between the last sentence and the first of the new page.
       try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; } catch (e) {}
@@ -731,12 +747,8 @@
       navigator.mediaSession.setActionHandler("play", function () { if (paused) toggle(); });
       navigator.mediaSession.setActionHandler("pause", function () { if (!paused) toggle(); });
       navigator.mediaSession.setActionHandler("stop", stop);
-      navigator.mediaSession.setActionHandler("previoustrack", function () {
-        cursor = Math.max(0, cursor - 1); step(epoch);
-      });
-      navigator.mediaSession.setActionHandler("nexttrack", function () {
-        cursor += 1; step(epoch);
-      });
+      navigator.mediaSession.setActionHandler("previoustrack", function () { skipSentence(-1); });
+      navigator.mediaSession.setActionHandler("nexttrack", function () { skipSentence(1); });
     } catch (e) { /* older browsers */ }
   }
 
@@ -767,7 +779,11 @@
     if (go && go.catch) {
       go.catch(function () {
         // Autoplay refused (no gesture yet, usually): leave it to the user.
-        if (playing) { playing = false; paused = true; render(); }
+        // A pause invalidates this play request by advancing epoch. Safari can
+        // reject that now-obsolete promise after the pause tap; treating the
+        // rejection as a fresh autoplay failure stopped the whole session and
+        // made the collapsed controls disappear.
+        if (playing && !paused && mine === epoch) { playing = false; paused = true; render(); }
       });
     }
     prefetch(mine);
@@ -867,6 +883,53 @@
     render();
   }
 
+  function haltCurrentAudio() {
+    try {
+      if (rrTtsAudio) {
+        rrTtsAudio.onended = null;
+        rrTtsAudio.onerror = null;
+        rrTtsAudio.pause();
+        rrTtsAudio.removeAttribute("src");
+        rrTtsAudio.load();
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  // One implementation backs the expanded sheet, the collapsed transport and
+  // the Lock Screen controls. Invalidating the current clip before moving the
+  // cursor is important: otherwise its delayed `ended` callback advances a
+  // second time and makes a single Next tap skip two sentences.
+  function skipSentence(delta) {
+    if (!playing || !delta) return;
+    var state = reader();
+    if (state) ensureQueue(state.doc);
+    if (!queue.length) return;
+    cursor = delta < 0 ? Math.max(0, cursor - 1) : Math.min(queue.length, cursor + 1);
+    epoch += 1;
+    var mine = epoch;
+    haltCurrentAudio();
+    clearHighlights(state && state.doc);
+    render();
+    if (!paused) step(mine);
+  }
+
+  function publicState() {
+    return {
+      playing: playing,
+      paused: paused,
+      rate: rate,
+      sleepMinutes: sleepMs ? Math.ceil(sleepMs / 60000) : 0,
+      canPrevious: playing && cursor > 0,
+      canNext: playing && !!queue.length,
+    };
+  }
+
+  window.rrToggleReadAloud = toggle;
+  window.rrStopReadAloud = stop;
+  window.rrSkipSentence = skipSentence;
+  window.rrAddSleepTime = addSleepSlot;
+  window.rrGetReadAloudState = publicState;
+
   // Exposed so the reading menu can offer a slider instead of a cycle button.
   // Restarting the sentence is what makes a change audible immediately; without
   // it the new rate only applied from the next sentence.
@@ -960,6 +1023,10 @@
   }
 
   // --- UI ------------------------------------------------------------------
+  function transportIcon(path) {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px">' + path + '</svg>';
+  }
+
   (function injectStyle() {
     var s = document.createElement("style");
     s.setAttribute("data-rr", "read-aloud");
@@ -969,9 +1036,14 @@
       ".rr-timer{min-width:44px;font-variant-numeric:tabular-nums;white-space:nowrap;transition:color .2s}" +
       ".rr-timer.rr-timer-active{color:var(--rr-timer-ink,#5a7c62)}" +
       ".rr-theme-dark .rr-timer.rr-timer-active{color:var(--rr-timer-ink-dark,#85b892)}" +
-      ".rr-read-toggle{position:fixed;right:18px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:124;width:46px;height:46px;padding:0;border:1px solid rgba(70,70,67,.18);border-radius:50%;background:rgba(245,244,239,.9);color:#202321;box-shadow:0 3px 14px rgba(0,0,0,.12);font:600 17px/1 -apple-system,BlinkMacSystemFont,sans-serif;display:grid;place-items:center;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);-webkit-tap-highlight-color:transparent}" +
-      ".rr-read-toggle[hidden]{display:none!important}" +
-      ".rr-theme-dark .rr-read-toggle{background:rgba(42,42,40,.9);color:#f7f5ef;border-color:rgba(255,255,255,.18)}";
+      ".rr-read-transport{position:fixed;right:14px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:124;display:flex;align-items:center;gap:4px;padding:4px;border:1px solid rgba(70,70,67,.16);border-radius:28px;background:rgba(245,244,239,.88);color:#202321;box-shadow:0 4px 18px rgba(0,0,0,.13);-webkit-backdrop-filter:blur(20px) saturate(1.25);backdrop-filter:blur(20px) saturate(1.25)}" +
+      ".rr-read-transport[hidden]{display:none!important}" +
+      ".rr-read-transport button{width:40px;height:40px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;display:grid;place-items:center;font:600 16px/1 -apple-system,BlinkMacSystemFont,sans-serif;-webkit-tap-highlight-color:transparent}" +
+      ".rr-read-transport button:active{background:rgba(90,90,90,.14);transform:scale(.94)}" +
+      ".rr-read-transport button:disabled{opacity:.28}" +
+      ".rr-read-transport .rr-read-toggle{width:44px;height:44px;background:rgba(255,255,255,.72);box-shadow:0 1px 5px rgba(0,0,0,.09)}" +
+      ".rr-theme-dark .rr-read-transport{background:rgba(42,42,40,.88);color:#f7f5ef;border-color:rgba(255,255,255,.16)}" +
+      ".rr-theme-dark .rr-read-transport .rr-read-toggle{background:rgba(255,255,255,.10)}";
     document.head.appendChild(s);
   })();
 
@@ -987,11 +1059,15 @@
     rateBtn.textContent = rate.toFixed(1) + "×";
     if (timerBtn) { timerBtn.hidden = !playing; renderTimer(); }
     if (floatBtn) {
-      floatBtn.hidden = !playing;
-      floatBtn.textContent = paused ? "▶" : "❚❚";
+      if (floatTray) floatTray.hidden = !playing;
+      floatBtn.innerHTML = paused
+        ? transportIcon('<path d="M8 5v14l11-7Z" fill="currentColor" stroke="none"/>')
+        : transportIcon('<path d="M8 5v14M16 5v14"/>');
       floatBtn.setAttribute("aria-label", paused ? "Resume read aloud" : "Pause read aloud");
       floatBtn.setAttribute("aria-pressed", paused ? "false" : "true");
     }
+    if (floatPrev) floatPrev.disabled = !playing || cursor <= 0;
+    if (floatNext) floatNext.disabled = !playing || !queue.length;
     if (voiceSel) {
       // Voices arrive asynchronously in some browsers, so keep trying to fill
       // the menu; show it whenever the reader is open, not only while playing.
@@ -1007,7 +1083,8 @@
     var shell = document.querySelector(".reader-shell");
     if (!shell) {
       if (playing) stop();
-      if (floatBtn) { floatBtn.remove(); floatBtn = null; }
+      if (floatTray) { floatTray.remove(); floatTray = null; }
+      floatBtn = null; floatPrev = null; floatNext = null;
       btn = null; rateBtn = null;
       return;
     }
@@ -1021,17 +1098,45 @@
     btn.setAttribute("aria-label", "Read aloud");
     btn.addEventListener("click", toggle);
 
-    if (!floatBtn) {
+    if (!floatTray) {
+      floatTray = document.createElement("div");
+      floatTray.className = "rr-read-transport";
+      floatTray.setAttribute("role", "group");
+      floatTray.setAttribute("aria-label", "Read aloud controls");
+      floatTray.hidden = true;
+
+      floatPrev = document.createElement("button");
+      floatPrev.type = "button";
+      floatPrev.innerHTML = transportIcon('<path d="M6 5v14"/><path d="m17 6-7 6 7 6"/>');
+      floatPrev.setAttribute("aria-label", "Previous sentence");
+      floatPrev.addEventListener("click", function (event) {
+        event.preventDefault(); event.stopPropagation();
+        window.__rrControlTapAt = Date.now();
+        skipSentence(-1);
+      });
+
       floatBtn = document.createElement("button");
       floatBtn.type = "button";
       floatBtn.className = "rr-read-toggle";
-      floatBtn.hidden = true;
       floatBtn.addEventListener("click", function (event) {
         event.preventDefault();
         event.stopPropagation();
+        window.__rrControlTapAt = Date.now();
         toggle();
       });
-      document.body.appendChild(floatBtn);
+
+      floatNext = document.createElement("button");
+      floatNext.type = "button";
+      floatNext.innerHTML = transportIcon('<path d="M18 5v14"/><path d="m7 6 7 6-7 6"/>');
+      floatNext.setAttribute("aria-label", "Next sentence");
+      floatNext.addEventListener("click", function (event) {
+        event.preventDefault(); event.stopPropagation();
+        window.__rrControlTapAt = Date.now();
+        skipSentence(1);
+      });
+
+      floatTray.append(floatPrev, floatBtn, floatNext);
+      document.body.appendChild(floatTray);
     }
 
     rateBtn = document.createElement("button");
@@ -1092,5 +1197,7 @@
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);
   else mount();
+  document.addEventListener("touchmove", markManualScroll, { passive: true, capture: true });
+  document.addEventListener("wheel", markManualScroll, { passive: true, capture: true });
   new MutationObserver(mount).observe(document.documentElement, { childList: true, subtree: true });
 })();

@@ -2704,3 +2704,77 @@ html[data-rr-theme="light"] .rr-books-menu > .rr-books-primary {
    as a mis-sized button; capping the basis keeps it tile-shaped. */
 .rr-books-toolbar > button:only-child { flex: 0 0 76px !important; }
 .rr-books-toolbar:has(> button:only-child) { justify-content: center; }
+
+
+/* ==== Read Aloud transport =================================================
+ * Playback navigation belongs together, but ending a session does not. The
+ * three transport buttons therefore share one quiet glass rail; Sleep Timer
+ * and Stop remain separate, lower-emphasis rows. This adds capability without
+ * returning the panel to a stack of identical full-width pills.
+ * ---------------------------------------------------------------------- */
+.rr-books-transport {
+  display: grid;
+  grid-template-columns: 1fr 1.12fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 18px;
+  background: rgba(120, 120, 128, .16);
+}
+.rr-books-transport > button {
+  min-width: 0;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  display: grid;
+  place-items: center;
+}
+.rr-books-transport > button > span:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.rr-books-transport > button > span[aria-hidden] svg {
+  width: 23px !important;
+  height: 23px !important;
+}
+.rr-books-transport > button:disabled { opacity: .28; }
+.rr-books-transport > .rr-books-transport-main {
+  background: rgba(255, 255, 255, .15);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .16);
+}
+html[data-rr-theme="light"] .rr-books-transport > .rr-books-transport-main {
+  background: #fff;
+}
+.rr-books-menu > .rr-books-sleep,
+.rr-books-menu > .rr-books-stop {
+  min-height: 44px !important;
+  height: 44px !important;
+  border-radius: 14px !important;
+  font-size: 13.5px !important;
+}
+.rr-books-menu > .rr-books-sleep {
+  justify-content: flex-start !important;
+  gap: 9px !important;
+  padding: 0 14px !important;
+}
+.rr-books-menu > .rr-books-sleep > span[aria-hidden] {
+  margin-left: auto;
+}
+.rr-books-menu > .rr-books-sleep > span[aria-hidden] svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+.rr-books-menu > .rr-books-stop {
+  justify-content: center !important;
+  color: #ff6b63 !important;
+  background: rgba(255, 69, 58, .10) !important;
+}
+.rr-books-menu > .rr-books-stop > span[aria-hidden] svg {
+  width: 13px !important;
+  height: 13px !important;
+}
