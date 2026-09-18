@@ -4,7 +4,14 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
-No unreleased user-visible changes are currently documented.
+### Fixed
+
+- Stopped the reading sheet fluttering on every tap. The sheet rebuilds its rows
+  whenever anything is pressed, and the entrance animation was replaying each
+  time; it now runs only when the sheet opens.
+- Narrowed the Bookmarks panel, which filled the screen edge to edge for a list
+  that is usually empty. It now matches the reading sheet's width and corner, so
+  the two panels read as one family, and an empty list no longer reserves space.
 
 ## v91 — 18 September 2026
 

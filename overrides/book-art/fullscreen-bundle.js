@@ -902,7 +902,18 @@
     if(!host){host=document.createElement('section');host.className='rr-books-menu';host.setAttribute('role','dialog');document.body.append(host);}
     if(!dismissZone){dismissZone=button('Dismiss settings',close);dismissZone.className='rr-books-dismiss';document.body.append(dismissZone);}
     const isOpen=open();host.hidden=!isOpen;dismissZone.hidden=!isOpen;
-    if(isOpen&&!lastOpen){view='menu';render();}lastOpen=isOpen;
+    if(isOpen&&!lastOpen){
+      view='menu';
+      // Mark the opening so the row stagger runs once. render() rebuilds every
+      // row on each tap, so an unconditional animation replayed on all of them -
+      // which is what read as the box fluttering.
+      root.classList.add('rr-sheet-entering');
+      clearTimeout(enterTimer);
+      enterTimer=setTimeout(()=>root.classList.remove('rr-sheet-entering'),620);
+      render();
+    }
+    if(!isOpen){root.classList.remove('rr-sheet-entering');clearTimeout(enterTimer);}
+    lastOpen=isOpen;
     const pages=[...reader.querySelectorAll('.reader-modes button')].some(b=>b.textContent==='Pages'&&(b.classList.contains('active')||b.getAttribute('aria-pressed')==='true'));
     root.classList.toggle('rr-books-pages',pages);
     const key=reader.className+'|'+($('.reader-actions select:not(.rr-voice)')?.options.length||0)+'|'+!!$('.rr-listen')+'|'+contentsLabel();if(key!==signature){signature=key;if(isOpen)render();}
@@ -911,6 +922,7 @@
   // Apply the theme the preset implies once the reader exists. Choosing a
   // preset clicks the native theme button, but a preset restored from storage
   // never did - so the reader kept whatever theme it defaulted to.
+  let enterTimer = 0;
   let themeSynced = false;
   function syncPresetTheme() {
     if (themeSynced || !reader) return;
