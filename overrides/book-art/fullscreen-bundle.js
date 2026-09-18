@@ -790,6 +790,10 @@
   function setTheme(name) {
     const presets={Original:['Original',false,1.65,0,0,4,'light'],Quiet:['Palatino',false,1.8,.2,1,6,'dark'],Paper:['Serif',false,1.75,.1,.5,5,'light'],Bold:['System',true,1.62,0,0,4,'light'],Calm:['Palatino',false,1.9,.25,1.5,7,'sepia'],Focus:['Serif',false,2.05,.15,1,8,'light']};
     const p=presets[name];if(!p)return;[font,bold,line,chars,words,margins]=p;preset=name;justify=false;
+    // Picking a preset is a deliberate theme choice, so record the flag the
+    // reader checks - otherwise the next book would go back to following the
+    // app theme and silently undo this.
+    try { localStorage.setItem('reading-room-reader-theme-set','1'); } catch (_) {}
     const nativeTheme=[...reader.querySelectorAll('.theme-options button')].find(b=>b.textContent.toLowerCase()===p[6]);nativeTheme?.click();saveType();render();
   }
   function render() {

@@ -2129,3 +2129,87 @@ html[data-rr-theme="light"] .rr-books-menu[data-view=menu] > .rr-books-actions >
   background: rgba(120, 120, 128, .12) !important;
   color: #1c1c1e !important;
 }
+
+
+/* ==== v83: theme consistency, done properly ===============================
+ * Three faults, and the first two are mine.
+ *
+ * 1. My v81/v82 rules used `.rr-books-menu button`, which also matches the six
+ *    theme swatches. Those carry their own background/colour pairs - a Paper
+ *    swatch is cream with dark ink so you can see what you are choosing - and
+ *    my blanket rule overwrote the background while leaving their colour, which
+ *    is why Original, Paper and Calm became unreadable. Swatches are previews,
+ *    not chrome, and must be excluded from chrome styling.
+ *
+ * 2. Everything here has been fought with !important because two theme signals
+ *    are applied to the same elements: rr-theme-dark (the reader's book theme)
+ *    and data-rr-theme (the app's). One surface cannot honour both. The sheet
+ *    is chrome, so data-rr-theme wins, and rr-theme-dark is explicitly
+ *    neutralised for it rather than left to compete.
+ *
+ * 3. The sheet is a child of the reader shell, which sets a light background
+ *    and colour for a light book theme; the sheet inherited `color` from it.
+ *    Chrome states its own colour now.
+ * ---------------------------------------------------------------------- */
+
+/* --- the swatches keep their own colours, always -------------------------- */
+/* Restated after every chrome rule above so specificity and order both favour
+   them, and marked !important because the chrome rules are. */
+.rr-books-themes button[data-theme=original],
+.rr-books-themes button[data-theme=light] { background: #fff !important; color: #222 !important; }
+.rr-books-themes button[data-theme=quiet] { background: #4d4c52 !important; color: #eee !important; }
+.rr-books-themes button[data-theme=paper] { background: #eeeae1 !important; color: #332f29 !important; }
+.rr-books-themes button[data-theme=bold] { background: #fff !important; color: #111 !important; }
+.rr-books-themes button[data-theme=calm] { background: #f0dfbd !important; color: #443526 !important; }
+.rr-books-themes button[data-theme=focus] { background: #fffdf5 !important; color: #221f18 !important; }
+.rr-books-themes button[data-theme=sepia] { background: #f4e8ce !important; color: #433526 !important; }
+.rr-books-themes button[data-theme=dark] { background: #191919 !important; color: #ddd !important; }
+/* The selected swatch needs a ring that reads on both light and dark fills. */
+.rr-books-themes button[aria-pressed="true"] {
+  outline: 2.5px solid #007AFF !important;
+  outline-offset: -2.5px;
+}
+
+/* --- rr-theme-dark must not style chrome --------------------------------- */
+/* It describes the book, not the app. Left active it made the sheet follow
+   whichever theme the book happened to use. */
+html.rr-theme-dark .rr-books-menu,
+html.rr-theme-dark .rr-books-menu[data-view],
+html.rr-theme-dark .rr-books-menu[data-view=menu] {
+  background: unset;
+  color: unset;
+}
+html.rr-theme-dark .rr-books-menu > button,
+html.rr-theme-dark .rr-books-menu > header,
+html.rr-theme-dark .rr-books-menu > label,
+html.rr-theme-dark .rr-books-actions > button { background: unset; }
+
+/* --- chrome states its own colour, never inherits the page's ------------- */
+html[data-rr-theme="dark"] .rr-books-menu,
+html[data-rr-theme="dark"] .rr-books-menu * { color: #f5f5f7 !important; }
+html[data-rr-theme="light"] .rr-books-menu,
+html[data-rr-theme="light"] .rr-books-menu * { color: #1c1c1e !important; }
+@media (prefers-color-scheme: dark) {
+  html:not([data-rr-theme="light"]) .rr-books-menu,
+  html:not([data-rr-theme="light"]) .rr-books-menu * { color: #f5f5f7 !important; }
+}
+@media (prefers-color-scheme: light) {
+  html:not([data-rr-theme="dark"]) .rr-books-menu,
+  html:not([data-rr-theme="dark"]) .rr-books-menu * { color: #1c1c1e !important; }
+}
+/* ...except the swatches, which are previews of a page, not chrome. */
+.rr-books-themes button[data-theme=original],
+.rr-books-themes button[data-theme=light],
+.rr-books-themes button[data-theme=bold] { color: #222 !important; }
+.rr-books-themes button[data-theme=quiet] { color: #eee !important; }
+.rr-books-themes button[data-theme=paper] { color: #332f29 !important; }
+.rr-books-themes button[data-theme=calm] { color: #443526 !important; }
+.rr-books-themes button[data-theme=focus] { color: #221f18 !important; }
+.rr-books-themes button[data-theme=sepia] { color: #433526 !important; }
+.rr-books-themes button[data-theme=dark] { color: #ddd !important; }
+/* Their inner glyph spans must not be recoloured either. */
+.rr-books-themes button[data-theme] * { color: inherit !important; }
+
+/* Selects and range inputs inside the sheet follow chrome, not the page. */
+html[data-rr-theme="dark"] .rr-books-menu select { color: #f5f5f7 !important; }
+html[data-rr-theme="light"] .rr-books-menu select { color: #1c1c1e !important; }

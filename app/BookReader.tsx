@@ -320,12 +320,21 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     // deliberately. The effect below writes reading-room-reader-theme on every
     // run including mount, so its mere presence proves nothing - a separate
     // explicit flag is the only way to tell a real choice from that echo.
-    const chosen = localStorage.getItem("reading-room-reader-theme-set") === "1";
+    // One-time migration. The flag was added after this app had been used, so
+    // every existing device has reading-room-reader-theme set from the effect
+    // below (which writes on mount) but no flag - and would have been treated
+    // as "chosen", keeping the old light default forever. If the stored theme
+    // is light and no deliberate choice was ever recorded, treat it as unset.
+    let chosen = localStorage.getItem("reading-room-reader-theme-set") === "1";
+    if (!chosen && savedTheme === "light") {
+      try { localStorage.removeItem("reading-room-reader-theme"); } catch {}
+    }
     const appTheme = localStorage.getItem("reading-room-theme");
     const prefersDark = appTheme === "dark"
       || (appTheme !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    themeRef.current = chosen && (savedTheme === "dark" || savedTheme === "sepia" || savedTheme === "light")
-      ? savedTheme
+    const effectiveSaved = localStorage.getItem("reading-room-reader-theme") as ReaderTheme | null;
+    themeRef.current = chosen && (effectiveSaved === "dark" || effectiveSaved === "sepia" || effectiveSaved === "light")
+      ? effectiveSaved
       : prefersDark ? "dark" : "light";
     lineHeightRef.current = Math.min(2, Math.max(1.35, savedLineHeight));
     marginRef.current = Math.min(12, Math.max(2, savedMargin));
