@@ -2046,3 +2046,86 @@ html.rr-sheet-open .rr-books-menu {
   .rr-books-menu > * { animation: none !important; }
   .rr-sheet-btn, .rr-close-btn { transition: none; }
 }
+
+
+/* ==== v82: one theme signal for the reading sheet ========================= *
+ * The sheet's dark styling keyed off html.rr-theme-dark, which follows the
+ * READER's theme (reader-theme-dark), not the app's. So reading a light-themed
+ * book inside a dark app produced a light sheet on a dark screen - and the
+ * reverse. The sheet is app chrome, not page content, so it should follow the
+ * app theme like every other panel.
+ *
+ * It also has to beat the [data-view=menu] rules above, which hardcode
+ * #f4f4efdc / #111 with !important and have no dark variant at all.
+ * ---------------------------------------------------------------------- */
+
+/* The condition used throughout: explicit dark, or system dark without an
+   explicit light override. Repeated rather than nested because :is() with
+   :not() around an attribute selector is inconsistent on older WebKit. */
+html[data-rr-theme="dark"] .rr-books-menu,
+html[data-rr-theme="dark"] .rr-books-menu[data-view],
+html[data-rr-theme="dark"] .rr-books-menu[data-view=menu] {
+  background: rgba(38, 38, 40, .95) !important;
+  border-color: rgba(255, 255, 255, .14) !important;
+  color: #f5f5f7 !important;
+}
+html[data-rr-theme="dark"] .rr-books-menu > button,
+html[data-rr-theme="dark"] .rr-books-menu > header,
+html[data-rr-theme="dark"] .rr-books-menu > label,
+html[data-rr-theme="dark"] .rr-books-menu .rr-books-actions > button,
+html[data-rr-theme="dark"] .rr-books-menu[data-view=menu] > button,
+html[data-rr-theme="dark"] .rr-books-menu[data-view=menu] > .rr-books-actions > button {
+  background: rgba(120, 120, 128, .24) !important;
+  color: #f5f5f7 !important;
+}
+/* The primary row keeps its emphasis, inverted for dark. */
+html[data-rr-theme="dark"] .rr-books-menu[data-view=menu] > button:first-child {
+  background: #f5f5f7 !important;
+  color: #1c1c1e !important;
+}
+html[data-rr-theme="dark"] .rr-books-menu[data-view=Contents] > button[aria-current=location] {
+  background: #f5f5f7 !important;
+  color: #1c1c1e !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-rr-theme="light"]) .rr-books-menu,
+  html:not([data-rr-theme="light"]) .rr-books-menu[data-view],
+  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=menu] {
+    background: rgba(38, 38, 40, .95) !important;
+    border-color: rgba(255, 255, 255, .14) !important;
+    color: #f5f5f7 !important;
+  }
+  html:not([data-rr-theme="light"]) .rr-books-menu > button,
+  html:not([data-rr-theme="light"]) .rr-books-menu > header,
+  html:not([data-rr-theme="light"]) .rr-books-menu > label,
+  html:not([data-rr-theme="light"]) .rr-books-menu .rr-books-actions > button,
+  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=menu] > button,
+  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=menu] > .rr-books-actions > button {
+    background: rgba(120, 120, 128, .24) !important;
+    color: #f5f5f7 !important;
+  }
+  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=menu] > button:first-child,
+  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=Contents] > button[aria-current=location] {
+    background: #f5f5f7 !important;
+    color: #1c1c1e !important;
+  }
+}
+
+/* Light: state it outright so the reader's own theme cannot leak in either. */
+html[data-rr-theme="light"] .rr-books-menu,
+html[data-rr-theme="light"] .rr-books-menu[data-view],
+html[data-rr-theme="light"] .rr-books-menu[data-view=menu] {
+  background: rgba(250, 250, 251, .95) !important;
+  border-color: rgba(0, 0, 0, .10) !important;
+  color: #1c1c1e !important;
+}
+html[data-rr-theme="light"] .rr-books-menu > button,
+html[data-rr-theme="light"] .rr-books-menu > header,
+html[data-rr-theme="light"] .rr-books-menu > label,
+html[data-rr-theme="light"] .rr-books-menu .rr-books-actions > button,
+html[data-rr-theme="light"] .rr-books-menu[data-view=menu] > button,
+html[data-rr-theme="light"] .rr-books-menu[data-view=menu] > .rr-books-actions > button {
+  background: rgba(120, 120, 128, .12) !important;
+  color: #1c1c1e !important;
+}

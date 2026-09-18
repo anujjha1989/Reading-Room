@@ -934,6 +934,17 @@
       try {
         var p = f.contentWindow.location.pathname;
         if (p === "/" || p === "/index.html") { closeOverlay(); return; }
+        // Push the app's current theme into the overlay. Both read the same
+        // localStorage key at boot, but the overlay is a separate document that
+        // boots once and is then cached - so after a theme change the library
+        // and the settings page could disagree until a full reload. The parent
+        // is authoritative here.
+        var d = f.contentDocument;
+        if (d && d.documentElement) {
+          var t = document.documentElement.dataset.rrTheme;
+          if (t) d.documentElement.dataset.rrTheme = t;
+          else delete d.documentElement.dataset.rrTheme;
+        }
       } catch (e) { /* cross-origin or settings page not available */ }
     });
     document.documentElement.classList.add("rr-settings-open");
