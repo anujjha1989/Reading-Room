@@ -598,6 +598,12 @@
 
     if (cursor >= queue.length) { await advanceSection(state, mine); return; }
 
+    // play() renders before the first document has been collected, and each
+    // completed clip advances the cursor before returning here. Refresh the
+    // controls now that the queue/cursor are authoritative so the compact and
+    // expanded Previous/Next buttons never lag one sentence behind playback.
+    render();
+
     var item = queue[cursor];
     var ok = await bringIntoView(state, item, mine);
     if (!playing || paused || mine !== epoch) return;

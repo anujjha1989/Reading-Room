@@ -1005,7 +1005,7 @@
     root.classList.toggle('rr-books-pages',pages);
     const aloudState=typeof window.rrGetReadAloudState==='function'?window.rrGetReadAloudState():null;
     const key=reader.className+'|'+($('.reader-actions select:not(.rr-voice)')?.options.length||0)+'|'+!!$('.rr-listen')+'|'+contentsLabel()
-      +'|'+(aloudState?`${aloudState.playing}:${aloudState.paused}:${aloudState.sleepMinutes}`:'');
+      +'|'+(aloudState?`${aloudState.playing}:${aloudState.paused}:${aloudState.sleepMinutes}:${aloudState.canPrevious}:${aloudState.canNext}`:'');
     if(key!==signature){signature=key;if(isOpen)render();}
     applyType();
   }

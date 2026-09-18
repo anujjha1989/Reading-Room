@@ -21,6 +21,8 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 - Cancelled stale Read Aloud page navigation immediately on Pause or Skip, so
   an old sentence can no longer keep turning Pages in the background and leave
   the reader on a blank page.
+- Refreshed Read Aloud controls only after the sentence queue and cursor are
+  current, so Previous/Next no longer lag one sentence behind playback.
 - Stopped automatic narration following from fighting a manual scroll; it now
   waits for the reader's gesture to settle before bringing spoken text back
   into view.
