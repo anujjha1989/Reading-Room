@@ -709,18 +709,45 @@
       || buttons.find(b => get(b).startsWith(label))
       || buttons.find(b => get(b).indexOf(label) !== -1);
   }
+  // Real icons rather than ASCII stand-ins: ▶ ⌕ aA ▯ ••• read as placeholders
+  // at this size, and the sheet is meant to be scanned by shape.
+  const ICON = {
+    play:'<path d="M7 4.5v15l12-7.5Z" fill="currentColor" stroke="none"/>',
+    stop:'<rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" stroke="none"/>',
+    search:'<circle cx="11" cy="11" r="6"/><path d="M15.5 15.5 20 20"/>',
+    text:'<path d="M4 6h16M4 12h10M4 18h13"/>',
+    bookmark:'<path d="M7 4h10v16l-5-4-5 4Z"/>',
+    more:'<circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
+    contents:'<path d="M4 6h2M9 6h11M4 12h2M9 12h11M4 18h2M9 18h11"/>',
+    gear:'<circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/>',
+    back:'<path d="M14 6l-6 6 6 6"/>',
+  };
+  function glyph(name) {
+    if (!ICON[name]) return null;
+    const span = document.createElement('span');
+    span.setAttribute('aria-hidden', 'true');
+    span.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+      + ' stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"'
+      + ' style="width:1em;height:1em;display:block">' + ICON[name] + '</svg>';
+    return span;
+  }
+
   function button(label, action, icon) {
     const b = document.createElement('button'); b.type = 'button';
     b.setAttribute('aria-label', label);
     const text = document.createElement('span'); text.textContent = label; b.append(text);
-    if (icon) { const i = document.createElement('span'); i.textContent = icon; i.setAttribute('aria-hidden','true'); b.append(i); }
+    if (icon) {
+      const named = glyph(icon);
+      if (named) b.append(named);
+      else { const i = document.createElement('span'); i.textContent = icon; i.setAttribute('aria-hidden','true'); b.append(i); }
+    }
     b.onclick = e => { e.stopPropagation(); action(); }; return b;
   }
   function go(name) { view = name; signature = ''; render(); }
   function proxy(label) { const b = native(label); if (b) b.click(); }
   function heading(label) {
     const h = document.createElement('header'); const strong = document.createElement('strong'); strong.textContent = label;
-    h.append(strong, button('Back to reading menu', () => go('menu'), '‹'));
+    h.append(strong, button('Back to reading menu', () => go('menu'), 'back'));
     host.append(h);
   }
   function row(label, action, icon) { host.append(button(label, action, icon)); }
@@ -770,15 +797,15 @@
     host.replaceChildren(); host.dataset.view = view;
     host.setAttribute('aria-label', view === 'menu' ? 'Reading menu' : view);
     if (view === 'menu') {
-      row(contentsLabel(),()=>go('Contents'),'☷');
+      row(contentsLabel(),()=>go('Contents'),'contents');
       host.lastElementChild.title=$('[data-rr-progress]')?.dataset.rrProgressEstimated==='true'?'Estimated whole-book progress':'Whole-book progress';
-      if(native('Search inside book'))row('Search Book',()=>{close();proxy('Search inside book');},'⌕');
-      if($('.reader-settings'))row('Themes & Settings',()=>go('Themes & Settings'),'aA');
+      if(native('Search inside book'))row('Search Book',()=>{close();proxy('Search inside book');},'search');
+      if($('.reader-settings'))row('Themes & Settings',()=>go('Themes & Settings'),'text');
       const textMode=document.querySelector('.rr-text-mode');
       const actions=document.createElement('div'); actions.className='rr-books-actions';
-      if($('.rr-listen'))actions.append(button('Read Aloud',()=>go('Read Aloud'),'▶'));
-      actions.append(button('Bookmarks',()=>{close(); const b=[...reader.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')||'').startsWith('Bookmarks'));b?.click();},'▯'));
-      actions.append(button('More',()=>go('More'),'•••'));
+      if($('.rr-listen'))actions.append(button('Read Aloud',()=>go('Read Aloud'),'play'));
+      actions.append(button('Bookmarks',()=>{close(); const b=[...reader.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')||'').startsWith('Bookmarks'));b?.click();},'bookmark'));
+      actions.append(button('More',()=>go('More'),'more'));
       host.append(actions);
     } else if(view === 'Contents') {
       heading(contentsLabel()); const select=$('.reader-actions select:not(.rr-voice)');
@@ -790,7 +817,7 @@
       sizes.append(button('Smaller text',()=>proxy('Decrease text size'),'A−'),button('Larger text',()=>proxy('Increase text size'),'A+'));host.append(sizes);
       const themes=document.createElement('div');themes.className='rr-books-themes';
       for(const name of ['Original','Quiet','Paper','Bold','Calm','Focus']){const b=button(name,()=>setTheme(name),'Aa');b.dataset.theme=name.toLowerCase();b.setAttribute('aria-pressed',String(preset===name));themes.append(b);}host.append(themes);
-      row('Customise',()=>go('Customise Theme'),'⚙');
+      row('Customise',()=>go('Customise Theme'),'gear');
       const modes=document.createElement('div');modes.className='rr-books-actions';
       for(const original of reader.querySelectorAll('.reader-modes button')){const b=button(original.textContent,()=>{original.click();setTimeout(render,100);});b.setAttribute('aria-pressed',original.getAttribute('aria-pressed')||String(original.classList.contains('active')));modes.append(b);}host.append(modes);
       const label=document.createElement('label');label.textContent='Font';const select=document.createElement('select');select.setAttribute('aria-label','Font');
@@ -809,7 +836,7 @@
       const justifyButton=button('Justify Text',()=>{justify=!justify;preset='Custom';saveType();render();},justify?'✓':'');justifyButton.setAttribute('aria-pressed',String(justify));host.append(justifyButton);
       row('Reset Theme',()=>{font='Original';bold=false;line=1.65;chars=0;words=0;margins=4;justify=false;preset='Original';setTheme('Original');},'↺');
     } else if(view === 'Read Aloud') {
-      heading(view);const listen=$('.rr-listen');row(listen?.getAttribute('aria-pressed')==='true'?'Stop reading':'Start reading',()=>{listen?.click();setTimeout(render,100);},'▶');
+      heading(view);const listen=$('.rr-listen');row(listen?.getAttribute('aria-pressed')==='true'?'Stop reading':'Start reading',()=>{listen?.click();setTimeout(render,100);},listen?.getAttribute('aria-pressed')==='true'?'stop':'play');
       // Voice: an icon instead of the word, to match the rest of the sheet.
       const original=$('.rr-voice');
       if(original){

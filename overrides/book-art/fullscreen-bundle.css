@@ -1928,3 +1928,121 @@ html #rr-filter-btn:active, html #rr-sort-btn:active, html #rr-settings-link:act
     transform: none;
   }
 }
+
+
+/* ==== v81: the reading sheet, tightened =================================== *
+ * It was a stack of full-width text rows on a near-transparent panel, so it
+ * blended into the page it floated over and read as a list rather than a
+ * control surface. Narrower, darker, properly separated from the page, with
+ * icons carrying the meaning and labels supporting them.
+ * ---------------------------------------------------------------------- */
+
+.rr-books-menu {
+  width: min(310px, calc(100vw - 32px)) !important;
+  padding: 10px !important;
+  border-radius: 20px !important;
+  gap: 6px !important;
+  /* A real surface: opaque enough to read against text, with a border and a
+     shadow deep enough to separate it from the page. */
+  background: rgba(252, 252, 253, .92) !important;
+  border: 1px solid rgba(0, 0, 0, .10) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .28), 0 2px 8px rgba(0, 0, 0, .10) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(1.6) !important;
+  backdrop-filter: blur(30px) saturate(1.6) !important;
+}
+.rr-books-menu > header { padding: 4px 8px 8px !important; }
+.rr-books-menu > header strong {
+  font: 600 15px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  letter-spacing: -.01em;
+}
+
+/* Rows: compact, icon first, label second. */
+.rr-books-menu button,
+.rr-books-menu > label {
+  min-height: 42px !important;
+  padding: 0 10px !important;
+  border-radius: 12px !important;
+  font-size: 14.5px !important;
+  gap: 10px !important;
+  background: rgba(120, 120, 128, .10) !important;
+}
+.rr-books-menu button:active { background: rgba(120, 120, 128, .22) !important; }
+/* The trailing glyph column is the icon; give it a fixed width so labels line
+   up down the sheet instead of each row centring its own text. */
+.rr-books-menu button > span:last-child:not(:only-child) {
+  flex: 0 0 24px; text-align: center; font-size: 16px; opacity: .8;
+}
+
+/* The action grid at the top of the root view: icon above label, Books-style. */
+.rr-books-actions { gap: 6px !important; }
+.rr-books-actions button {
+  flex-direction: column !important;
+  gap: 4px !important;
+  min-height: 62px !important;
+  padding: 8px 4px !important;
+  font-size: 11.5px !important;
+}
+.rr-books-actions button > span:last-child:not(:only-child) {
+  order: -1; flex: 0 0 auto; font-size: 19px; opacity: .9;
+}
+
+/* Theme swatches: smaller, so six fit without dominating the sheet. */
+.rr-books-themes { gap: 6px !important; }
+.rr-books-themes button {
+  min-height: 52px !important;
+  border-radius: 12px !important;
+  font-size: 12px !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-rr-theme="light"]) .rr-books-menu {
+    background: rgba(38, 38, 40, .94) !important;
+    border-color: rgba(255, 255, 255, .12) !important;
+  }
+  html:not([data-rr-theme="light"]) .rr-books-menu button,
+  html:not([data-rr-theme="light"]) .rr-books-menu > label {
+    background: rgba(120, 120, 128, .22) !important;
+  }
+}
+html[data-rr-theme="dark"] .rr-books-menu,
+html.rr-theme-dark .rr-books-menu {
+  background: rgba(38, 38, 40, .94) !important;
+  border-color: rgba(255, 255, 255, .12) !important;
+}
+html[data-rr-theme="dark"] .rr-books-menu button,
+html.rr-theme-dark .rr-books-menu button,
+html[data-rr-theme="dark"] .rr-books-menu > label,
+html.rr-theme-dark .rr-books-menu > label {
+  background: rgba(120, 120, 128, .22) !important;
+}
+
+/* --- motion on the reading controls -------------------------------------- */
+/* The ≡ and ✕ fade in rather than snapping when chrome returns. */
+.rr-sheet-btn, .rr-close-btn {
+  transition: opacity .18s ease, transform .18s cubic-bezier(.22, 1, .36, 1);
+}
+html.rr-hide-chrome .rr-sheet-btn,
+html.rr-hide-chrome .rr-close-btn { opacity: 0; transform: scale(.85); }
+.rr-sheet-btn:active, .rr-close-btn:active { transform: scale(.88); }
+
+/* The sheet rises from the ≡ in the bottom-right corner it belongs to. */
+html.rr-sheet-open .rr-books-menu {
+  transform-origin: bottom right;
+  animation: rr-sheet-in .24s cubic-bezier(.22, 1, .36, 1) both !important;
+}
+@keyframes rr-sheet-in {
+  from { opacity: 0; transform: scale(.92) translateY(18px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+/* Switching views inside the sheet slides the new panel in. */
+.rr-books-menu > * { animation: rr-row-in .2s ease both; }
+@keyframes rr-row-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.rr-sheet-open .rr-books-menu,
+  .rr-books-menu > * { animation: none !important; }
+  .rr-sheet-btn, .rr-close-btn { transition: none; }
+}

@@ -7,13 +7,15 @@
 # hashed, so copying is additive: pages already open keep working against the
 # files they loaded.
 #
-# It deliberately does NOT touch standalone-server.mjs, catalog.json, or
-# anything under /var/lib/reading-room.
+# It installs standalone-server.mjs when one is staged, and otherwise leaves it
+# alone. It deliberately does NOT touch catalog.json or anything under
+# /var/lib/reading-room.
 set -euo pipefail
 umask 022
 
 STAGE=/home/anujjha1989/rr-deploy/stage
 SITE=/opt/reading-room/current/site
+RELEASE=/opt/reading-room/current
 
 [ -d "$STAGE/assets" ] || { echo "reading-room-deploy: no staged assets" >&2; exit 1; }
 [ -f "$STAGE/index.html" ] || { echo "reading-room-deploy: no staged index.html" >&2; exit 1; }
@@ -35,6 +37,14 @@ cp -f "$STAGE/index.html" "$SITE/index.html"
 # instead of skipping the file.
 if [ -f "$STAGE/settings.html" ]; then
   cp -f "$STAGE/settings.html" "$SITE/settings.html"
+fi
+
+# The server process itself, when staged. Optional so a stage without one still
+# installs, and so a rollback that only carries the HTML still works.
+if [ -f "$STAGE/standalone-server.mjs" ]; then
+  cp -f "$STAGE/standalone-server.mjs" "$RELEASE/standalone-server.mjs"
+  chown root:root "$RELEASE/standalone-server.mjs"
+  chmod 0644 "$RELEASE/standalone-server.mjs"
 fi
 
 chown root:root "$SITE"/index.html

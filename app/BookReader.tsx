@@ -123,10 +123,19 @@ function themeColors(theme: ReaderTheme) {
   return { ink: "#26332f", paper: "#fffdf7", link: "#4d6b5d" };
 }
 
-function epubStyles(theme: ReaderTheme, lineHeight: number, margin: number) {
+function epubStyles(theme: ReaderTheme, lineHeight: number, margin: number, paginated = false) {
   const colors = themeColors(theme);
   return {
-    ":root": { color: `${colors.ink} !important`, background: `${colors.paper} !important`, overflow: "hidden auto !important" },
+    // overflow-y must be hidden when paginated. epub.js lays a paginated
+    // section out as CSS columns and moves between them by translating the
+    // content; an auto overflow lets the text scroll out of the column box
+    // instead, which is why pages mode rendered blank. Scrolled flow does need
+    // it, so the value follows the flow rather than being fixed.
+    ":root": {
+      color: `${colors.ink} !important`,
+      background: `${colors.paper} !important`,
+      overflow: paginated ? "hidden !important" : "hidden auto !important",
+    },
     "html, body": { color: `${colors.ink} !important`, background: `${colors.paper} !important`, margin: "0 !important", "box-sizing": "border-box !important", "overflow-x": "hidden !important" },
     body: { "font-family": "Georgia, serif !important", "line-height": `${lineHeight} !important`, padding: `1.25rem max(16px, ${margin}%) 2.5rem !important`, "word-wrap": "break-word !important" },
     "*, *::before, *::after": { "box-sizing": "border-box !important" },
@@ -368,7 +377,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         renditionRef.current = rendition;
         if (mode === "scroll") stabilizeContinuousScroll(rendition);
         rendition.spread(mode === "scroll" || mobile ? "none" : "auto", 980);
-        rendition.themes.default(epubStyles(themeRef.current, lineHeightRef.current, marginRef.current));
+        rendition.themes.default(epubStyles(themeRef.current, lineHeightRef.current, marginRef.current, mode !== "scroll"));
         // The saved size, not a hardcoded 100%: this runs after the size has
         // been restored from localStorage, so pinning it to 100 discarded the
         // preference and left the A-/A+ buttons fighting a stale baseline.
@@ -525,7 +534,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     themeRef.current = theme;
     lineHeightRef.current = lineHeight;
     marginRef.current = margin;
-    renditionRef.current?.themes.default(epubStyles(theme, lineHeight, margin));
+    renditionRef.current?.themes.default(epubStyles(theme, lineHeight, margin, readingModeRef.current !== "scroll"));
     mobiViewRef.current?.renderer?.setStyles(mobiStyles(fontSize, theme, lineHeight, margin));
     localStorage.setItem("reading-room-reader-theme", theme);
     localStorage.setItem("reading-room-line-height", String(lineHeight));
