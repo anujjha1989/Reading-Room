@@ -57,6 +57,11 @@ if [ "${1:-}" != "--no-build" ]; then
   echo "==> build contains current source"
 fi
 
+# Static checks the syntax parser cannot do: a function defined and never
+# called is valid JavaScript and silently does nothing, which is how a fix
+# shipped four times without taking effect.
+node deploy/check-overrides.mjs
+
 echo "==> staging"
 rm -rf dist/stage && mkdir -p dist/stage/assets
 cp dist/client/assets/*.js dist/client/assets/*.css dist/stage/assets/

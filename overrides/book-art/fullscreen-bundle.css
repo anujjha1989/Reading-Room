@@ -2186,16 +2186,16 @@ html.rr-theme-dark .rr-books-actions > button { background: unset; }
 
 /* --- chrome states its own colour, never inherits the page's ------------- */
 html[data-rr-theme="dark"] .rr-books-menu,
-html[data-rr-theme="dark"] .rr-books-menu * { color: #f5f5f7 !important; }
+html[data-rr-theme="dark"] .rr-books-menu *:not(.rr-books-themes):not(.rr-books-themes *) { color: #f5f5f7 !important; }
 html[data-rr-theme="light"] .rr-books-menu,
-html[data-rr-theme="light"] .rr-books-menu * { color: #1c1c1e !important; }
+html[data-rr-theme="light"] .rr-books-menu *:not(.rr-books-themes):not(.rr-books-themes *) { color: #1c1c1e !important; }
 @media (prefers-color-scheme: dark) {
   html:not([data-rr-theme="light"]) .rr-books-menu,
-  html:not([data-rr-theme="light"]) .rr-books-menu * { color: #f5f5f7 !important; }
+  html:not([data-rr-theme="light"]) .rr-books-menu *:not(.rr-books-themes):not(.rr-books-themes *) { color: #f5f5f7 !important; }
 }
 @media (prefers-color-scheme: light) {
   html:not([data-rr-theme="dark"]) .rr-books-menu,
-  html:not([data-rr-theme="dark"]) .rr-books-menu * { color: #1c1c1e !important; }
+  html:not([data-rr-theme="dark"]) .rr-books-menu *:not(.rr-books-themes):not(.rr-books-themes *) { color: #1c1c1e !important; }
 }
 /* ...except the swatches, which are previews of a page, not chrome. */
 .rr-books-themes button[data-theme=original],
@@ -2213,3 +2213,20 @@ html[data-rr-theme="light"] .rr-books-menu * { color: #1c1c1e !important; }
 /* Selects and range inputs inside the sheet follow chrome, not the page. */
 html[data-rr-theme="dark"] .rr-books-menu select { color: #f5f5f7 !important; }
 html[data-rr-theme="light"] .rr-books-menu select { color: #1c1c1e !important; }
+
+
+/* The swatch colours, stated at a specificity that beats every chrome rule in
+   this file. Earlier attempts used `.rr-books-themes button[data-theme=x]`
+   (0,2,1), which lost to `html[data-rr-theme=dark] .rr-books-menu *` (0,2,2) -
+   so cream swatches were given white text and became unreadable. Anchoring on
+   html and the menu puts these at 0,4,2. */
+html .rr-books-menu .rr-books-themes button[data-theme][data-theme=original],
+html .rr-books-menu .rr-books-themes button[data-theme][data-theme=light] { background: #fff !important; color: #222 !important; }
+html .rr-books-menu .rr-books-themes button[data-theme][data-theme=quiet] { background: #4d4c52 !important; color: #eee !important; }
+html .rr-books-menu .rr-books-themes button[data-theme][data-theme=paper] { background: #eeeae1 !important; color: #332f29 !important; }
+html .rr-books-menu .rr-books-themes button[data-theme][data-theme=bold] { background: #fff !important; color: #111 !important; }
+html .rr-books-menu .rr-books-themes button[data-theme][data-theme=calm] { background: #f0dfbd !important; color: #443526 !important; }
+html .rr-books-menu .rr-books-themes button[data-theme][data-theme=focus] { background: #fffdf5 !important; color: #221f18 !important; }
+html .rr-books-menu .rr-books-themes button[data-theme][data-theme=sepia] { background: #f4e8ce !important; color: #433526 !important; }
+html .rr-books-menu .rr-books-themes button[data-theme][data-theme=dark] { background: #191919 !important; color: #ddd !important; }
+html .rr-books-menu .rr-books-themes button[data-theme] * { color: inherit !important; }

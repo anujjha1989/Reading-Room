@@ -773,6 +773,20 @@
   }
   let font='Original',bold=false,line=1.65,chars=0,words=0,margins=4,justify=false,preset='Original';
   try { const s=JSON.parse(localStorage.getItem('rr-books-type')||'{}');font=s.font||font;bold=!!s.bold;line=Number(s.line??line);chars=Number(s.chars??chars);words=Number(s.words??words);margins=Number(s.margins??margins);justify=!!s.justify;preset=s.preset||preset; } catch (_) {}
+  // The preset carries a book theme - Original and Paper are light, Quiet is
+  // dark - and it is saved on first use, so a stored 'Original' pinned every
+  // book to light however the app was themed. Until a theme is deliberately
+  // chosen, start from a preset that matches the app: Quiet for dark, Original
+  // for light. Typography from the stored preset is kept either way.
+  try {
+    if (localStorage.getItem('reading-room-reader-theme-set') !== '1') {
+      const appTheme = localStorage.getItem('reading-room-theme');
+      const wantDark = appTheme === 'dark'
+        || (appTheme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (wantDark && (preset === 'Original' || preset === 'Paper' || preset === 'Focus' || preset === 'Bold')) preset = 'Quiet';
+      else if (!wantDark && preset === 'Quiet') preset = 'Original';
+    }
+  } catch (_) {}
   function applyType() {
     const families = {Original:'',Serif:'Georgia, serif',Palatino:'Palatino, "Palatino Linotype", serif',Helvetica:'Helvetica, Arial, sans-serif',System:'-apple-system, BlinkMacSystemFont, sans-serif'};
     if (!(font in families)) font = 'Original';
@@ -883,7 +897,8 @@
   }
   function sync() {
     reader=document.querySelector('.reader-shell');root.classList.toggle('rr-books-controls',!!reader);
-    if(!reader){if(host)host.hidden=true;if(dismissZone)dismissZone.hidden=true;lastOpen=false;return;}
+    if(!reader){if(host)host.hidden=true;if(dismissZone)dismissZone.hidden=true;lastOpen=false;themeSynced=false;return;}
+    syncPresetTheme();
     if(!host){host=document.createElement('section');host.className='rr-books-menu';host.setAttribute('role','dialog');document.body.append(host);}
     if(!dismissZone){dismissZone=button('Dismiss settings',close);dismissZone.className='rr-books-dismiss';document.body.append(dismissZone);}
     const isOpen=open();host.hidden=!isOpen;dismissZone.hidden=!isOpen;
@@ -893,6 +908,25 @@
     const key=reader.className+'|'+($('.reader-actions select:not(.rr-voice)')?.options.length||0)+'|'+!!$('.rr-listen')+'|'+contentsLabel();if(key!==signature){signature=key;if(isOpen)render();}
     applyType();
   }
+  // Apply the theme the preset implies once the reader exists. Choosing a
+  // preset clicks the native theme button, but a preset restored from storage
+  // never did - so the reader kept whatever theme it defaulted to.
+  let themeSynced = false;
+  function syncPresetTheme() {
+    if (themeSynced || !reader) return;
+    try {
+      if (localStorage.getItem('reading-room-reader-theme-set') === '1') { themeSynced = true; return; }
+      const presets={Original:'light',Quiet:'dark',Paper:'light',Bold:'light',Calm:'sepia',Focus:'light'};
+      const want = presets[preset];
+      if (!want) { themeSynced = true; return; }
+      const buttons = [...reader.querySelectorAll('.theme-options button')];
+      if (!buttons.length) return;                   // reader not ready yet
+      const target = buttons.find(b => b.textContent.toLowerCase() === want);
+      if (target && !target.classList.contains('active')) target.click();
+      themeSynced = true;
+    } catch (_) { themeSynced = true; }
+  }
+
   function start(){sync();setInterval(sync,600);window.addEventListener?.('rr-close-reading-menu',close);document.addEventListener('keydown',e=>{if(e.key==='Escape'&&open()){e.preventDefault();e.stopImmediatePropagation();view==='menu'?close():go('menu');}},true);}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
