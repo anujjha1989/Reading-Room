@@ -916,9 +916,14 @@
     if (themeSynced || !reader) return;
     try {
       if (localStorage.getItem('reading-room-reader-theme-set') === '1') { themeSynced = true; return; }
-      const presets={Original:'light',Quiet:'dark',Paper:'light',Bold:'light',Calm:'sepia',Focus:'light'};
-      const want = presets[preset];
-      if (!want) { themeSynced = true; return; }
+      // Derive the wanted theme from the app, not from `preset`. preset is a
+      // module-load snapshot and also encodes typography, so a stored
+      // 'Original' meant light forever. With no deliberate choice recorded the
+      // app theme is the only correct source.
+      const appTheme = localStorage.getItem('reading-room-theme');
+      const wantDark = appTheme === 'dark'
+        || (appTheme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const want = wantDark ? 'dark' : 'light';
       const buttons = [...reader.querySelectorAll('.theme-options button')];
       if (!buttons.length) return;                   // reader not ready yet
       const target = buttons.find(b => b.textContent.toLowerCase() === want);

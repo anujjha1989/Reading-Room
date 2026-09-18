@@ -2230,3 +2230,48 @@ html .rr-books-menu .rr-books-themes button[data-theme][data-theme=focus] { back
 html .rr-books-menu .rr-books-themes button[data-theme][data-theme=sepia] { background: #f4e8ce !important; color: #433526 !important; }
 html .rr-books-menu .rr-books-themes button[data-theme][data-theme=dark] { background: #191919 !important; color: #ddd !important; }
 html .rr-books-menu .rr-books-themes button[data-theme] * { color: inherit !important; }
+
+
+/* ==== v90: inverted rows need inverted text ==============================
+ * Two rows are deliberately given a light fill in dark mode for emphasis: the
+ * first row of the root menu (Contents) and the current chapter in the Contents
+ * list. Their labels are in a <span>, and the chrome rule paints every span
+ * #f5f5f7 - so both were white text on a white pill, i.e. invisible.
+ *
+ * The inverted rows now state their own colour, and state it for their children
+ * too, since that is where the text actually is.
+ * ---------------------------------------------------------------------- */
+html[data-rr-theme="dark"] .rr-books-menu[data-view=menu] > button:first-child,
+html[data-rr-theme="dark"] .rr-books-menu[data-view=menu] > button:first-child *,
+html[data-rr-theme="dark"] .rr-books-menu[data-view=Contents] > button[aria-current=location],
+html[data-rr-theme="dark"] .rr-books-menu[data-view=Contents] > button[aria-current=location] * {
+  color: #14110f !important;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=menu] > button:first-child,
+  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=menu] > button:first-child *,
+  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=Contents] > button[aria-current=location],
+  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=Contents] > button[aria-current=location] * {
+    color: #14110f !important;
+  }
+}
+/* Light mode: the same rows invert the other way. */
+html[data-rr-theme="light"] .rr-books-menu[data-view=menu] > button:first-child,
+html[data-rr-theme="light"] .rr-books-menu[data-view=menu] > button:first-child *,
+html[data-rr-theme="light"] .rr-books-menu[data-view=Contents] > button[aria-current=location],
+html[data-rr-theme="light"] .rr-books-menu[data-view=Contents] > button[aria-current=location] * {
+  color: #f7f3ec !important;
+}
+
+/* The Contents list is long and every row was the same weight, which is why it
+   read as a grey wall. Chapter rows sit back; the section headings and the
+   current position come forward. */
+.rr-books-menu[data-view=Contents] > button {
+  min-height: 38px !important;
+  font-size: 14px !important;
+  opacity: .82;
+}
+.rr-books-menu[data-view=Contents] > button[aria-current=location] {
+  opacity: 1;
+  font-weight: 600 !important;
+}
