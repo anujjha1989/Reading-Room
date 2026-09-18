@@ -4,6 +4,10 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+No unreleased changes.
+
+## v95 — 19 September 2026
+
 ### Changed
 
 - Added Previous sentence, Pause/Resume and Next sentence as one compact Read
@@ -28,6 +32,17 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 - Stopped automatic narration following from fighting a manual scroll; it now
   waits for the reader's gesture to settle before bringing spoken text back
   into view.
+
+### Validation
+
+- Rebuilt and deployed the complete application, then verified the live v95
+  assets and Settings/About version on the Pi.
+- Exercised William Trevor in Pages mode from pages 6–9 and across the next
+  chapter, with visible text on every page.
+- Scrolled through the Chapter 1 boundary in both directions with no position
+  jump and no more than two live chapter frames.
+- Verified collapsed and expanded Read Aloud controls, persistent Pause,
+  sentence skipping while paused, and two timer taps producing 60 minutes.
 
 ## v92 — 18 September 2026
 
