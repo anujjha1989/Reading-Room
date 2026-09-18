@@ -721,6 +721,8 @@
     contents:'<path d="M4 6h2M9 6h11M4 12h2M9 12h11M4 18h2M9 18h11"/>',
     gear:'<circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/>',
     back:'<path d="M14 6l-6 6 6 6"/>',
+    share:'<path d="M12 16V4M8 8l4-4 4 4"/><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/>',
+    chevron:'<path d="M9 6l6 6-6 6"/>',
   };
   function glyph(name) {
     if (!ICON[name]) return null;
@@ -815,32 +817,59 @@
     host.replaceChildren(); host.dataset.view = view;
     host.setAttribute('aria-label', view === 'menu' ? 'Reading menu' : view);
     if (view === 'menu') {
+      // Contents is the only full-width row: it carries position, which is
+      // information rather than just an action. Everything else is an equal
+      // icon tile, so the row is a toolbar instead of four more pills.
       row(contentsLabel(),()=>go('Contents'),'contents');
       host.lastElementChild.title=$('[data-rr-progress]')?.dataset.rrProgressEstimated==='true'?'Estimated whole-book progress':'Whole-book progress';
-      if(native('Search inside book'))row('Search Book',()=>{close();proxy('Search inside book');},'search');
-      if($('.reader-settings'))row('Themes & Settings',()=>go('Themes & Settings'),'text');
-      const textMode=document.querySelector('.rr-text-mode');
-      const actions=document.createElement('div'); actions.className='rr-books-actions';
-      if($('.rr-listen'))actions.append(button('Read Aloud',()=>go('Read Aloud'),'play'));
-      actions.append(button('Bookmarks',()=>{close(); const b=[...reader.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')||'').startsWith('Bookmarks'));b?.click();},'bookmark'));
-      actions.append(button('More',()=>go('More'),'more'));
+      const actions=document.createElement('div'); actions.className='rr-books-actions rr-books-toolbar';
+      if(native('Search inside book'))actions.append(button('Search',()=>{close();proxy('Search inside book');},'search'));
+      if($('.rr-listen'))actions.append(button('Aloud',()=>go('Read Aloud'),'play'));
+      actions.append(button('Marks',()=>{close(); const b=[...reader.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')||'').startsWith('Bookmarks'));b?.click();},'bookmark'));
+      if($('.reader-settings'))actions.append(button('Text',()=>go('Themes & Settings'),'text'));
       host.append(actions);
+      // 'More' held Share and the text-mode toggle. A menu item called More
+      // inside a menu is a failure to decide, so those move to Themes.
     } else if(view === 'Contents') {
       heading(contentsLabel()); const select=$('.reader-actions select:not(.rr-voice)');
       for(const opt of select?.options||[])if(opt.value){row(opt.textContent,()=>{change(select,opt.value);close();});if(opt.value===select.value)host.lastElementChild.setAttribute('aria-current','location');}
       if(!select||![...select.options].some(o=>o.value)){const note=document.createElement('p');note.textContent='No chapter list is available in this file.';host.append(note);}
     } else if(view === 'Themes & Settings') {
       heading(view);
-      const sizes=document.createElement('div');sizes.className='rr-books-actions';
+      // Four groups, each a different shape: stepper, swatches, segmented
+      // control, and one row to the rest. Previously eight identical pills.
+      const sizes=document.createElement('div');sizes.className='rr-books-actions rr-books-stepper';
       sizes.append(button('Smaller text',()=>proxy('Decrease text size'),'A−'),button('Larger text',()=>proxy('Increase text size'),'A+'));host.append(sizes);
+
       const themes=document.createElement('div');themes.className='rr-books-themes';
-      for(const name of ['Original','Quiet','Paper','Bold','Calm','Focus']){const b=button(name,()=>setTheme(name),'Aa');b.dataset.theme=name.toLowerCase();b.setAttribute('aria-pressed',String(preset===name));themes.append(b);}host.append(themes);
-      row('Customise',()=>go('Customise Theme'),'gear');
-      const modes=document.createElement('div');modes.className='rr-books-actions';
-      for(const original of reader.querySelectorAll('.reader-modes button')){const b=button(original.textContent,()=>{original.click();setTimeout(render,100);});b.setAttribute('aria-pressed',original.getAttribute('aria-pressed')||String(original.classList.contains('active')));modes.append(b);}host.append(modes);
-      const label=document.createElement('label');label.textContent='Font';const select=document.createElement('select');select.setAttribute('aria-label','Font');
-      for(const name of ['Original','System','Serif','Palatino','Helvetica']){const o=document.createElement('option');o.textContent=name;select.append(o);}select.value=font;select.onchange=()=>{font=select.value;saveType();};label.append(select);host.append(label);
-      const b=button('Bold Text',()=>{bold=!bold;preset='Custom';saveType();render();},bold?'✓':'');b.setAttribute('aria-pressed',String(bold));host.append(b);
+      for(const name of ['Original','Quiet','Paper','Bold','Calm','Focus']){
+        // Circles carry no label: a swatch is a colour choice, and dropping the
+        // text also removes the font mismatch it caused.
+        const b=button(name,()=>setTheme(name));
+        b.dataset.theme=name.toLowerCase();
+        b.setAttribute('aria-pressed',String(preset===name));
+        b.title=name;
+        themes.append(b);
+      }
+      host.append(themes);
+
+      // Pages/Scroll as one segmented control. No setTimeout(render) here: the
+      // mode change alters reader.className, which the signature watcher at the
+      // bottom of sync() already notices and re-renders from - adding a timer
+      // would render twice and fight it.
+      const modeButtons=[...reader.querySelectorAll('.reader-modes button')];
+      if(modeButtons.length){
+        const modes=document.createElement('div');modes.className='rr-books-segment';
+        for(const original of modeButtons){
+          const b=button(original.textContent,()=>{original.click();});
+          const on=original.getAttribute('aria-pressed')==='true'||original.classList.contains('active');
+          b.setAttribute('aria-pressed',String(on));
+          modes.append(b);
+        }
+        host.append(modes);
+      }
+
+      row('More options',()=>go('Customise Theme'),'gear');
     } else if(view === 'Customise Theme') {
       heading(view);
       const label=document.createElement('label');label.textContent='Font';const select=document.createElement('select');select.setAttribute('aria-label','Font');
@@ -853,40 +882,63 @@
       range('Margins',null,{min:0,max:14,step:.5,value:margins,format:v=>percent(Number(v)/14*100),set:v=>{margins=v;preset='Custom';}});
       const justifyButton=button('Justify Text',()=>{justify=!justify;preset='Custom';saveType();render();},justify?'✓':'');justifyButton.setAttribute('aria-pressed',String(justify));host.append(justifyButton);
       row('Reset Theme',()=>{font='Original';bold=false;line=1.65;chars=0;words=0;margins=4;justify=false;preset='Original';setTheme('Original');},'↺');
+      // Rehomed from the removed 'More' view so nothing became unreachable.
+      const textMode=document.querySelector('.rr-text-mode');
+      if(textMode)row(textMode.textContent,()=>{textMode.click();close();},'text');
+      row('Share book',async()=>{
+        const data={title:reader.getAttribute('aria-label')?.replace(/^Reading /,''),url:location.href};
+        try{ if(navigator.share) await navigator.share(data);
+             else { await navigator.clipboard.writeText(data.url); go('Link copied'); } }
+        catch(_){}
+      },'share');
     } else if(view === 'Read Aloud') {
-      heading(view);const listen=$('.rr-listen');row(listen?.getAttribute('aria-pressed')==='true'?'Stop reading':'Start reading',()=>{listen?.click();setTimeout(render,100);},listen?.getAttribute('aria-pressed')==='true'?'stop':'play');
-      // Voice: an icon instead of the word, to match the rest of the sheet.
-      const original=$('.rr-voice');
-      if(original){
-        const label=document.createElement('label');
-        label.className='rr-voice-row';
-        const icon=document.createElement('span');
-        icon.className='rr-voice-icon';icon.setAttribute('aria-hidden','true');
-        icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M8 7v10M16 7v10M4 10v4M20 10v4"/></svg>';
-        const select=original.cloneNode(true);
-        select.removeAttribute('class');
-        select.setAttribute('aria-label','Reading voice');
-        select.value=original.value;select.selectedIndex=original.selectedIndex;
-        select.onchange=()=>change(original,select.value);
-        label.append(icon,select);host.append(label);
+      heading(view);
+      const listen=$('.rr-listen');
+      const playing=listen?.getAttribute('aria-pressed')==='true';
+      // Primary action, visually dominant. No setTimeout(render): toggling
+      // changes .rr-listen's aria-pressed, and sync()'s signature watcher keys
+      // off !!$('.rr-listen') only - so this one does need its own refresh.
+      const play=button(playing?'Stop reading':'Start reading',()=>{listen?.click();setTimeout(render,120);},playing?'stop':'play');
+      play.className='rr-books-primary';
+      host.append(play);
+
+      // Voice as a row that opens a list, not a native <select>. The select had
+      // a 30-character label in a space-between row, which is where the empty
+      // gap came from, and native selects do not inherit the sheet's font.
+      const voice=$('.rr-voice');
+      if(voice){
+        const current=voice.options[voice.selectedIndex]?.textContent||'Default voice';
+        const r=button(current,()=>go('Voice'),'chevron');
+        r.classList.add('rr-books-detail');
+        host.append(r);
       }
-      // Speed: a real slider. The old row cycled through fixed steps on tap,
-      // which read as a button that did nothing when the rate was not actually
-      // being applied to the audio element.
+
       if($('.rr-rate') && typeof window.rrSetReadingRate === 'function'){
         const wrap=document.createElement('label');
         wrap.className='rr-rate-row';
-        const out=document.createElement('span');
-        out.className='rr-rate-value';
+        const min=document.createElement('span');min.className='rr-rate-end';min.textContent='0.5\u00d7';
+        const max=document.createElement('span');max.className='rr-rate-end';max.textContent='2\u00d7';
         const slider=document.createElement('input');
         slider.type='range';slider.min='0.5';slider.max='2';slider.step='0.1';
         slider.setAttribute('aria-label','Reading speed');
+        const out=document.createElement('span');out.className='rr-rate-value';
         const current=typeof window.rrGetReadingRate==='function'?window.rrGetReadingRate():1;
         slider.value=String(current);
-        out.textContent=Number(current).toFixed(1)+'×';
-        slider.oninput=()=>{out.textContent=Number(slider.value).toFixed(1)+'×';};
+        out.textContent=Number(current).toFixed(1)+'\u00d7';
+        slider.oninput=()=>{out.textContent=Number(slider.value).toFixed(1)+'\u00d7';};
         slider.onchange=()=>window.rrSetReadingRate(slider.value);
-        wrap.append(slider,out);host.append(wrap);
+        wrap.append(min,slider,max,out);
+        host.append(wrap);
+      }
+    } else if(view === 'Voice') {
+      heading(view);
+      const voice=$('.rr-voice');
+      if(voice){
+        for(const opt of voice.options){
+          const b=button(opt.textContent,()=>{change(voice,opt.value);go('Read Aloud');});
+          if(opt.selected)b.setAttribute('aria-current','true');
+          host.append(b);
+        }
       }
     } else if(view === 'More') {
       heading(view);

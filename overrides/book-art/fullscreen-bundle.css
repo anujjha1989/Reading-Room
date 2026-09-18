@@ -2551,3 +2551,156 @@ html.rr-sheet-entering .rr-books-menu > * {
   html.rr-books-controls .reader-panel,
   html.rr-sheet-entering .rr-books-menu > * { animation: none !important; }
 }
+
+
+/* ==== v93: shapes instead of a stack of identical pills ===================
+ * Every control was a full-width pill of equal weight, so nothing was primary
+ * and a 322px row holding one word read as empty space. Each group now takes
+ * the shape its job implies: a stepper, circular swatches, a segmented control,
+ * a dominant primary action, and a slider with endpoints.
+ *
+ * The 'Voice' view is new and must be listed alongside the other named views in
+ * the base panel rule at the top of this file, which it predates - otherwise it
+ * renders with no panel background at all.
+ * ---------------------------------------------------------------------- */
+.rr-books-menu[data-view="Voice"] {
+  background: rgba(38, 38, 40, .95);
+  border-radius: 22px;
+  padding: 9px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .3);
+  -webkit-backdrop-filter: blur(30px) saturate(1.5);
+  backdrop-filter: blur(30px) saturate(1.5);
+}
+html[data-rr-theme="light"] .rr-books-menu[data-view="Voice"] {
+  background: rgba(250, 250, 251, .96);
+}
+
+/* --- root toolbar: four equal tiles, bigger icons ------------------------ */
+/* 52px tiles with 23px icons. The old 58px tile with a 20px icon was the
+   inversion you flagged: large box, small mark. */
+.rr-books-toolbar > button {
+  min-height: 52px !important;
+  height: 52px !important;
+  gap: 2px !important;
+  font-size: 11px !important;
+  letter-spacing: .01em;
+}
+.rr-books-toolbar > button > span[aria-hidden] { opacity: .9 !important; }
+.rr-books-toolbar > button > span[aria-hidden] svg { width: 23px !important; height: 23px !important; }
+
+/* --- text size: a stepper, so it reads as one control ------------------- */
+.rr-books-stepper { gap: 2px !important; }
+.rr-books-stepper > button {
+  min-height: 48px !important; height: 48px !important;
+  font-size: 19px !important;
+  font-weight: 500 !important;
+  border-radius: 6px !important;
+}
+.rr-books-stepper > button:first-child { border-radius: 14px 6px 6px 14px !important; }
+.rr-books-stepper > button:last-child  { border-radius: 6px 14px 14px 6px !important; }
+/* The caption under A−/A+ was redundant beside the glyph itself. */
+.rr-books-stepper > button > span:last-child { display: none !important; }
+
+/* --- swatches: circles, because they are colour choices ------------------ */
+.rr-books-themes {
+  display: flex !important;
+  justify-content: space-between !important;
+  gap: 0 !important;
+  padding: 4px 6px !important;
+}
+.rr-books-themes > button {
+  width: 40px !important; height: 40px !important;
+  min-height: 0 !important; min-width: 0 !important;
+  flex: 0 0 40px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  font-size: 0 !important;                 /* the name is in title= */
+  box-shadow: inset 0 0 0 1px rgba(128,128,128,.28);
+}
+.rr-books-themes > button[aria-pressed="true"] {
+  outline: 2.5px solid #007AFF !important;
+  outline-offset: 2px !important;
+}
+
+/* --- Pages / Scroll: one segmented control ------------------------------- */
+.rr-books-segment {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 14px;
+  background: rgba(120, 120, 128, .16);
+}
+.rr-books-segment > button {
+  flex: 1 1 0;
+  min-height: 38px !important; height: 38px !important;
+  min-width: 0;
+  border: 0 !important;
+  border-radius: 11px !important;
+  background: transparent !important;
+  justify-content: center !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+}
+.rr-books-segment > button[aria-pressed="true"] {
+  background: rgba(255, 255, 255, .16) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .22);
+}
+html[data-rr-theme="light"] .rr-books-segment > button[aria-pressed="true"] {
+  background: #fff !important;
+}
+
+/* --- Read Aloud: a dominant primary, a detail row, a real slider --------- */
+.rr-books-menu > .rr-books-primary {
+  min-height: 54px !important;
+  justify-content: center !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  background: #f5f5f7 !important;
+  color: #14110f !important;
+}
+.rr-books-menu > .rr-books-primary > span[aria-hidden] { opacity: 1 !important; }
+html[data-rr-theme="light"] .rr-books-menu > .rr-books-primary {
+  background: #14110f !important;
+  color: #f7f3ec !important;
+}
+/* The voice row: value on the left, chevron at the end, no dead middle. */
+.rr-books-detail > span:first-child {
+  font-size: 14.5px !important;
+  opacity: .9;
+}
+.rr-books-detail > span[aria-hidden] { opacity: .45 !important; }
+.rr-books-detail > span[aria-hidden] svg { width: 15px !important; height: 15px !important; }
+
+/* Slider row: endpoints label the track instead of leaving it unexplained. */
+.rr-books-menu .rr-rate-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 0 12px !important;
+}
+.rr-books-menu .rr-rate-end {
+  flex: 0 0 auto;
+  font-size: 11px !important;
+  opacity: .5;
+  font-variant-numeric: tabular-nums;
+}
+.rr-books-menu .rr-rate-row input[type="range"] { flex: 1 1 auto; min-width: 0; }
+.rr-books-menu .rr-rate-value {
+  flex: 0 0 38px;
+  font-size: 12.5px !important;
+  font-weight: 600;
+  text-align: right;
+  opacity: .9 !important;
+}
+
+/* --- Voice list: the current voice marked, not just selected ------------- */
+.rr-books-menu[data-view="Voice"] > button[aria-current="true"] {
+  background: rgba(0, 122, 255, .18) !important;
+  font-weight: 600 !important;
+}
+
+/* A PDF or comic has no search, no TTS and no text settings, so the toolbar can
+   be a single tile. Left at flex:1 that one tile spans the whole sheet and reads
+   as a mis-sized button; capping the basis keeps it tile-shaped. */
+.rr-books-toolbar > button:only-child { flex: 0 0 76px !important; }
+.rr-books-toolbar:has(> button:only-child) { justify-content: center; }

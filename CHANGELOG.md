@@ -4,6 +4,20 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+### Changed
+
+- Rebuilt the reading menu as a toolbar: Contents keeps a full-width row because
+  it carries your position, and Search, Read Aloud, Bookmarks and Text became
+  four equal icon tiles with larger icons.
+- Grouped Themes & Settings into four distinct shapes instead of eight identical
+  rows — a text-size stepper, six round colour swatches, a Pages/Scroll segmented
+  control, and one row through to the rest.
+- Made Read Aloud's Start/Stop the dominant control, replaced the voice dropdown
+  with a row that opens a proper voice list, and gave the speed slider endpoint
+  labels. The dropdown was where the empty space came from.
+- Removed the "More" menu. Share and the text-mode toggle moved into More
+  options, where the rest of the advanced settings already lived.
+
 ### Fixed
 
 - Stopped the reading sheet fluttering on every tap. The sheet rebuilds its rows
