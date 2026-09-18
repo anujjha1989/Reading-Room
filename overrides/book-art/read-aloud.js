@@ -701,7 +701,11 @@
   // Warm the next sentence while the current one plays. Synthesis runs at
   // several times real time, so by the time it is needed it is on disk.
   function prefetch(mine) {
-    for (var n = 1; n <= 2; n += 1) {
+    // Six ahead, not two. Each /api/tts call is a synthesis round trip on the
+    // Pi; two sentences of lead does not cover it at reading speed, so
+    // playback stalled for several seconds every few sentences waiting for the
+    // next clip. The responses are cached, so the extra warming is cheap.
+    for (var n = 1; n <= 6; n += 1) {
       var next = queue[cursor + n];
       if (!next || !next.text) continue;
       var url = ttsUrl(next.text);
@@ -738,7 +742,14 @@
 
   function speak(text, mine, doc) {
     var a = audioEl();
-    a.playbackRate = rate;          // the same control as before
+    // playbackRate has to be re-applied after each load. Assigning it before
+    // src looks right but iOS resets the rate when new media loads, so every
+    // sentence played at 1x however the control was set - which is why the
+    // speed control appeared to do nothing.
+    var applyRate = function () { try { a.playbackRate = rate; } catch (e) {} };
+    applyRate();
+    a.onloadedmetadata = applyRate;
+    a.onplay = applyRate;
     a.onended = function () {
       if (!playing || mine !== epoch) return;
       cursor += 1;
@@ -855,6 +866,20 @@
     try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none'; } catch (e) {}
     render();
   }
+
+  // Exposed so the reading menu can offer a slider instead of a cycle button.
+  // Restarting the sentence is what makes a change audible immediately; without
+  // it the new rate only applied from the next sentence.
+  function setRate(next) {
+    var v = Number(next);
+    if (!isFinite(v)) return;
+    rate = Math.min(2, Math.max(0.5, v));
+    try { localStorage.setItem(RATE_KEY, String(rate)); } catch (e) {}
+    try { if (rrTtsAudio) rrTtsAudio.playbackRate = rate; } catch (e) {}
+    render();
+  }
+  window.rrSetReadingRate = setRate;
+  window.rrGetReadingRate = function () { return rate; };
 
   function cycleRate() {
     rate = RATES[(RATES.indexOf(rate) + 1) % RATES.length];

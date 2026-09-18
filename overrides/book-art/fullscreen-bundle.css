@@ -1835,3 +1835,96 @@ body > .rr-card-scrim {
   z-index: 399;
   background: transparent;
 }
+
+
+/* ==== v80: reading-menu controls, and motion =============================== */
+
+/* --- voice row: icon, no label ------------------------------------------- */
+.rr-books-menu .rr-voice-row,
+.rr-books-menu .rr-rate-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.rr-books-menu .rr-voice-icon {
+  flex: 0 0 auto; display: grid; place-items: center;
+  width: 22px; height: 22px; opacity: .7;
+}
+.rr-books-menu .rr-voice-icon svg { width: 20px; height: 20px; }
+.rr-books-menu .rr-voice-row select { flex: 1 1 auto; min-width: 0; }
+
+/* --- speed slider -------------------------------------------------------- */
+.rr-books-menu .rr-rate-row input[type="range"] {
+  flex: 1 1 auto; min-width: 0;
+  accent-color: currentColor;
+  height: 26px;
+}
+.rr-books-menu .rr-rate-value {
+  flex: 0 0 auto; min-width: 44px; text-align: right;
+  font-variant-numeric: tabular-nums; opacity: .8;
+}
+
+/* ==== motion =============================================================
+ * Menus and sheets grow from where they were summoned rather than appearing.
+ * transform-origin does the work: the card menu is placed by JS at the ⋯, so
+ * scaling from its top-right corner reads as opening out of the button.
+ *
+ * All of it is disabled under prefers-reduced-motion - an animation that
+ * cannot be turned off is worse than none.
+ * ---------------------------------------------------------------------- */
+@keyframes rr-pop {
+  from { opacity: 0; transform: scale(.94) translateY(-6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes rr-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes rr-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Card ⋯ menu: out of the button's corner. */
+body > .rr-card-menu {
+  transform-origin: top right;
+  animation: rr-pop .17s cubic-bezier(.22, 1, .36, 1) both;
+}
+/* Sort and filter popovers hang from the icon rail. */
+#rr-sort-menu { transform-origin: top right; }
+html.rr-sort-open #rr-sort-menu { animation: rr-pop .17s cubic-bezier(.22, 1, .36, 1) both; }
+html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
+  animation: rr-rise .2s cubic-bezier(.22, 1, .36, 1) both;
+}
+/* The reading sheet slides up from the ≡ that opened it. */
+html.rr-sheet-open .rr-books-menu {
+  animation: rr-rise .22s cubic-bezier(.22, 1, .36, 1) both;
+}
+/* Settings overlay and the metadata sheet. */
+#rr-settings-overlay { animation: rr-fade .2s ease both; }
+#rr-metafix .rr-mf-sheet { animation: rr-rise .22s cubic-bezier(.22, 1, .36, 1) both; }
+#rr-metafix { animation: rr-fade .16s ease both; }
+/* Editions picker. */
+.rr-editions { animation: rr-pop .2s cubic-bezier(.22, 1, .36, 1) both; }
+
+/* Tap feedback on the chrome buttons, so a press is visibly acknowledged. */
+html .rr-card-more,
+html #rr-filter-btn, html #rr-sort-btn, html #rr-settings-link {
+  transition: transform .12s ease, opacity .12s ease;
+}
+html .rr-card-more:active,
+html #rr-filter-btn:active, html #rr-sort-btn:active, html #rr-settings-link:active {
+  transform: scale(.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body > .rr-card-menu,
+  html.rr-sort-open #rr-sort-menu,
+  html[data-rr-library-view="library"].rr-filters-open .catalog .filters,
+  html.rr-sheet-open .rr-books-menu,
+  #rr-settings-overlay, #rr-metafix, #rr-metafix .rr-mf-sheet, .rr-editions {
+    animation: none !important;
+  }
+  html .rr-card-more:active,
+  html #rr-filter-btn:active, html #rr-sort-btn:active, html #rr-settings-link:active {
+    transform: none;
+  }
+}

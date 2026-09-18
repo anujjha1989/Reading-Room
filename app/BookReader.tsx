@@ -134,7 +134,12 @@ function epubStyles(theme: ReaderTheme, lineHeight: number, margin: number) {
     "p, li, blockquote": { "overflow-wrap": "break-word !important" },
     "pre, code": { "white-space": "pre-wrap !important", "overflow-wrap": "anywhere !important" },
     table: { display: "block !important", width: "100% !important", "max-width": "100% !important", "overflow-x": "auto !important" },
-    a: { color: `${colors.link} !important` },
+    // Only real links. 1Q84 (and many EPUBs) wrap ordinary paragraphs in
+    // anchors without href - for footnote targets and ids - so colouring every
+    // <a> turned whole pages blue-green. Anchors with an href are links; the
+    // rest are structure and must inherit the body colour.
+    "a[href]": { color: `${colors.link} !important` },
+    "a:not([href])": { color: "inherit !important" },
     "img, svg, video": { "max-width": "100% !important", height: "auto !important", "max-height": "92vh !important", "object-fit": "contain !important" },
   };
 }
@@ -152,7 +157,8 @@ function mobiStyles(fontSize: number, theme: ReaderTheme, lineHeight: number, ma
     p, li, blockquote { overflow-wrap: break-word !important; }
     pre, code { white-space: pre-wrap !important; overflow-wrap: anywhere !important; }
     table { display: block !important; width: 100% !important; max-width: 100% !important; overflow-x: auto !important; }
-    a { color: ${colors.link} !important; }
+    a[href] { color: ${colors.link} !important; }
+    a:not([href]) { color: inherit !important; }
     img, svg { max-width: 100% !important; max-height: 92vh !important; object-fit: contain !important; }
   `;
 }

@@ -810,8 +810,39 @@
       row('Reset Theme',()=>{font='Original';bold=false;line=1.65;chars=0;words=0;margins=4;justify=false;preset='Original';setTheme('Original');},'↺');
     } else if(view === 'Read Aloud') {
       heading(view);const listen=$('.rr-listen');row(listen?.getAttribute('aria-pressed')==='true'?'Stop reading':'Start reading',()=>{listen?.click();setTimeout(render,100);},'▶');
-      const original=$('.rr-voice');if(original){const label=document.createElement('label');label.textContent='Voice';const select=original.cloneNode(true);select.removeAttribute('class');select.value=original.value;select.selectedIndex=original.selectedIndex;select.onchange=()=>change(original,select.value);label.append(select);host.append(label);}
-      const rate=$('.rr-rate');if(rate)row('Reading speed: '+rate.textContent,()=>{rate.click();setTimeout(render,100);});
+      // Voice: an icon instead of the word, to match the rest of the sheet.
+      const original=$('.rr-voice');
+      if(original){
+        const label=document.createElement('label');
+        label.className='rr-voice-row';
+        const icon=document.createElement('span');
+        icon.className='rr-voice-icon';icon.setAttribute('aria-hidden','true');
+        icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M8 7v10M16 7v10M4 10v4M20 10v4"/></svg>';
+        const select=original.cloneNode(true);
+        select.removeAttribute('class');
+        select.setAttribute('aria-label','Reading voice');
+        select.value=original.value;select.selectedIndex=original.selectedIndex;
+        select.onchange=()=>change(original,select.value);
+        label.append(icon,select);host.append(label);
+      }
+      // Speed: a real slider. The old row cycled through fixed steps on tap,
+      // which read as a button that did nothing when the rate was not actually
+      // being applied to the audio element.
+      if($('.rr-rate') && typeof window.rrSetReadingRate === 'function'){
+        const wrap=document.createElement('label');
+        wrap.className='rr-rate-row';
+        const out=document.createElement('span');
+        out.className='rr-rate-value';
+        const slider=document.createElement('input');
+        slider.type='range';slider.min='0.5';slider.max='2';slider.step='0.1';
+        slider.setAttribute('aria-label','Reading speed');
+        const current=typeof window.rrGetReadingRate==='function'?window.rrGetReadingRate():1;
+        slider.value=String(current);
+        out.textContent=Number(current).toFixed(1)+'×';
+        slider.oninput=()=>{out.textContent=Number(slider.value).toFixed(1)+'×';};
+        slider.onchange=()=>window.rrSetReadingRate(slider.value);
+        wrap.append(slider,out);host.append(wrap);
+      }
     } else if(view === 'More') {
       heading(view);
       row('Share book',async()=>{const data={title:reader.getAttribute('aria-label')?.replace(/^Reading /,''),url:location.href};try{if(navigator.share)await navigator.share(data);else{await navigator.clipboard.writeText(data.url);go('Link copied');}}catch(_){}},'↑');
