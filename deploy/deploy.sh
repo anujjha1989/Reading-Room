@@ -12,11 +12,23 @@ cd "$(dirname "$0")/.."
 PI=anujjha1989@anujrpi.local
 SSH=(ssh -i "$HOME/.ssh/id_ed25519_anujrpi_codex" -o BatchMode=yes -o IdentitiesOnly=yes)
 BOOK_ART=/mnt/seagate/ReadingRoom/book-art
+DEPLOY_HISTORY_DIR=${READING_ROOM_DEPLOY_HISTORY:-/Volumes/Seagate/ReadingRoom/deployment-history}
+
+# Capture source identity before the deployment counter changes. VERSION is a
+# tracked deployment counter and is routinely dirty after a successful deploy;
+# ignore that one file when deciding whether a tag can honestly describe the
+# source that is about to be installed.
+PREVIOUS_VERSION=$(cat overrides/VERSION)
+DEPLOY_COMMIT=$(git rev-parse HEAD)
+DEPLOY_BRANCH=$(git branch --show-current)
+SOURCE_CHANGES=$(git status --porcelain --untracked-files=normal | sed '/ overrides\/VERSION$/d')
+if [ -z "$SOURCE_CHANGES" ]; then SOURCE_CLEAN=true; else SOURCE_CLEAN=false; fi
+if [ "${1:-}" = "--no-build" ]; then DEPLOY_MODE=no-build; else DEPLOY_MODE=full-build; fi
 
 # Each deploy gets a new version. Asset filenames are content hashed, but the
 # override bundle is not, and /assets/book-art is served immutable for a year,
 # so a new name is the only way a change reaches a phone that has been there.
-VERSION=$(( $(cat overrides/VERSION) + 1 ))
+VERSION=$(( PREVIOUS_VERSION + 1 ))
 
 if [ "${1:-}" != "--no-build" ]; then
   echo "==> building (version $VERSION)"
@@ -215,11 +227,15 @@ verify_origin() {
     fi
   fi
 
-  [ -z "$problem" ] && return 0
+  if [ -z "$problem" ]; then
+    VERIFY_RESULT=passed
+    return 0
+  fi
   if [ "$soft" = 1 ]; then
     echo "    WARNING: $problem" >&2
     echo "    The LAN checks passed, so the install is good; this origin was not confirmed." >&2
     echo "    Check the tailnet with: tailscale status" >&2
+    VERIFY_RESULT=warning
     return 0
   fi
   fail "$problem"
@@ -235,10 +251,48 @@ case "$health" in
 esac
 
 verify_origin "http://anujrpi.local:4311" required
+LAN_RESULT=$VERIFY_RESULT
 verify_origin "https://anujrpi.tail549492.ts.net" advisory
+TAILSCALE_RESULT=$VERIFY_RESULT
 
 served=$("${SSH[@]}" "$PI" "grep -o 'fullscreen-bundle-v[0-9]*' /opt/reading-room/current/site/index.html | head -1")
 [ "$served" = "fullscreen-bundle-v$VERSION" ] \
   || fail "live HTML references $served, expected fullscreen-bundle-v$VERSION"
 
 echo "==> live on LAN and Tailscale: $served"
+
+echo "==> recording deployment"
+DEPLOY_TAG=""
+if [ "$SOURCE_CLEAN" = true ]; then
+  DEPLOY_TAG="deploy-v$VERSION"
+  if git rev-parse -q --verify "refs/tags/$DEPLOY_TAG" >/dev/null; then
+    tagged_commit=$(git rev-list -n 1 "$DEPLOY_TAG")
+    if [ "$tagged_commit" != "$DEPLOY_COMMIT" ]; then
+      echo "    WARNING: $DEPLOY_TAG already points to $tagged_commit; tag not changed" >&2
+      DEPLOY_TAG=""
+    fi
+  elif ! git tag -a "$DEPLOY_TAG" "$DEPLOY_COMMIT" \
+    -m "Reading Room deployment v$VERSION"; then
+    echo "    WARNING: could not create $DEPLOY_TAG" >&2
+    DEPLOY_TAG=""
+  fi
+else
+  echo "    source had uncommitted changes; manifest recorded, Git tag skipped" >&2
+fi
+
+if ! node deploy/record-deployment.mjs \
+  --version "$VERSION" \
+  --previous-version "$PREVIOUS_VERSION" \
+  --mode "$DEPLOY_MODE" \
+  --commit "$DEPLOY_COMMIT" \
+  --branch "${DEPLOY_BRANCH:-detached}" \
+  --tag "$DEPLOY_TAG" \
+  --source-clean "$SOURCE_CLEAN" \
+  --library-asset "$library_asset" \
+  --lan-result "$LAN_RESULT" \
+  --tailscale-result "$TAILSCALE_RESULT" \
+  --rollback "$ROLLBACK" \
+  --output-dir "$DEPLOY_HISTORY_DIR"; then
+  # Documentation must never roll back an otherwise verified, working app.
+  echo "    WARNING: deployment succeeded, but its history record could not be written" >&2
+fi
