@@ -6,6 +6,33 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 No unreleased user-visible changes are currently documented.
 
+## v91 — 18 September 2026
+
+### Changed
+
+- Rebuilt the reading sheet on one type and spacing system. It had accumulated
+  nine different row heights, five font sizes and seven corner radii; these are
+  now a single scale, so rows share a height and labels share a size.
+- Split the sheet's typography into two voices with one job each: a serif for the
+  panel title and the theme swatches, which preview a reading surface, and the
+  UI face for everything operational.
+- Made row layout give the label the space and the icon a fixed column, so a
+  short label and its icon no longer sit at opposite edges of a wide row.
+
+### Fixed
+
+- Made the sheet's entrance visible. It previously moved 18px behind a heavy
+  blur, which read as no animation at all; it now scales up with a slight
+  overshoot and its rows arrive in sequence. Presses give visible feedback.
+  All motion is disabled under `prefers-reduced-motion`.
+
+### Deployment
+
+- Git commit: `72ded3a`
+- Previous version: v90
+- Mode: `--no-build` (override CSS only)
+- Verification: LAN passed; Tailscale advisory not confirmed
+
 ## v90 — 18 September 2026
 
 ### Fixed

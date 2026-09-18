@@ -34,3 +34,33 @@ Interpret creatively and make unexpected choices that feel genuinely designed fo
 - **The override layer styles a React app it does not own.** Prefer CSS variables
   over `!important`; the latter has already cost several rounds of specificity
   fights in `fullscreen-bundle.css`.
+
+## Release documentation — follow this for every change
+
+Three layers, each with one job. Do not collapse them.
+
+1. **Git commits** — the technical record. Why, not just what: the cause, the
+   mechanism, and what was ruled out. These are already the most useful artefact
+   in the project and should stay that way.
+2. **`CHANGELOG.md`** — user-visible summary grouped by deployed version, newest
+   first, with `### Fixed` / `### Changed` / `### Added` and a `### Deployment`
+   block naming the commit, previous version, build mode and verification result.
+   **Update this in the same commit as the change**, not afterwards — a changelog
+   written from memory later is a changelog that drifts.
+3. **`/Volumes/Seagate/ReadingRoom/deployment-history/vNN.json`** — written
+   automatically by `deploy/record-deployment.mjs`. Never hand-edited. Lives
+   outside the repo so a deploy does not dirty the tree.
+
+Plus an annotated `deploy-vNN` tag per deployment, created by the deploy script
+only when the tree is clean — an untagged deploy is the honest signal that what
+shipped was not fully committed.
+
+### Practical rules
+
+- Bump `CHANGELOG.md` under `## Unreleased` while working; promote it to a
+  version heading when that version actually deploys.
+- Read `overrides/VERSION` to learn the last deployed number. Never infer it.
+- If `git status` is dirty at deploy time, the tag is skipped deliberately. Fix
+  the tree rather than forcing the tag.
+- The changelog describes what a *reader of the app* would notice. Specificity
+  fights and rsync hazards belong in the commit message, not here.
