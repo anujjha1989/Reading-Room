@@ -38,6 +38,7 @@ for (const file of files) {
 
 const readAloud = readFileSync("overrides/book-art/read-aloud.js", "utf8");
 const readingSheet = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8");
+const bookReader = readFileSync("app/BookReader.tsx", "utf8");
 
 // Read Aloud navigation is asynchronous. Every operation which can move the
 // page must be tied to the current epoch and pause state; otherwise a promise
@@ -63,6 +64,13 @@ for (const api of [
 }
 for (const call of ["rrSkipSentence?.(-1)", "rrSkipSentence?.(1)", "rrAddSleepTime?.()", "rrToggleReadAloud?.()"]) {
   if (!readingSheet.includes(call)) fail(`reading sheet is not wired to ${call}`);
+}
+
+// Paginated EPUB columns extend beyond the body's first-page box. Clipping the
+// body makes page one work and every later page blank, despite valid text in
+// the iframe. Keep the root as the viewport clip and the body visible.
+if (!bookReader.includes('...(paginated ? { overflow: "visible !important" }')) {
+  fail("paginated EPUB body overflow is not visible; later pages will be blank");
 }
 
 console.log(failed ? "override checks failed" : "override checks passed");

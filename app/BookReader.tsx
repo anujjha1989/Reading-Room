@@ -114,8 +114,20 @@ function epubStyles(theme: ReaderTheme, lineHeight: number, margin: number, pagi
       background: `${colors.paper} !important`,
       overflow: paginated ? "hidden !important" : "hidden auto !important",
     },
-    "html, body": { color: `${colors.ink} !important`, background: `${colors.paper} !important`, margin: "0 !important", "box-sizing": "border-box !important", "overflow-x": "hidden !important" },
-    body: { "font-family": "Georgia, serif !important", "line-height": `${lineHeight} !important`, padding: `1.25rem max(16px, ${margin}%) 2.5rem !important`, "word-wrap": "break-word !important" },
+    "html, body": { color: `${colors.ink} !important`, background: `${colors.paper} !important`, margin: "0 !important", "box-sizing": "border-box !important" },
+    html: { "overflow-x": "hidden !important" },
+    // EPUB.js lays later pages out as columns which deliberately overflow the
+    // body's one-page box. Hiding body overflow clips every column after the
+    // first: the footer advances while the screen is blank. The root element
+    // remains the viewport clip, so allowing body overflow does not expose a
+    // horizontal scrollbar or bleed into the reader chrome.
+    body: {
+      "font-family": "Georgia, serif !important",
+      "line-height": `${lineHeight} !important`,
+      padding: `1.25rem max(16px, ${margin}%) 2.5rem !important`,
+      "word-wrap": "break-word !important",
+      ...(paginated ? { overflow: "visible !important" } : { "overflow-x": "hidden !important" }),
+    },
     "*, *::before, *::after": { "box-sizing": "border-box !important" },
     "div, section, article, main, header, footer, blockquote, p, li": { "max-width": "100% !important", "min-width": "0 !important" },
     "p, li, blockquote": { "overflow-wrap": "break-word !important" },
