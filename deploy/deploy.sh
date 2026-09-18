@@ -40,6 +40,23 @@ fi
 echo "$VERSION" > overrides/VERSION
 node deploy/render-index.mjs
 
+# The build runs from an rsync of this tree into a temp dir, over SMB. Confirm
+# the bundle it produced actually contains the app source, rather than trusting
+# that the copy was current: a stale rsync produces a clean build of old code,
+# which is indistinguishable from success until the app misbehaves.
+if [ "${1:-}" != "--no-build" ]; then
+  library_bundle=$(grep -o 'LibraryClient-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)
+  [ -n "$library_bundle" ] || { echo "FAILED: no LibraryClient in rendered HTML" >&2; exit 1; }
+  # A string that only exists in the current app source. Update it when the
+  # feature it names is removed.
+  if ! grep -q 'reading-room-reader-theme-set' "dist/client/assets/$library_bundle"; then
+    echo "FAILED: built bundle does not contain current app source." >&2
+    echo "        The build likely ran against a stale rsync of the tree." >&2
+    exit 1
+  fi
+  echo "==> build contains current source"
+fi
+
 echo "==> staging"
 rm -rf dist/stage && mkdir -p dist/stage/assets
 cp dist/client/assets/*.js dist/client/assets/*.css dist/stage/assets/
