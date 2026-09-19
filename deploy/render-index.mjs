@@ -52,6 +52,29 @@ if (!html.includes(rootLayout) && !html.includes(tolerantRootLayout)) {
   throw new Error("root layout payload not found in index template");
 }
 html = html.replace(rootLayout, tolerantRootLayout);
+
+// Keep the static first render in lockstep with LibraryClient. This app is
+// deployed as a prerendered document, so the committed template is the server
+// side of React hydration. These guarded replacements both reconcile the older
+// template and fail loudly if its shape changes again instead of shipping a
+// recoverable-but-noisy client redraw.
+const initialMarkup = [
+  ["<kbd>⌘ K</kbd>", "<kbd>Ctrl K</kbd>"],
+  [
+    '<div class="category-chips"><button>Fiction</button><button>Non-Fiction</button><button>Graphic Novels</button><button>Scripts</button><button>Readable here</button></div>',
+    '<div class="category-chips"><button aria-pressed="false">Fiction</button><button aria-pressed="false">Non-Fiction</button><button aria-pressed="false">Graphic Novels</button><button aria-pressed="false">Scripts</button><button aria-pressed="false">Readable here</button></div>',
+  ],
+  [
+    '<label><span>Series</span><select><option selected="">All series</option></select></label>',
+    '<div class="filter-picker"><span>Series</span><button type="button" aria-haspopup="listbox" aria-expanded="false">All series<b aria-hidden="true">⌄</b></button></div>',
+  ],
+];
+for (const [before, after] of initialMarkup) {
+  if (!html.includes(before) && !html.includes(after)) {
+    throw new Error(`initial markup target not found: ${before.slice(0, 60)}`);
+  }
+  html = html.replace(before, after);
+}
 for (const [key, value] of Object.entries(values)) html = html.replaceAll(`{{${key}}}`, value);
 const unresolved = html.match(/\{\{[A-Z_]+\}\}/g);
 if (unresolved) throw new Error(`unresolved placeholders: ${[...new Set(unresolved)].join(", ")}`);

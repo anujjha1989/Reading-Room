@@ -248,6 +248,10 @@ function persistLocal(states: Record<string, SavedState>) {
 }
 
 export default function LibraryClient() {
+  // Keep the server and the first client render identical. The device-specific
+  // glyph is filled in after hydration; reading navigator during render made
+  // the static Pi document and iPhone disagree before the app even started.
+  const [shortcutKey, setShortcutKey] = useState("Ctrl K");
   const [catalogRows, setCatalogRows] = useState<RawBook[]>([]);
   const [catalogStatus, setCatalogStatus] = useState<"loading" | "ready" | "error">("loading");
   const books = useMemo(() => fromShelf(reviewBooks(asShelf(groupBooks(catalogRows)), catalogRows)), [catalogRows]);
@@ -290,6 +294,10 @@ export default function LibraryClient() {
   useEffect(() => {
     document.documentElement.dataset.rrLibraryReady = "1";
     window.dispatchEvent(new Event("rr-library-ready"));
+  }, []);
+
+  useEffect(() => {
+    setShortcutKey(/Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || "") ? "⌘ K" : "Ctrl K");
   }, []);
 
   useEffect(() => {
@@ -536,7 +544,6 @@ export default function LibraryClient() {
     collection !== "All collections" ? collection : "", author !== "All authors" ? author : "", category !== "All categories" ? category : "",
     series !== "All series" ? series : "", format !== "All formats" ? format : "", readingStatus !== "All reading statuses" ? readingStatus : "", readableOnly ? "Readable here" : "",
   ].filter(Boolean);
-  const shortcutKey = typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || "") ? "⌘ K" : "Ctrl K";
   const currentReaderBook = reader ? books.find((book) => book.id === reader.bookId) : undefined;
   const readerSeries = currentReaderBook?.series ? seriesGroups.get(currentReaderBook.series) || [] : [];
   const readerSeriesIndex = currentReaderBook ? readerSeries.findIndex((book) => book.id === currentReaderBook.id) : -1;
