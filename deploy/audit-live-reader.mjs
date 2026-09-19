@@ -89,16 +89,56 @@ if (process.argv.includes("--tap-menu")) {
   await new Promise((resolve) => setTimeout(resolve, 450));
 }
 
+if (process.argv.includes("--tap-panel-backs")) {
+  const touchElement = async (selector) => {
+    const target = await evaluate(`(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      const hit = document.elementFromPoint(x, y);
+      return { x, y, hitLabel: hit?.getAttribute?.('aria-label') || null };
+    })()`);
+    if (!target) throw new Error(`touch target not found: ${selector}`);
+    await send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: target.x, y: target.y, radiusX: 2, radiusY: 2, force: 1, id: 1 }],
+    });
+    await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    return target.hitLabel;
+  };
+  const panelBacks = {};
+  for (const [tile, panel, key] of [["Search", "Search inside book", "search"], ["Marks", "Bookmarks", "bookmarks"]]) {
+    await evaluate(`(() => {
+      const sheet = document.querySelector('section[role="dialog"][data-book-theme]');
+      [...sheet.querySelectorAll('button')].find((button) =>
+        [...button.querySelectorAll('span')].some((span) => span.textContent.trim() === ${JSON.stringify(tile)})
+      )?.click();
+    })()`);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const hitLabel = await touchElement(`aside[aria-label="${panel}"] button[aria-label="Back to reading menu"]`);
+    panelBacks[key] = {
+      hitLabel,
+      panelClosed: !await evaluate(`!!document.querySelector('aside[aria-label="${panel}"]')`),
+      menuOpen: await evaluate(`document.documentElement.classList.contains('rr-react-sheet-open')`),
+    };
+  }
+  await evaluate(`window.__rrPanelBackAudit = ${JSON.stringify(panelBacks)}`);
+}
+
 if (process.argv.includes("--exercise-menu")) {
   const audit = await evaluate(`(async () => {
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const clickText = (root, text) => {
       const button = [...root.querySelectorAll('button')]
-        .find((item) => item.textContent.trim().replace(/\\s+/g, ' ') === text);
+        .find((item) => [...item.querySelectorAll('span')]
+          .some((span) => span.textContent.trim().replace(/\\s+/g, ' ') === text));
       if (!button) throw new Error('button not found: ' + text);
       button.click();
     };
-    const sheet = () => document.querySelector('section[role="dialog"]:not(.reader-shell)');
+    const sheet = () => document.querySelector('section[role="dialog"][data-book-theme]');
     const result = {};
 
     clickText(sheet(), 'Search'); await wait(100);
@@ -159,6 +199,7 @@ const result = await evaluate(`(() => {
   statusBarMetas: [...document.querySelectorAll('meta[name="apple-mobile-web-app-status-bar-style"]')]
     .map((meta) => meta.content),
   exercise: window.__rrAuditResult || null,
+  panelBacks: window.__rrPanelBackAudit || null,
   trigger: trigger ? {
     rect: trigger.getBoundingClientRect().toJSON(),
     hit: (() => {
