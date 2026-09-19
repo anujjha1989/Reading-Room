@@ -100,3 +100,45 @@ Verified working today and easy to lose:
   chrome is hidden in the older reader path
 - Bookmarks / Search return path
 - `prefers-reduced-motion` on every animation
+
+## Step 1c — blocked, and why
+
+Step 1c was meant to delete the legacy sheet. A parity audit before deleting
+found **seven features the React sheet does not have**, and the reason matters
+more than the list:
+
+| Feature | Where its state lives |
+|---|---|
+| Bold Text | override only |
+| Justify Text | override only |
+| Character spacing | override only |
+| Word spacing | override only |
+| Font family | override only |
+| Reset Theme | override only |
+| Share book | override only |
+
+`bold`, `justify`, `chars` and `words` appear **0 times in BookReader.tsx** and
+7 times each in `fullscreen-bundle.js`. The override does not merely *display*
+these — it owns them, persists them to `rr-books-type`, and applies them by
+injecting a stylesheet into the book's iframe from `applyType()`.
+
+So the sheet is not a thin skin over React state, as step 1a assumed. It is
+**two-thirds a skin and one-third the only implementation** of six typography
+features. Deleting it would delete those features.
+
+### Revised plan
+
+1c is split:
+
+- **1c-i** — move `bold`, `justify`, `chars`, `words`, `font` into `BookReader`
+  as real state, applied through `epubStyles()` / `mobiStyles()`, which already
+  take `lineHeight` and `margin` and are the correct home for this. Add
+  `rrPreviousSentence` to the read-aloud API for the transport's back button.
+  Migrate the stored `rr-books-type` value so existing preferences survive.
+- **1c-ii** — add the six controls plus Share to `ReadingSheet`.
+- **1c-iii** — only then delete the legacy sheet.
+
+This is the right lesson from the evening: the parity check had to come *before*
+the deletion, not after. Had 1c run as planned, six working features would have
+disappeared and the cause would have been hard to see.
+
