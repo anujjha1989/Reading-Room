@@ -4,6 +4,12 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+### Added
+
+- A rebuilt reading menu, available for comparison behind `?sheet=react`. It is
+  the same controls written as a proper component, so they read the reader's real
+  state instead of inspecting the page. The existing menu is untouched.
+
 ### Fixed
 
 - Removed the white bar across the top of the screen in dark mode. Two causes: a

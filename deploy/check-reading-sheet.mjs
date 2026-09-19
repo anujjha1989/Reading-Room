@@ -5,6 +5,15 @@
 // cannot quietly reintroduce either habit.
 import { readFileSync, existsSync } from "node:fs";
 
+/**
+ * Strips comments before scanning. Three separate checks tonight reported false
+ * failures by matching the very comment that documented the thing's absence, so
+ * this is applied everywhere rather than remembered case by case.
+ */
+const code = (text) => text
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/^\s*\/\/.*$/gm, "");
+
 const tsx = readFileSync("app/ReadingSheet.tsx", "utf8");
 const css = readFileSync("app/reading-sheet.module.css", "utf8");
 let fail = 0;
@@ -24,7 +33,7 @@ t(bangs === 0, "no !important in the scoped stylesheet", bangs ? `${bangs} found
 // 2. No DOM queries. Every value arrives as a prop; reading the DOM is what made
 //    the old sheet fail silently when a class or aria-label changed.
 for (const pattern of ["querySelector", "getElementById", "getAttribute(", "classList"]) {
-  t(!tsx.includes(pattern), `no ${pattern} in the component`);
+  t(!code(tsx).includes(pattern), `no ${pattern} in the component`);
 }
 
 // 3. No aria-label string matching. native()/proxy() looked buttons up by label
@@ -74,9 +83,38 @@ const views = ["menu", "contents", "text", "advanced", "aloud", "voice"];
 const missing = views.filter((v) => !tsx.includes(`view === "${v}"`));
 t(missing.length === 0, "every view has a render branch", missing.length ? `missing: ${missing}` : "");
 
-// 12. Not yet wired in: this step adds the component, it does not switch to it.
-t(!readFileSync("app/BookReader.tsx", "utf8").includes("ReadingSheet"),
-  "BookReader does not use it yet (wiring is the next commit)");
+// 12. Wired in, but behind a flag: the default path must be untouched so the
+//     legacy sheet keeps working until step 1c deletes it.
+const reader = readFileSync("app/BookReader.tsx", "utf8");
+t(reader.includes("<ReadingSheet"), "BookReader renders the component");
+t(/reactSheetEnabled &&/.test(reader), "render is gated on the flag");
+t(/rr-react-sheet/.test(reader), "flag persists in localStorage for the PWA");
+
+// 13. Every prop the component declares as required must actually be passed.
+const required = ["open=", "onClose=", "theme=", "onThemeChange="];
+const missingProps = required.filter((prop) => !reader.includes(prop));
+t(missingProps.length === 0, "all required props passed",
+  missingProps.length ? `missing: ${missingProps}` : "");
+
+// 14. Optional props must be undefined for non-reflowable formats, or a PDF gets
+//     text controls that cannot work.
+t(/isReflowable \? fontSize : undefined/.test(reader), "fontSize gated on reflowable");
+t(/isReflowable \? readAloud : undefined/.test(reader), "readAloud gated on reflowable");
+
+// 15. The hook must be called unconditionally — React's rules of hooks — with
+//     only its polling gated.
+t(/useReadAloud\(reactSheetEnabled && reactSheetOpen\)/.test(reader),
+  "hook called unconditionally, polling gated by argument");
+
+// 16. The adapter is the only place touching globals.
+const hook = readFileSync("app/useReadAloud.ts", "utf8");
+t(/window as unknown as ReadAloudGlobals/.test(hook), "globals accessed through one typed shim");
+t(!/window\.rr/.test(code(tsx)), "component still free of window.rr* access");
+
+// 17. read-aloud.js must expose voices as data, not a DOM node to clone.
+const aloud = readFileSync("overrides/book-art/read-aloud.js", "utf8");
+t(/window\.rrGetVoices/.test(aloud), "read-aloud exposes rrGetVoices");
+t(/window\.rrSetVoice/.test(aloud), "read-aloud exposes rrSetVoice");
 
 console.log(`\n${fail ? fail + " FAILED" : "all checks passed"}`);
 process.exit(fail ? 1 : 0);

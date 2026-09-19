@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
 import { driveDownloadUrl } from "./drive";
+import ReadingSheet, { type SheetTocItem } from "./ReadingSheet";
+import { useReadAloud } from "./useReadAloud";
 import type { Book as EpubBook, Location, Rendition } from "epubjs";
 import type { RenditionOptions } from "epubjs/types/rendition";
 import PdfReader, { type PdfReaderHandle } from "./PdfReader";
@@ -253,6 +255,20 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   const [mangaMode, setMangaMode] = useState(false);
   const [epubRevision, setEpubRevision] = useState(0);
   const [panel, setPanel] = useState<"search" | "bookmarks" | null>(null);
+  // Step 1b of the override collapse: the React reading sheet runs alongside the
+  // imperative one so both can be compared on the device before either is
+  // deleted. Enabled with ?sheet=react, or localStorage rr-react-sheet=1 so the
+  // choice survives a reload in the PWA, where a query string is awkward.
+  const [reactSheetEnabled] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const param = new URLSearchParams(window.location.search).get("sheet");
+      if (param === "react") { localStorage.setItem("rr-react-sheet", "1"); return true; }
+      if (param === "legacy") { localStorage.removeItem("rr-react-sheet"); return false; }
+      return localStorage.getItem("rr-react-sheet") === "1";
+    } catch { return false; }
+  });
+  const [reactSheetOpen, setReactSheetOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ReaderSearchResult[]>([]);
   const [searchStatus, setSearchStatus] = useState("");
@@ -740,6 +756,16 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     }
   }
 
+  // Unconditional hook call; polling only runs while the sheet is open.
+  const readAloud = useReadAloud(reactSheetEnabled && reactSheetOpen);
+
+  // The TOC is already state here. The old sheet cloned a <select> to get it,
+  // which is why its depth prefixes were baked into the label string.
+  const sheetToc: SheetTocItem[] = toc.map((item) => ({
+    label: `${"— ".repeat(item.depth)}${item.label}`,
+    value: item.href,
+  }));
+
   return (
     <section className={`reader-shell reader-theme-${theme}`} ref={shellRef} role="dialog" aria-modal="true" aria-labelledby="reader-title">
       <header className="reader-header">
@@ -777,6 +803,38 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         <div className="epub-stage" onTouchStart={(event) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={endSwipe}>{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{isComic && readingMode && <ComicReader ref={comicReaderRef} fileId={file.id} format={file.format} mode={readingMode} direction={mangaMode ? "rtl" : "ltr"} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download {format}</a>}</div>}</div>
         <footer className="reader-footer"><button onClick={previous}>{readingMode === "scroll" ? "↑ Up" : "← Previous"}</button><span>{progress || (readingMode === "scroll" ? "Continuous scroll" : "Use the arrow keys to turn pages")}</span><button onClick={next}>{readingMode === "scroll" ? "Down ↓" : "Next →"}</button></footer>
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
+
+      {/* Step 1b: the React sheet, with its own trigger so it can be compared
+          against the imperative one without disturbing it. Both are present only
+          when the flag is on; the default path is unchanged. */}
+      {reactSheetEnabled && <>
+        <button type="button" className="rr-react-sheet-trigger"
+          aria-label={reactSheetOpen ? "Close reading menu" : "Open reading menu"}
+          aria-expanded={reactSheetOpen}
+          onClick={() => setReactSheetOpen((open) => !open)}>≡</button>
+        <ReadingSheet
+          open={reactSheetOpen}
+          onClose={() => setReactSheetOpen(false)}
+          theme={theme}
+          onThemeChange={chooseTheme}
+          mode={isReflowable ? readingMode ?? undefined : undefined}
+          onModeChange={chooseReadingMode}
+          pageTurn={isReflowable ? pageTurnAnimation : undefined}
+          onPageTurnChange={choosePageTurnAnimation}
+          fontSize={isReflowable ? fontSize : undefined}
+          onFontSizeChange={setFontSize}
+          lineHeight={isReflowable ? lineHeight : undefined}
+          onLineHeightChange={setLineHeight}
+          margin={isReflowable ? margin : undefined}
+          onMarginChange={setMargin}
+          toc={sheetToc.length > 0 ? sheetToc : undefined}
+          onTocSelect={goToChapter}
+          progressLabel={progress || undefined}
+          onSearch={(isReflowable || isPdf) ? () => { setReactSheetOpen(false); setPanel("search"); } : undefined}
+          onBookmarks={() => { setReactSheetOpen(false); setPanel("bookmarks"); }}
+          readAloud={isReflowable ? readAloud : undefined}
+        />
+      </>}
     </section>
   );
 }

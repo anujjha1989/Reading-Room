@@ -967,6 +967,24 @@
     };
   }
 
+  // Voices as data rather than a DOM node. The reading sheet used to clone the
+  // <select> and read .options, which coupled it to this module's markup; a
+  // React component should not have to know a select exists. The select stays as
+  // the source of truth so nothing about playback changes.
+  window.rrGetVoices = function () {
+    if (!voiceSel) return [];
+    return Array.prototype.map.call(voiceSel.options, function (opt) {
+      return { label: opt.textContent, value: opt.value, current: opt.selected };
+    });
+  };
+  window.rrSetVoice = function (value) {
+    if (!voiceSel) return;
+    voiceSel.value = value;
+    // The change listener wired above is what persists the choice and restarts
+    // the sentence, so dispatch rather than duplicating that logic here.
+    voiceSel.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
   window.rrToggleReadAloud = toggle;
   window.rrStopReadAloud = stop;
   window.rrSkipSentence = skipSentence;

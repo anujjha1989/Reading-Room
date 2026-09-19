@@ -227,3 +227,25 @@ footer { border-top:1px solid var(--line); padding:36px clamp(24px,5vw,78px); di
 @media(max-width:520px){.brand strong{font-size:15px}.brand-mark{width:32px;height:40px}.compact-hero h1{font-size:37px}.search{height:52px}.search kbd{display:none}.category-chips{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.category-chips button{white-space:nowrap}.expanded-filters{grid-template-columns:1fr}.filter-picker-menu{position:fixed;left:10px;right:10px;top:auto;bottom:calc(68px + env(safe-area-inset-bottom));max-height:65vh}.grid{grid-template-columns:repeat(2,1fr);gap:27px 13px}.grid.list-view{display:flex}.catalog{padding-left:14px;padding-right:14px}.discovery{padding-left:14px;padding-right:14px}.shelf-strip{grid-auto-columns:112px;gap:13px}.cover{padding:10px}.has-cover .cover-copy{margin:0 -10px -10px}.cover-copy strong{font-size:14px}.modal-backdrop{padding:0}.modal{width:100%;height:100%;max-height:none;padding:42px 19px}.modal h2{font-size:34px}.file-row{align-items:flex-start;flex-direction:column}.file-row>div{width:100%}.file-row button,.file-row a{flex:1;text-align:center}.display-switch button{padding:8px}.display-switch button span{margin:0}.display-switch button:not(.active){font-size:0}.display-switch button.active span{margin-right:4px}.series-link{display:none}.reader-footer span{font-size:9px}footer{display:block}footer p{margin-bottom:0}}
 @media(max-width:420px){.reader-actions label,.reader-actions select{display:none}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+
+/* Step 1b trigger for the React reading sheet. Deliberately offset from the
+   override layer's ≡ so both can be open side by side and compared; it goes away
+   with the legacy sheet in step 1c. Global rather than a module because it sits
+   in BookReader's own markup. */
+.rr-react-sheet-trigger {
+  position: fixed;
+  right: calc(16px + env(safe-area-inset-right));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 140px);
+  z-index: 151;
+  width: 46px; height: 46px;
+  display: grid; place-items: center;
+  border: 1px solid rgba(0,122,255,.5);
+  border-radius: 50%;
+  background: rgba(0,122,255,.18);
+  color: inherit;
+  font: 600 20px/1 -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.rr-react-sheet-trigger:active { transform: scale(.92); }
