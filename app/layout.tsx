@@ -13,5 +13,8 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><head><link rel="preconnect" href="https://covers.openlibrary.org" /><link rel="preconnect" href="https://openlibrary.org" /></head><body>{children}</body></html>;
+  // The tiny theme boot script sets data-rr-theme before React hydrates so the
+  // first paint never flashes the wrong colour. That intentional client-only
+  // attribute is the one permitted hydration difference at the document root.
+  return <html lang="en" suppressHydrationWarning><head><link rel="preconnect" href="https://covers.openlibrary.org" /><link rel="preconnect" href="https://openlibrary.org" /></head><body>{children}</body></html>;
 }
