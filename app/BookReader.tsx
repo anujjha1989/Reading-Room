@@ -344,6 +344,16 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     return () => document.documentElement.classList.remove("rr-react-sheet-enabled");
   }, [reactSheetEnabled]);
 
+  // Standalone iOS can lose React's delegated touch event when the EPUB
+  // surface has just handled the same gesture. The fullscreen bridge listens
+  // in the native capture phase and sends this event directly to the reader.
+  useEffect(() => {
+    if (!reactSheetEnabled) return;
+    const toggleReadingSheet = () => setReactSheetOpen((open) => !open);
+    window.addEventListener("rr-toggle-reading-sheet", toggleReadingSheet);
+    return () => window.removeEventListener("rr-toggle-reading-sheet", toggleReadingSheet);
+  }, [reactSheetEnabled]);
+
   useEffect(() => {
     document.documentElement.classList.toggle("rr-react-sheet-open", reactSheetEnabled && reactSheetOpen);
     return () => document.documentElement.classList.remove("rr-react-sheet-open");

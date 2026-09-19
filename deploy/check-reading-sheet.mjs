@@ -145,6 +145,13 @@ t(/rrAdjustSleepTime/.test(hook) && /rrSkipSentence\?\.\(-1\)/.test(hook),
 const globalCss = readFileSync("app/globals.css", "utf8");
 t(/onTouchEnd=/.test(reader) && /menuTouchAtRef/.test(reader),
   "menu trigger has an explicit, de-duplicated touch path");
+t(/rr-toggle-reading-sheet/.test(reader) && /setReactSheetOpen\(\(open\) => !open\)/.test(reader),
+  "BookReader accepts the native iOS menu bridge");
+const fullscreen = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8");
+t(/\.rr-react-sheet-trigger/.test(fullscreen)
+  && /addEventListener\("touchend"[\s\S]*?capture: true, passive: false/.test(fullscreen)
+  && /rr-toggle-reading-sheet/.test(fullscreen),
+  "fullscreen bridge claims the menu control in native capture phase");
 t(/\.rr-react-sheet-trigger[\s\S]*?width:\s*46px[\s\S]*?height:\s*46px/.test(globalCss),
   "menu trigger uses the standard 46px control geometry");
 t(!/#007aff|rgba\(0,\s*122,\s*255/.test(globalCss),
@@ -175,7 +182,18 @@ t(/aria-label="Back to reading menu"/.test(tsx)
 //     the visible meta element, or iOS restores a light status bar on hydration.
 const renderer = readFileSync("deploy/render-index.mjs", "utf8");
 t(/serialized status-bar metadata/.test(renderer) && /black-translucent/.test(renderer),
-  "renderer reconciles iOS status-bar metadata");
+  "renderer reconciles iOS status-bar metadata to translucent safe-area mode");
+
+// 24. Home and Reader are independent. Verify every colour in the 2 × 3
+//     matrix is present rather than fixing the reported dark-reader case with
+//     a global black bar that would regress a light Home or light book.
+t(/homeTheme===['"]dark['"]\?['"]#000000['"]:['"]#f7f3ec['"]/.test(fullscreen),
+  "Home status area maps both dark and light themes");
+for (const [theme, colour] of [["dark", "#181b1a"], ["light", "#fffdf7"], ["sepia", "#f3ead7"]]) {
+  t(fullscreen.includes(`theme==='${theme}'?'${colour}'`)
+    || fullscreen.includes(`theme==='${theme}'?'${colour}':`),
+  `reader status area maps ${theme} independently`);
+}
 
 console.log(`\n${fail ? fail + " FAILED" : "all checks passed"}`);
 process.exit(fail ? 1 : 0);
