@@ -49,6 +49,9 @@ if (process.argv.includes("--reload")) {
   });
   await new Promise((resolve) => setTimeout(resolve, 3500));
 }
+if (process.argv.includes("--pages")) {
+  await evaluate(`localStorage.setItem('reading-room-reader-mode', 'pages')`);
+}
 if (process.argv.includes("--open-reader")) {
   await evaluate(`(() => {
     const button = [...document.querySelectorAll('.shelf-book')]
@@ -158,6 +161,11 @@ const result = await evaluate(`(() => {
   exercise: window.__rrAuditResult || null,
   trigger: trigger ? {
     rect: trigger.getBoundingClientRect().toJSON(),
+    hit: (() => {
+      const rect = trigger.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return { tag: hit?.tagName || null, className: hit?.className || null, label: hit?.getAttribute?.('aria-label') || null };
+    })(),
     display: style.display,
     color: style.color,
     background: style.backgroundColor,

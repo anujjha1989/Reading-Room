@@ -147,11 +147,16 @@ t(/onTouchEnd=/.test(reader) && /menuTouchAtRef/.test(reader),
   "menu trigger has an explicit, de-duplicated touch path");
 t(/rr-toggle-reading-sheet/.test(reader) && /setReactSheetOpen\(\(open\) => !open\)/.test(reader),
   "BookReader accepts the native iOS menu bridge");
+t(/createPortal\(<[\s\S]*readingSheetHost\)/.test(reader)
+  && /setReadingSheetHost\(document\.body\)/.test(reader),
+  "trigger and sheet escape the reader stacking context through a body portal");
 const fullscreen = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8");
 t(/\.rr-react-sheet-trigger/.test(fullscreen)
   && /addEventListener\("touchend"[\s\S]*?capture: true, passive: false/.test(fullscreen)
   && /rr-toggle-reading-sheet/.test(fullscreen),
   "fullscreen bridge claims the menu control in native capture phase");
+t(/!root\.classList\.contains\("rr-react-sheet-open"\)/.test(fullscreen),
+  "transparent page-turn layer is disabled while the React sheet is open");
 t(/\.rr-react-sheet-trigger[\s\S]*?width:\s*46px[\s\S]*?height:\s*46px/.test(globalCss),
   "menu trigger uses the standard 46px control geometry");
 t(!/#007aff|rgba\(0,\s*122,\s*255/.test(globalCss),

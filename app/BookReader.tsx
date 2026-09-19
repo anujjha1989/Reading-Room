@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
+import { createPortal } from "react-dom";
 import { driveDownloadUrl } from "./drive";
 import ReadingSheet, { type SheetTocItem } from "./ReadingSheet";
 import { useReadAloud } from "./useReadAloud";
@@ -338,6 +339,15 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     } catch { return true; }
   });
   const [reactSheetOpen, setReactSheetOpen] = useState(false);
+  const [readingSheetHost, setReadingSheetHost] = useState<HTMLElement | null>(null);
+
+  // The page-turn touch layer is appended directly to body. Keeping the sheet
+  // inside .reader-shell trapped it in that element's lower stacking context,
+  // so the transparent page layer sat above the visible button on iPhone.
+  useEffect(() => {
+    setReadingSheetHost(document.body);
+    return () => setReadingSheetHost(null);
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("rr-react-sheet-enabled", reactSheetEnabled);
@@ -981,7 +991,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
 
       {/* The React-owned reading sheet. The legacy implementation remains an
           explicit ?sheet=legacy recovery route until live-device validation. */}
-      {reactSheetEnabled && <>
+      {reactSheetEnabled && readingSheetHost ? createPortal(<>
         <button type="button" className="rr-react-sheet-trigger"
           aria-label={reactSheetOpen ? "Close reading settings" : "Open reading settings"}
           aria-expanded={reactSheetOpen}
@@ -1031,7 +1041,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
           onReset={isReflowable ? resetReadingAppearance : undefined}
           readAloud={isReflowable ? readAloud : undefined}
         />
-      </>}
+      </>, readingSheetHost) : null}
     </section>
   );
 }

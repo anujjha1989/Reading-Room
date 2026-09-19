@@ -382,7 +382,9 @@
     tapLayer.style.top = top + "px";
     tapLayer.style.width = Math.max(0, width) + "px";
     tapLayer.style.height = Math.max(0, height) + "px";
-    tapLayer.style.display = !textMode && !sheetOpen() && width > 0 && height > 0 ? "flex" : "none";
+    tapLayer.style.display = !textMode && !sheetOpen()
+      && !root.classList.contains("rr-react-sheet-open")
+      && width > 0 && height > 0 ? "flex" : "none";
   }
 
   function turnPage(direction) {
