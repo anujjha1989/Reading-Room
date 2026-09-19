@@ -1,0 +1,31 @@
+[Unit]
+Description=The Reading Room private ebook library
+Wants=network-online.target
+After=network-online.target tailscaled.service
+
+[Service]
+Type=simple
+User=reading-room
+Group=reading-room
+WorkingDirectory=/opt/reading-room/current
+Environment=NODE_ENV=production
+Environment=READING_ROOM_HOST=0.0.0.0
+Environment=PORT=4311
+Environment=READING_ROOM_SITE=/opt/reading-room/current/site
+Environment=READING_ROOM_DATA=/var/lib/reading-room
+ExecStart=/usr/bin/node /opt/reading-room/current/standalone-server.mjs
+Restart=on-failure
+RestartSec=3
+StateDirectory=reading-room
+UMask=0077
+
+# The service can read its installed files and write only its state directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/reading-room
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

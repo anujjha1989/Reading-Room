@@ -1,0 +1,37 @@
+#!/bin/sh
+set -eu
+umask 077
+
+SYNC_DIR="/home/anujjha1989/.reading-room"
+CATALOG="/opt/reading-room/current/site/catalog.json"
+MANIFEST="$SYNC_DIR/drive-manifest.json"
+NEXT="$SYNC_DIR/catalog.next.json"
+SUMMARY="$SYNC_DIR/catalog-sync-summary.json"
+STATE="$SYNC_DIR/catalog-sync-state.json"
+
+mkdir -p "$SYNC_DIR"
+exec 9>"$SYNC_DIR/drive-sync.lock"
+if ! flock -n 9; then
+  echo "A Reading Room Drive scan is already running."
+  exit 0
+fi
+
+rclone lsjson --recursive --files-only reading-room-drive: > "${MANIFEST}.new"
+mv "${MANIFEST}.new" "$MANIFEST"
+node /usr/local/lib/reading-room/drive-scan.mjs "$CATALOG" "$MANIFEST" "$NEXT" "$SUMMARY"
+
+added="$(node -p "require('$SUMMARY').added")"
+before="$(node -p "require('$SUMMARY').before")"
+if [ "$added" -gt 0 ]; then
+  sudo -n /usr/local/sbin/reading-room-apply-catalog
+  after="$(curl --fail --silent --show-error http://127.0.0.1:4311/api/health | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(String(JSON.parse(s).books)))")"
+  expected=$((before + added))
+  if [ "$after" -ne "$expected" ]; then
+    echo "Health check count mismatch: expected $expected, got $after" >&2
+    exit 1
+  fi
+fi
+
+timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+printf '{"folderId":"1GPYSqwOTD_hryqoW5chOUg_QgyIAdQq4","lastSuccessfulRun":"%s"}\n' "$timestamp" > "$STATE"
+cat "$SUMMARY"

@@ -1,0 +1,16 @@
+[Unit]
+Description=Scan Google Drive for new Reading Room books
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=anujjha1989
+Group=anujjha1989
+SupplementaryGroups=reading-room
+Environment=HOME=/home/anujjha1989
+ExecStart=/usr/local/bin/reading-room-drive-sync
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

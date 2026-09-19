@@ -1,0 +1,46 @@
+#!/bin/sh
+set -eu
+
+NEXT="/home/anujjha1989/.reading-room/catalog.next.json"
+TARGET="/opt/reading-room/current/site/catalog.json"
+BACKUP_DIR="/var/lib/reading-room/catalog-backups"
+
+python3 - "$NEXT" <<'PY'
+import json
+import os
+import sys
+
+path = sys.argv[1]
+if not os.path.isfile(path):
+    raise SystemExit(f"candidate catalogue missing: {path}")
+with open(path, "r", encoding="utf-8") as handle:
+    data = json.load(handle)
+if not isinstance(data, list):
+    raise SystemExit("catalogue must be a JSON array")
+if not data:
+    raise SystemExit("catalogue must not be empty")
+ids = []
+for index, item in enumerate(data):
+    if not isinstance(item, dict):
+        raise SystemExit(f"entry {index} is not an object")
+    file_id = item.get("id")
+    title = item.get("title")
+    if not isinstance(file_id, str) or not file_id:
+        raise SystemExit(f"entry {index} has no file id")
+    if not isinstance(title, str) or not title.strip():
+        raise SystemExit(f"entry {index} has no title")
+    ids.append(file_id)
+if len(ids) != len(set(ids)):
+    raise SystemExit("catalogue contains duplicate file ids")
+print(f"validated {len(data)} catalogue entries")
+PY
+
+mkdir -p "$BACKUP_DIR"
+timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+cp -p "$TARGET" "$BACKUP_DIR/catalog-${timestamp}.json"
+install -o root -g reading-room -m 0640 "$NEXT" "${TARGET}.new"
+mv -f "${TARGET}.new" "$TARGET"
+systemctl restart reading-room
+sleep 2
+curl --fail --silent --show-error http://127.0.0.1:4311/api/health
+echo

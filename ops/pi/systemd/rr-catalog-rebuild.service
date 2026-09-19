@@ -1,0 +1,9 @@
+[Unit]
+Description=Reading Room: rebuild the catalogue from Drive
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+User=anujjha1989
+ExecStart=/usr/local/lib/reading-room/rr-catalog-rebuild.sh
+TimeoutStartSec=3600

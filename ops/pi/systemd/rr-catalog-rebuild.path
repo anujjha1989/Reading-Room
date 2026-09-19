@@ -1,0 +1,12 @@
+[Unit]
+Description=Reading Room: run a scan when the app asks for one
+# Never let a run of failures stop the watcher itself; the script reports
+# problems through its status file instead of failing the unit.
+StartLimitIntervalSec=0
+
+[Path]
+PathExists=/var/lib/reading-room/scan-request.json
+Unit=rr-catalog-rebuild.service
+
+[Install]
+WantedBy=paths.target
