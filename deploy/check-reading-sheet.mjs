@@ -150,6 +150,10 @@ t(/rr-toggle-reading-sheet/.test(reader) && /setReactSheetOpen\(\(open\) => !ope
 t(/createPortal\(<[\s\S]*readingSheetHost\)/.test(reader)
   && /setReadingSheetHost\(document\.body\)/.test(reader),
   "trigger and sheet escape the reader stacking context through a body portal");
+t((reader.match(/createPortal\(<aside className="reader-panel rr-reader-panel-portal"/g) || []).length === 2,
+  "Search and Bookmarks escape the page-turn stacking context too");
+t(/\.rr-reader-panel-portal\s*\{[^}]*position:\s*fixed;[^}]*z-index:\s*170/.test(globalCss),
+  "reader subviews sit above the transparent page-turn layer");
 const fullscreen = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8");
 t(/\.rr-react-sheet-trigger/.test(fullscreen)
   && /addEventListener\("touchend"[\s\S]*?capture: true, passive: false/.test(fullscreen)

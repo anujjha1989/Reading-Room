@@ -971,18 +971,18 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         </div>
       </header>
 
-      {panel === "search" && <aside className="reader-panel" aria-label="Search inside book">
+      {panel === "search" && readingSheetHost ? createPortal(<aside className="reader-panel rr-reader-panel-portal" aria-label="Search inside book">
         <div className="reader-panel-heading"><div><span>FIND IN BOOK</span><strong>Search this title</strong></div><button onClick={backToReadingMenu} aria-label="Back to reading menu">‹</button></div>
         <form className="reader-search-form" onSubmit={(event) => { event.preventDefault(); performSearch(); }}><input autoFocus value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Word or phrase…" aria-label="Word or phrase" /><button type="submit">Search</button></form>
         {searchStatus && <p className="reader-panel-status">{searchStatus}</p>}
         <div className="reader-search-results">{searchResults.map((result, index) => <button key={`${result.target}-${index}`} onClick={() => goToPosition(result.target)}><strong>{result.label}</strong><span>{result.excerpt}</span></button>)}</div>
-      </aside>}
+      </aside>, readingSheetHost) : null}
 
-      {panel === "bookmarks" && <aside className="reader-panel" aria-label="Bookmarks">
+      {panel === "bookmarks" && readingSheetHost ? createPortal(<aside className="reader-panel rr-reader-panel-portal" aria-label="Bookmarks">
         <div className="reader-panel-heading"><div><span>SAVED PLACES</span><strong>Bookmarks</strong></div><button onClick={backToReadingMenu} aria-label="Back to reading menu">‹</button></div>
         <button className="reader-add-bookmark" onClick={addBookmark}>+ Bookmark current place</button>
         <div className="reader-bookmarks">{bookmarks.length ? bookmarks.map((bookmark) => <div key={bookmark.id}><button onClick={() => goToPosition(bookmark.position)}><strong>{bookmark.label}</strong><span>{new Date(bookmark.createdAt).toLocaleDateString()}</span></button><button onClick={() => removeBookmark(bookmark.id)} aria-label={`Remove bookmark ${bookmark.label}`}>×</button></div>) : <p>No bookmarks yet.</p>}</div>
-      </aside>}
+      </aside>, readingSheetHost) : null}
 
       {isBookReader ? <>
         <div className="epub-stage" onTouchStart={(event) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={endSwipe}>{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{isComic && readingMode && <ComicReader ref={comicReaderRef} fileId={file.id} format={file.format} mode={readingMode} direction={mangaMode ? "rtl" : "ltr"} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download {format}</a>}</div>}</div>
