@@ -988,6 +988,11 @@
   window.rrToggleReadAloud = toggle;
   window.rrStopReadAloud = stop;
   window.rrSkipSentence = skipSentence;
+  // Named wrappers. skipSentence already takes a direction, so previous needs no
+  // new logic - only the legacy sheet knew to pass -1, which is why the React one
+  // had no back button.
+  window.rrNextSentence = function () { skipSentence(1); };
+  window.rrPreviousSentence = function () { skipSentence(-1); };
   window.rrAddSleepTime = addSleepSlot;
   window.rrAdjustSleepTime = adjustSleepTime;
   window.rrGetReadAloudState = publicState;

@@ -104,7 +104,48 @@ function themeColors(theme: ReaderTheme) {
   return { ink: "#26332f", paper: "#fffdf7", link: "#4d6b5d" };
 }
 
-function epubStyles(theme: ReaderTheme, lineHeight: number, margin: number, paginated = false) {
+/**
+ * Typography settings that used to live only in fullscreen-bundle.js, which held
+ * them in module variables, persisted them to `rr-books-type` and applied them by
+ * injecting a <style id="rr-books-type"> into the book's iframe.
+ *
+ * That injection also set line-height and padding, duplicating what epubStyles
+ * already does here — two stylesheets setting the same properties with
+ * !important, resolved only by injection order. Moving these in removes the
+ * duplication as well as the layer.
+ */
+export type Typography = {
+  /** "" means the book's own font. */
+  family: string;
+  bold: boolean;
+  justify: boolean;
+  /** letter-spacing, px */
+  charSpacing: number;
+  /** word-spacing, px */
+  wordSpacing: number;
+};
+
+export const DEFAULT_TYPOGRAPHY: Typography = {
+  family: "", bold: false, justify: false, charSpacing: 0, wordSpacing: 0,
+};
+
+/** Named families the sheet offers. Keys are what the old override used, so a
+ *  migrated preference resolves without translation. */
+export const FONT_FAMILIES: Record<string, string> = {
+  Original: "",
+  System: "-apple-system, BlinkMacSystemFont, sans-serif",
+  Serif: "Georgia, serif",
+  Palatino: 'Palatino, "Palatino Linotype", serif',
+  Helvetica: "Helvetica, Arial, sans-serif",
+};
+
+function epubStyles(
+  theme: ReaderTheme,
+  lineHeight: number,
+  margin: number,
+  paginated = false,
+  type: Typography = DEFAULT_TYPOGRAPHY,
+) {
   const colors = themeColors(theme);
   return {
     // overflow-y must be hidden when paginated. epub.js lays a paginated
@@ -125,7 +166,12 @@ function epubStyles(theme: ReaderTheme, lineHeight: number, margin: number, pagi
     // remains the viewport clip, so allowing body overflow does not expose a
     // horizontal scrollbar or bleed into the reader chrome.
     body: {
-      "font-family": "Georgia, serif !important",
+      // The chosen family wins; "" falls back to the reader's default serif.
+      "font-family": `${type.family || "Georgia, serif"} !important`,
+      "font-weight": type.bold ? "700 !important" : "inherit !important",
+      "text-align": type.justify ? "justify !important" : "start !important",
+      "letter-spacing": `${type.charSpacing}px !important`,
+      "word-spacing": `${type.wordSpacing}px !important`,
       "line-height": `${lineHeight} !important`,
       padding: `1.25rem max(16px, ${margin}%) 2.5rem !important`,
       "word-wrap": "break-word !important",
@@ -133,7 +179,17 @@ function epubStyles(theme: ReaderTheme, lineHeight: number, margin: number, pagi
     },
     "*, *::before, *::after": { "box-sizing": "border-box !important" },
     "div, section, article, main, header, footer, blockquote, p, li": { "max-width": "100% !important", "min-width": "0 !important" },
-    "p, li, blockquote": { "overflow-wrap": "break-word !important" },
+    "p, li, blockquote": {
+      "overflow-wrap": "break-word !important",
+      // Repeated from body deliberately. A book's own stylesheet usually sets
+      // these per element, and an inherited body rule would lose to it.
+      "font-family": `${type.family || "Georgia, serif"} !important`,
+      "font-weight": type.bold ? "700 !important" : "inherit !important",
+      "text-align": type.justify ? "justify !important" : "start !important",
+      "letter-spacing": `${type.charSpacing}px !important`,
+      "word-spacing": `${type.wordSpacing}px !important`,
+      "line-height": `${lineHeight} !important`,
+    },
     "pre, code": { "white-space": "pre-wrap !important", "overflow-wrap": "anywhere !important" },
     table: { display: "block !important", width: "100% !important", "max-width": "100% !important", "overflow-x": "auto !important" },
     // Only real links. 1Q84 (and many EPUBs) wrap ordinary paragraphs in
@@ -146,12 +202,25 @@ function epubStyles(theme: ReaderTheme, lineHeight: number, margin: number, pagi
   };
 }
 
-function mobiStyles(fontSize: number, theme: ReaderTheme, lineHeight: number, margin: number) {
+function mobiStyles(
+  fontSize: number,
+  theme: ReaderTheme,
+  lineHeight: number,
+  margin: number,
+  type: Typography = DEFAULT_TYPOGRAPHY,
+) {
   const colors = themeColors(theme);
   return `
     :root, html { color: ${colors.ink} !important; background: ${colors.paper} !important;
       overflow-x: hidden !important; box-sizing: border-box !important; }
-    body { color: ${colors.ink} !important; background: ${colors.paper} !important; font-family: Georgia, serif !important;
+    body, body p, body li, body blockquote {
+      font-family: ${type.family || "Georgia, serif"} !important;
+      font-weight: ${type.bold ? 700 : "inherit"} !important;
+      text-align: ${type.justify ? "justify" : "start"} !important;
+      letter-spacing: ${type.charSpacing}px !important;
+      word-spacing: ${type.wordSpacing}px !important;
+      line-height: ${lineHeight} !important; }
+    body { color: ${colors.ink} !important; background: ${colors.paper} !important;
       font-size: ${fontSize}% !important; line-height: ${lineHeight} !important;
       margin: 0 !important; padding: 1.25rem max(16px, ${margin}%) 2.5rem !important; overflow-x: hidden !important; box-sizing: border-box !important; }
     *, *::before, *::after { box-sizing: border-box !important; }
@@ -269,6 +338,42 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     } catch { return false; }
   });
   const [reactSheetOpen, setReactSheetOpen] = useState(false);
+
+  /**
+   * Typography, migrated from the override's `rr-books-type`.
+   *
+   * fullscreen-bundle.js owned these until step 1c-i: it kept them in module
+   * variables, saved them under that key, and injected a stylesheet into the
+   * book's iframe. Reading the same key means a preference set in the old sheet
+   * survives, so nothing anyone has configured is silently reset.
+   *
+   * The stored shape is {font,bold,line,chars,words,margins,justify,preset}. Only
+   * the five typography fields are taken here: line and margins are already React
+   * state, and reading them back would fight the values in use.
+   */
+  const [typography, setTypography] = useState<Typography>(() => {
+    if (typeof window === "undefined") return DEFAULT_TYPOGRAPHY;
+    try {
+      const raw = JSON.parse(localStorage.getItem("rr-books-type") || "{}");
+      const named = typeof raw.font === "string" ? FONT_FAMILIES[raw.font] : undefined;
+      return {
+        family: named ?? DEFAULT_TYPOGRAPHY.family,
+        bold: !!raw.bold,
+        justify: !!raw.justify,
+        charSpacing: Number.isFinite(Number(raw.chars)) ? Number(raw.chars) : 0,
+        wordSpacing: Number.isFinite(Number(raw.words)) ? Number(raw.words) : 0,
+      };
+    } catch { return DEFAULT_TYPOGRAPHY; }
+  });
+  const typographyRef = useRef<Typography>(typography);
+  /** The family key, kept so the sheet can show "Palatino" rather than a stack. */
+  const [fontFamilyKey, setFontFamilyKey] = useState<string>(() => {
+    if (typeof window === "undefined") return "Original";
+    try {
+      const raw = JSON.parse(localStorage.getItem("rr-books-type") || "{}");
+      return typeof raw.font === "string" && raw.font in FONT_FAMILIES ? raw.font : "Original";
+    } catch { return "Original"; }
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ReaderSearchResult[]>([]);
   const [searchStatus, setSearchStatus] = useState("");
@@ -401,7 +506,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         renditionRef.current = rendition;
         if (mode === "scroll") stabilizeContinuousScroll(rendition);
         rendition.spread(mode === "scroll" || mobile ? "none" : "auto", 980);
-        rendition.themes.default(epubStyles(themeRef.current, lineHeightRef.current, marginRef.current, mode !== "scroll"));
+        rendition.themes.default(epubStyles(themeRef.current, lineHeightRef.current, marginRef.current, mode !== "scroll", typographyRef.current));
         // The saved size, not a hardcoded 100%: this runs after the size has
         // been restored from localStorage, so pinning it to 100 discarded the
         // preference and left the A-/A+ buttons fighting a stale baseline.
@@ -558,13 +663,29 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     themeRef.current = theme;
     lineHeightRef.current = lineHeight;
     marginRef.current = margin;
-    renditionRef.current?.themes.default(epubStyles(theme, lineHeight, margin, readingModeRef.current !== "scroll"));
-    mobiViewRef.current?.renderer?.setStyles(mobiStyles(fontSize, theme, lineHeight, margin));
+    typographyRef.current = typography;
+    renditionRef.current?.themes.default(epubStyles(theme, lineHeight, margin, readingModeRef.current !== "scroll", typography));
+    mobiViewRef.current?.renderer?.setStyles(mobiStyles(fontSize, theme, lineHeight, margin, typography));
     localStorage.setItem("reading-room-reader-theme", theme);
     localStorage.setItem("reading-room-line-height", String(lineHeight));
     localStorage.setItem("reading-room-reader-margin", String(margin));
     localStorage.setItem("reading-room-font-size", String(fontSize));
-  }, [fontSize, lineHeight, margin, theme]);
+    // Written back in the override's own shape so the legacy sheet, which is
+    // still present until 1c-iii, keeps agreeing with us rather than overwriting.
+    try {
+      const existing = JSON.parse(localStorage.getItem("rr-books-type") || "{}");
+      localStorage.setItem("rr-books-type", JSON.stringify({
+        ...existing,
+        font: fontFamilyKey,
+        bold: typography.bold,
+        justify: typography.justify,
+        chars: typography.charSpacing,
+        words: typography.wordSpacing,
+        line: lineHeight,
+        margins: margin,
+      }));
+    } catch { /* storage full or disabled; the session still works */ }
+  }, [fontSize, lineHeight, margin, theme, typography, fontFamilyKey]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
