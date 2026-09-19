@@ -39,6 +39,13 @@ async function evaluate(expression) {
 
 await send("Runtime.enable");
 await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+if (process.argv.includes("--reload")) {
+  await send("Page.enable");
+  await send("Page.navigate", {
+    url: `http://anujrpi.local:4311/?audit=${Date.now()}`,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 3500));
+}
 if (process.argv.includes("--open-reader")) {
   await evaluate(`(() => {
     const button = [...document.querySelectorAll('.shelf-book')]
@@ -76,6 +83,59 @@ if (process.argv.includes("--tap-menu")) {
   await new Promise((resolve) => setTimeout(resolve, 450));
 }
 
+if (process.argv.includes("--exercise-menu")) {
+  const audit = await evaluate(`(async () => {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const clickText = (root, text) => {
+      const button = [...root.querySelectorAll('button')]
+        .find((item) => item.textContent.trim().replace(/\\s+/g, ' ') === text);
+      if (!button) throw new Error('button not found: ' + text);
+      button.click();
+    };
+    const sheet = () => document.querySelector('section[role="dialog"]:not(.reader-shell)');
+    const result = {};
+
+    clickText(sheet(), 'Search'); await wait(100);
+    result.searchBack = !!document.querySelector('.reader-panel button[aria-label="Back to reading menu"]');
+    document.querySelector('.reader-panel button[aria-label="Back to reading menu"]')?.click(); await wait(100);
+
+    clickText(sheet(), 'Marks'); await wait(100);
+    result.bookmarksBack = !!document.querySelector('.reader-panel button[aria-label="Back to reading menu"]');
+    document.querySelector('.reader-panel button[aria-label="Back to reading menu"]')?.click(); await wait(100);
+
+    clickText(sheet(), 'Text'); await wait(100);
+    sheet().querySelector('button[title="Dark"]')?.click(); await wait(150);
+    const darkSheet = sheet();
+    const darkStyle = getComputedStyle(darkSheet);
+    result.darkSheet = {
+      bookTheme: darkSheet.getAttribute('data-book-theme'),
+      color: darkStyle.color,
+      background: darkStyle.backgroundColor,
+    };
+    darkSheet.querySelector('button[aria-label="Back to reading menu"]')?.click(); await wait(100);
+
+    clickText(sheet(), 'Aloud'); await wait(100);
+    result.aloudText = sheet().textContent.trim().replace(/\\s+/g, ' ');
+    const startedAt = performance.now();
+    clickText(sheet(), 'Start reading');
+    for (let tries = 0; tries < 80 && !sheet().textContent.includes('Stop reading'); tries += 1) {
+      await wait(100);
+    }
+    result.readAloudStartupMs = Math.round(performance.now() - startedAt);
+    result.readAloudControls = {
+      previous: !!sheet().querySelector('button[aria-label="Previous sentence"]'),
+      pause: !!sheet().querySelector('button[aria-label="Pause reading"]'),
+      next: !!sheet().querySelector('button[aria-label="Next sentence"]'),
+      sleepMinus: !!sheet().querySelector('button[aria-label="Subtract 30 minutes"]'),
+      sleepPlus: !!sheet().querySelector('button[aria-label="Add 30 minutes"]'),
+    };
+    [...sheet().querySelectorAll('button')]
+      .find((button) => button.textContent.includes('Stop reading'))?.click();
+    return result;
+  })()`);
+  await evaluate(`window.__rrAuditResult = ${JSON.stringify(audit)}`);
+}
+
 const result = await evaluate(`(() => {
   const trigger = document.querySelector('.rr-react-sheet-trigger');
   const sheet = document.querySelector('[role="dialog"][aria-label="Reading menu"]');
@@ -92,6 +152,7 @@ const result = await evaluate(`(() => {
     .map((meta) => ({ content: meta.content, media: meta.media || null })),
   statusBarMetas: [...document.querySelectorAll('meta[name="apple-mobile-web-app-status-bar-style"]')]
     .map((meta) => meta.content),
+  exercise: window.__rrAuditResult || null,
   trigger: trigger ? {
     rect: trigger.getBoundingClientRect().toJSON(),
     display: style.display,

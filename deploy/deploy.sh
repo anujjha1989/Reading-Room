@@ -265,7 +265,11 @@ served=$("${SSH[@]}" "$PI" "grep -o 'fullscreen-bundle-v[0-9]*' /opt/reading-roo
 [ "$served" = "fullscreen-bundle-v$VERSION" ] \
   || fail "live HTML references $served, expected fullscreen-bundle-v$VERSION"
 
-echo "==> live on LAN and Tailscale: $served"
+if [ "$TAILSCALE_RESULT" = "passed" ]; then
+  echo "==> live on LAN and Tailscale: $served"
+else
+  echo "==> live on LAN; Tailscale origin not confirmed from this Mac: $served"
+fi
 
 echo "==> recording deployment"
 DEPLOY_TAG=""
