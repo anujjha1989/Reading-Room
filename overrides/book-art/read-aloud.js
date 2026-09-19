@@ -697,7 +697,7 @@
   // One <audio> element for the whole session: iOS only grants background
   // playback to an element it has seen the user start, so it is created once
   // and reused rather than per sentence.
-  var rrTtsAudio = null, rrPrefetch = Object.create(null);
+  var rrTtsAudio = null, rrPrefetch = Object.create(null), rrWarmTimer = null;
 
   function ttsVoice() {
     try { return localStorage.getItem("reading-room-voice") || ""; } catch (e) { return ""; }
@@ -735,6 +735,34 @@
       rrPrefetch[url] = true;
       try { fetch(url, { cache: "force-cache" }).catch(function () {}); } catch (e) { /* ignore */ }
     }
+  }
+
+  // Piper has to synthesise a clip the first time a sentence/voice pair is
+  // requested. Do that quiet work shortly after the book settles, before the
+  // user opens Read Aloud. The warmed URL is exactly the one play() will use,
+  // so starting feels immediate without changing playback state or position.
+  function warmFirstSentence() {
+    rrWarmTimer = null;
+    if (playing) return;
+    var state = reader();
+    if (!state) return;
+    ensureQueue(state.doc);
+    if (!queue.length) return;
+    var at = 0;
+    for (var i = 0; i < queue.length; i += 1) {
+      if (isVisible(state, queue[i].range)) { at = i; break; }
+    }
+    var item = queue[at];
+    if (!item || !item.text) return;
+    var url = ttsUrl(item.text);
+    if (rrPrefetch[url]) return;
+    rrPrefetch[url] = true;
+    try { fetch(url, { cache: "force-cache" }).catch(function () {}); } catch (e) { /* ignore */ }
+  }
+
+  function scheduleWarmFirstSentence(delay) {
+    if (rrWarmTimer) clearTimeout(rrWarmTimer);
+    rrWarmTimer = setTimeout(warmFirstSentence, delay == null ? 450 : delay);
   }
 
   function mediaSession(doc) {
@@ -796,8 +824,6 @@
   }
 
   // --- sleep timer -----------------------------------------------------------
-  var SLEEP_SLOT = 30 * 60 * 1000; // 30 min in ms
-
   function sleepLabel() {
     if (!sleepMs) return "+30m";
     var mins = Math.ceil(sleepMs / 60000);
@@ -817,18 +843,29 @@
     timerBtn.classList.toggle("rr-timer-active", sleepMs > 0);
   }
 
-  function addSleepSlot() {
-    sleepMs += SLEEP_SLOT;
+  function adjustSleepTime(minutes) {
+    var delta = Number(minutes);
+    if (!isFinite(delta) || !delta) return;
+    sleepMs = Math.max(0, sleepMs + delta * 60 * 1000);
     if (!sleepRef) {
-      sleepRef = setInterval(function () {
-        if (!playing || paused) return; // pause countdown while paused
-        sleepMs = Math.max(0, sleepMs - 1000);
-        renderTimer();
-        if (!sleepMs) { clearInterval(sleepRef); sleepRef = null; stop(); }
-      }, 1000);
+      if (sleepMs) {
+        sleepRef = setInterval(function () {
+          if (!playing || paused) return; // pause countdown while paused
+          sleepMs = Math.max(0, sleepMs - 1000);
+          renderTimer();
+          if (!sleepMs) { clearInterval(sleepRef); sleepRef = null; stop(); }
+        }, 1000);
+      }
+    } else if (!sleepMs) {
+      // Reaching zero through the minus button disables the timer; only the
+      // countdown expiring naturally should stop playback.
+      clearInterval(sleepRef);
+      sleepRef = null;
     }
     renderTimer();
   }
+
+  function addSleepSlot() { adjustSleepTime(30); }
 
   function clearSleepTimer() {
     sleepMs = 0;
@@ -934,6 +971,7 @@
   window.rrStopReadAloud = stop;
   window.rrSkipSentence = skipSentence;
   window.rrAddSleepTime = addSleepSlot;
+  window.rrAdjustSleepTime = adjustSleepTime;
   window.rrGetReadAloudState = publicState;
 
   // Exposed so the reading menu can offer a slider instead of a cycle button.
@@ -1011,6 +1049,7 @@
         try { localStorage.setItem("reading-room-voice", voiceSel.value); } catch (e) {}
         // Cached audio is keyed by voice, so a change takes effect on the next
         // sentence with no further bookkeeping.
+        scheduleWarmFirstSentence(40);
       });
     }
     if (voiceSel.options.length < 2) {
@@ -1042,14 +1081,14 @@
       ".rr-timer{min-width:44px;font-variant-numeric:tabular-nums;white-space:nowrap;transition:color .2s}" +
       ".rr-timer.rr-timer-active{color:var(--rr-timer-ink,#5a7c62)}" +
       ".rr-theme-dark .rr-timer.rr-timer-active{color:var(--rr-timer-ink-dark,#85b892)}" +
-      ".rr-read-transport{position:fixed;right:14px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:124;display:flex;align-items:center;gap:4px;padding:4px;border:1px solid rgba(70,70,67,.16);border-radius:28px;background:rgba(245,244,239,.88);color:#202321;box-shadow:0 4px 18px rgba(0,0,0,.13);-webkit-backdrop-filter:blur(20px) saturate(1.25);backdrop-filter:blur(20px) saturate(1.25)}" +
+      ".rr-read-transport{position:fixed;right:15px;bottom:calc(143px + env(safe-area-inset-bottom));z-index:124;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px;border:1px solid rgba(70,70,67,.16);border-radius:25px;background:rgba(245,244,239,.88);color:#202321;box-shadow:0 4px 18px rgba(0,0,0,.13);-webkit-backdrop-filter:blur(20px) saturate(1.25);backdrop-filter:blur(20px) saturate(1.25)}" +
       ".rr-read-transport[hidden]{display:none!important}" +
       ".rr-read-transport button{width:40px;height:40px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;display:grid;place-items:center;font:600 16px/1 -apple-system,BlinkMacSystemFont,sans-serif;-webkit-tap-highlight-color:transparent}" +
       ".rr-read-transport button:active{background:rgba(90,90,90,.14);transform:scale(.94)}" +
       ".rr-read-transport button:disabled{opacity:.28}" +
       ".rr-read-transport .rr-read-toggle{width:44px;height:44px;background:rgba(255,255,255,.72);box-shadow:0 1px 5px rgba(0,0,0,.09)}" +
-      ".rr-theme-dark .rr-read-transport{background:rgba(42,42,40,.88);color:#f7f5ef;border-color:rgba(255,255,255,.16)}" +
-      ".rr-theme-dark .rr-read-transport .rr-read-toggle{background:rgba(255,255,255,.10)}";
+      ".rr-theme-dark .rr-read-transport,html.rr-reader-dark .rr-read-transport{background:rgba(42,42,40,.88);color:#f7f5ef;border-color:rgba(255,255,255,.16)}" +
+      ".rr-theme-dark .rr-read-transport .rr-read-toggle,html.rr-reader-dark .rr-read-transport .rr-read-toggle{background:rgba(255,255,255,.10)}";
     document.head.appendChild(s);
   })();
 
@@ -1190,6 +1229,7 @@
     }
     fillVoices();
     render();
+    scheduleWarmFirstSentence();
   }
 
   document.addEventListener("keydown", function (e) {

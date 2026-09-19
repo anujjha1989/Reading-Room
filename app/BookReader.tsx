@@ -30,6 +30,7 @@ type ReaderSearchResult = { target: string; label: string; excerpt: string };
 
 type TocEntry = { href: string; label: string; depth: number };
 type ReadingMode = "pages" | "scroll";
+type PageTurnAnimation = "none" | "slide";
 type TocItem = { href: string; label: string; subitems?: TocItem[] };
 type FoliateSection = { load?: () => Promise<string> };
 type FoliateSearchGroup = {
@@ -233,6 +234,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   const comicReaderRef = useRef<ComicReaderHandle>(null);
   const shellRef = useRef<HTMLElement>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const pageTurnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fontSizeRef = useRef(100);
   const readingModeRef = useRef<ReadingMode>("pages");
   const themeRef = useRef<ReaderTheme>("light");
@@ -243,6 +245,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   const [fontSize, setFontSize] = useState(100);
   const [progress, setProgress] = useState("");
   const [readingMode, setReadingMode] = useState<ReadingMode | null>(null);
+  const [pageTurnAnimation, setPageTurnAnimation] = useState<PageTurnAnimation>("slide");
   const [displayTitle, setDisplayTitle] = useState(title);
   const [theme, setTheme] = useState<ReaderTheme>("light");
   const [lineHeight, setLineHeight] = useState(1.65);
@@ -301,6 +304,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   useEffect(() => {
     const saved = localStorage.getItem("reading-room-reader-mode") as ReadingMode | null;
     const mode = saved === "pages" || saved === "scroll" ? saved : window.matchMedia("(max-width: 700px)").matches ? "scroll" : "pages";
+    const savedPageTurn = localStorage.getItem("reading-room-page-turn-animation") as PageTurnAnimation | null;
     const savedTheme = localStorage.getItem("reading-room-reader-theme") as ReaderTheme | null;
     const savedLineHeight = Number(localStorage.getItem("reading-room-line-height")) || 1.65;
     const savedMargin = Number(localStorage.getItem("reading-room-reader-margin")) || 4;
@@ -330,11 +334,16 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     marginRef.current = Math.min(12, Math.max(2, savedMargin));
     fontSizeRef.current = Math.min(160, Math.max(75, savedFontSize));
     setReadingMode(mode);
+    setPageTurnAnimation(savedPageTurn === "none" ? "none" : "slide");
     setTheme(themeRef.current);
     setLineHeight(lineHeightRef.current);
     setMargin(marginRef.current);
     setFontSize(fontSizeRef.current);
   }, [file.id]);
+
+  useEffect(() => () => {
+    if (pageTurnTimerRef.current) clearTimeout(pageTurnTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (!isEpub || !viewerRef.current || !readerModeReady) return;
@@ -559,10 +568,11 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   useEffect(() => {
     const shell = shellRef.current;
     if (!shell) return;
+    const activeShell: HTMLElement = shell;
     const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
     function handleFocusTrap(event: KeyboardEvent) {
       if (event.key !== "Tab") return;
-      const focusable = [...shell.querySelectorAll<HTMLElement>(FOCUSABLE)];
+      const focusable = [...activeShell.querySelectorAll<HTMLElement>(FOCUSABLE)];
       if (focusable.length < 2) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -591,6 +601,27 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
       mobiViewRef.current?.renderer?.setAttribute("flow", mode === "scroll" ? "scrolled" : "paginated");
       mobiViewRef.current?.renderer?.setAttribute("max-column-count", isMobileViewport() ? "1" : "2");
     }
+  }
+
+  function choosePageTurnAnimation(animation: PageTurnAnimation) {
+    localStorage.setItem("reading-room-page-turn-animation", animation);
+    setPageTurnAnimation(animation);
+  }
+
+  function runPageTurn(direction: "previous" | "next", action: () => void) {
+    action();
+    if (readingModeRef.current !== "pages" || pageTurnAnimation !== "slide"
+      || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const shell = shellRef.current;
+    if (!shell) return;
+    shell.classList.remove("reader-turn-previous", "reader-turn-next");
+    void shell.offsetWidth;
+    shell.classList.add(direction === "previous" ? "reader-turn-previous" : "reader-turn-next");
+    if (pageTurnTimerRef.current) clearTimeout(pageTurnTimerRef.current);
+    pageTurnTimerRef.current = setTimeout(() => {
+      shell.classList.remove("reader-turn-previous", "reader-turn-next");
+      pageTurnTimerRef.current = null;
+    }, 230);
   }
 
   function goToChapter(href: string) {
@@ -669,17 +700,26 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   }
 
   function previous() {
-    if (isEpub) renditionRef.current?.prev();
-    else if (isMobi) mobiViewRef.current?.prev();
-    else if (isPdf) pdfReaderRef.current?.previous();
-    else if (isComic) comicReaderRef.current?.previous();
+    runPageTurn("previous", () => {
+      if (isEpub) renditionRef.current?.prev();
+      else if (isMobi) mobiViewRef.current?.prev();
+      else if (isPdf) pdfReaderRef.current?.previous();
+      else if (isComic) comicReaderRef.current?.previous();
+    });
   }
 
   function next() {
-    if (isEpub) renditionRef.current?.next();
-    else if (isMobi) mobiViewRef.current?.next();
-    else if (isPdf) pdfReaderRef.current?.next();
-    else if (isComic) comicReaderRef.current?.next();
+    runPageTurn("next", () => {
+      if (isEpub) renditionRef.current?.next();
+      else if (isMobi) mobiViewRef.current?.next();
+      else if (isPdf) pdfReaderRef.current?.next();
+      else if (isComic) comicReaderRef.current?.next();
+    });
+  }
+
+  function backToReadingMenu() {
+    setPanel(null);
+    window.setTimeout(() => window.dispatchEvent(new Event("rr-open-reading-menu")), 0);
   }
 
   async function toggleFullscreen() {
@@ -707,6 +747,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         <div className="reader-actions">
           {isReflowable && toc.length > 0 && <label><span>Chapter</span><select defaultValue="" onChange={(event) => event.target.value && goToChapter(event.target.value)}><option value="" disabled>Contents</option>{toc.map((item, index) => <option key={`${item.href}-${index}`} value={item.href}>{`${"— ".repeat(item.depth)}${item.label}`}</option>)}</select></label>}
           {isBookReader && readingMode && <div className="reader-modes" aria-label="Reading mode"><button className={readingMode === "pages" ? "active" : ""} aria-pressed={readingMode === "pages"} onClick={() => chooseReadingMode("pages")}>Pages</button><button className={readingMode === "scroll" ? "active" : ""} aria-pressed={readingMode === "scroll"} onClick={() => chooseReadingMode("scroll")}>Scroll</button></div>}
+          {isBookReader && readingMode === "pages" && <div className="reader-modes reader-page-turn" aria-label="Page turn animation"><button className={pageTurnAnimation === "none" ? "active" : ""} aria-pressed={pageTurnAnimation === "none"} onClick={() => choosePageTurnAnimation("none")}>None</button><button className={pageTurnAnimation === "slide" ? "active" : ""} aria-pressed={pageTurnAnimation === "slide"} onClick={() => choosePageTurnAnimation("slide")}>Slide</button></div>}
           {isReflowable && <div className="font-controls" aria-label="Text size"><button onClick={() => setFontSize((size) => Math.max(75, size - 10))} aria-label={`Decrease text size (${fontSize}%)`} title={`${fontSize}%`} disabled={fontSize <= 75}>A−</button><button onClick={() => setFontSize((size) => Math.min(160, size + 10))} aria-label={`Increase text size (${fontSize}%)`} title={`${fontSize}%`} disabled={fontSize >= 160}>A+</button></div>}
           {isBookReader && <details className="reader-settings"><summary aria-label="Reading appearance">Aa</summary><div><span>Theme</span><div className="theme-options"><button className={theme === "light" ? "active" : ""} onClick={() => chooseTheme("light")}>Light</button><button className={theme === "sepia" ? "active" : ""} onClick={() => chooseTheme("sepia")}>Sepia</button><button className={theme === "dark" ? "active" : ""} onClick={() => chooseTheme("dark")}>Dark</button></div>{isReflowable && <><span>Line spacing</span><input type="range" min="1.35" max="2" step="0.05" value={lineHeight} onChange={(event) => setLineHeight(Number(event.target.value))} /><span>Margins</span><input type="range" min="2" max="12" step="1" value={margin} onChange={(event) => setMargin(Number(event.target.value))} /></>}</div></details>}
           {isComic && <button className={mangaMode ? "active" : ""} onClick={() => setMangaMode((enabled) => !enabled)} aria-pressed={mangaMode}>Manga</button>}
@@ -720,14 +761,14 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
       </header>
 
       {panel === "search" && <aside className="reader-panel" aria-label="Search inside book">
-        <div className="reader-panel-heading"><div><span>FIND IN BOOK</span><strong>Search this title</strong></div><button onClick={() => setPanel(null)} aria-label="Close search">×</button></div>
+        <div className="reader-panel-heading"><div><span>FIND IN BOOK</span><strong>Search this title</strong></div><button onClick={backToReadingMenu} aria-label="Back to reading menu">‹</button></div>
         <form className="reader-search-form" onSubmit={(event) => { event.preventDefault(); performSearch(); }}><input autoFocus value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Word or phrase…" aria-label="Word or phrase" /><button type="submit">Search</button></form>
         {searchStatus && <p className="reader-panel-status">{searchStatus}</p>}
         <div className="reader-search-results">{searchResults.map((result, index) => <button key={`${result.target}-${index}`} onClick={() => goToPosition(result.target)}><strong>{result.label}</strong><span>{result.excerpt}</span></button>)}</div>
       </aside>}
 
       {panel === "bookmarks" && <aside className="reader-panel" aria-label="Bookmarks">
-        <div className="reader-panel-heading"><div><span>SAVED PLACES</span><strong>Bookmarks</strong></div><button onClick={() => setPanel(null)} aria-label="Close bookmarks">×</button></div>
+        <div className="reader-panel-heading"><div><span>SAVED PLACES</span><strong>Bookmarks</strong></div><button onClick={backToReadingMenu} aria-label="Back to reading menu">‹</button></div>
         <button className="reader-add-bookmark" onClick={addBookmark}>+ Bookmark current place</button>
         <div className="reader-bookmarks">{bookmarks.length ? bookmarks.map((bookmark) => <div key={bookmark.id}><button onClick={() => goToPosition(bookmark.position)}><strong>{bookmark.label}</strong><span>{new Date(bookmark.createdAt).toLocaleDateString()}</span></button><button onClick={() => removeBookmark(bookmark.id)} aria-label={`Remove bookmark ${bookmark.label}`}>×</button></div>) : <p>No bookmarks yet.</p>}</div>
       </aside>}

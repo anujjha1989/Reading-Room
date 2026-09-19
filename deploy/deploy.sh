@@ -38,7 +38,7 @@ if [ "${1:-}" != "--no-build" ]; then
   # Build in a local temp dir where hardlinks work, then bring dist/ back.
   BUILD_DIR=$(mktemp -d)
   trap 'rm -rf "$BUILD_DIR"' EXIT
-  rsync -a --exclude=node_modules --exclude=dist . "$BUILD_DIR/"
+  rsync -a --exclude=node_modules --exclude=dist --exclude='._*' --exclude='.DS_Store' . "$BUILD_DIR/"
   # --yes on both: without it the second npx stops to ask "Ok to proceed?" when
   # it has to fetch pnpm, which makes an otherwise unattended deploy wait for a
   # keypress. The first call already had it; the second was missed.

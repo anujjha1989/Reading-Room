@@ -58,13 +58,19 @@ for (const api of [
   "window.rrStopReadAloud = stop",
   "window.rrSkipSentence = skipSentence",
   "window.rrAddSleepTime = addSleepSlot",
+  "window.rrAdjustSleepTime = adjustSleepTime",
   "window.rrGetReadAloudState = publicState",
 ]) {
   if (!readAloud.includes(api)) fail(`read-aloud transport API missing: ${api}`);
 }
-for (const call of ["rrSkipSentence?.(-1)", "rrSkipSentence?.(1)", "rrAddSleepTime?.()", "rrToggleReadAloud?.()"]) {
+for (const call of ["rrSkipSentence?.(-1)", "rrSkipSentence?.(1)", "rrAdjustSleepTime?.(-30)", "rrAdjustSleepTime?.(30)", "rrToggleReadAloud?.()"]) {
   if (!readingSheet.includes(call)) fail(`reading sheet is not wired to ${call}`);
 }
+
+// The first Piper clip is warmed without changing playback state, and the two
+// native side panels have a return path to the body-owned reading sheet.
+if (!readAloud.includes("scheduleWarmFirstSentence();")) fail("first read-aloud sentence is not pre-warmed");
+if (!bookReader.includes('new Event("rr-open-reading-menu")')) fail("search/bookmarks cannot return to the reading menu");
 
 // Paginated EPUB columns extend beyond the body's first-page box. Clipping the
 // body makes page one work and every later page blank, despite valid text in

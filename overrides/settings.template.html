@@ -55,7 +55,11 @@ body{margin:0;background:var(--paper);color:var(--ink);
    title. A span is not interactive, so exclude it rather than the tag. */
 button.set-back:hover,.set-close:hover{background:color-mix(in srgb,var(--ink) 8%,transparent)}
 span.set-back{pointer-events:none;background:none}
-.set-close{font-size:20px}
+.set-close{width:46px;min-width:46px;height:46px;font-size:29px;font-weight:300;
+  background:color-mix(in srgb,var(--ink) 12%,transparent);
+  border:1px solid color-mix(in srgb,var(--ink) 12%,transparent);
+  box-shadow:0 2px 12px #00000014;
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
 
 .set-section{margin:22px 0 0}
 .set-section h2{margin:0 0 9px;padding:0 20px;font-size:11px;letter-spacing:1.5px;
@@ -143,7 +147,7 @@ function page(title, body, back){
   $('#page').innerHTML =
     `<header class="set-head">${back?'<button class="set-back" id="back" aria-label="Back">‹</button>':'<span class="set-back"></span>'}`
     + `<h1>${esc(title)}</h1>`
-    + `<button class="set-close" id="close" aria-label="Close settings">✕</button></header>${body}`;
+    + `<button class="set-close" id="close" aria-label="Close settings">×</button></header>${body}`;
   scrollTo(0,0);
   $('#close').onclick = () => { location.href = '/'; };
   if (back) $('#back').onclick = back;

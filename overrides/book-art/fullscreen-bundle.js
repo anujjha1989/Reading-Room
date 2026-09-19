@@ -727,6 +727,14 @@
     nextSentence:'<path d="M18 5v14"/><path d="m7 6 7 6-7 6"/>',
     pause:'<path d="M8 5v14M16 5v14"/>',
     clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/>',
+    smaller:'<path d="M5 18 10.2 6h1.6L17 18M7.1 13h7.8"/><path d="M18 8h4"/>',
+    larger:'<path d="M3 18 8.2 6h1.6L15 18M5.1 13h7.8"/><path d="M17 8h5M19.5 5.5v5"/>',
+    pages:'<path d="M5 4.5h10a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2Z"/><path d="M9 4.5v15"/>',
+    scroll:'<rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+    motionOff:'<rect x="5" y="4" width="14" height="16" rx="2"/><path d="M4 4l16 16"/>',
+    motionSlide:'<rect x="3.5" y="5" width="11" height="14" rx="2"/><path d="M12 8.5 16 12l-4 3.5M16 12h5"/>',
+    minus:'<path d="M5 12h14"/>',
+    plus:'<path d="M12 5v14M5 12h14"/>',
   };
   function glyph(name) {
     if (!ICON[name]) return null;
@@ -843,7 +851,7 @@
       // Four groups, each a different shape: stepper, swatches, segmented
       // control, and one row to the rest. Previously eight identical pills.
       const sizes=document.createElement('div');sizes.className='rr-books-actions rr-books-stepper';
-      sizes.append(button('Smaller text',()=>proxy('Decrease text size'),'A−'),button('Larger text',()=>proxy('Increase text size'),'A+'));host.append(sizes);
+      sizes.append(button('Smaller text',()=>proxy('Decrease text size'),'smaller'),button('Larger text',()=>proxy('Increase text size'),'larger'));host.append(sizes);
 
       const themes=document.createElement('div');themes.className='rr-books-themes';
       for(const name of ['Original','Quiet','Paper','Bold','Calm','Focus']){
@@ -861,16 +869,34 @@
       // mode change alters reader.className, which the signature watcher at the
       // bottom of sync() already notices and re-renders from - adding a timer
       // would render twice and fight it.
-      const modeButtons=[...reader.querySelectorAll('.reader-modes button')];
+      const modeButtons=[...reader.querySelectorAll('.reader-modes:not(.reader-page-turn) button')];
       if(modeButtons.length){
         const modes=document.createElement('div');modes.className='rr-books-segment';
         for(const original of modeButtons){
-          const b=button(original.textContent,()=>{original.click();});
+          const label=original.textContent.trim();
+          const b=button(label,()=>{original.click();},label==='Pages'?'pages':'scroll');
           const on=original.getAttribute('aria-pressed')==='true'||original.classList.contains('active');
           b.setAttribute('aria-pressed',String(on));
           modes.append(b);
         }
         host.append(modes);
+      }
+
+      // Keep animation modest and optional. A short directional slide gives a
+      // page turn a sense of place without imitating a paper curl badly, and
+      // the native controls remain the source of truth for persistence.
+      const pageTurnButtons=[...reader.querySelectorAll('.reader-page-turn button')];
+      if(pageTurnButtons.length){
+        const group=document.createElement('div');group.className='rr-books-option-group';
+        const label=document.createElement('span');label.className='rr-books-option-label';label.textContent='Page animation';
+        const turns=document.createElement('div');turns.className='rr-books-segment rr-books-turn-segment';
+        for(const original of pageTurnButtons){
+          const name=original.textContent.trim();
+          const b=button(name,()=>{original.click();setTimeout(render,40);},name==='None'?'motionOff':'motionSlide');
+          b.setAttribute('aria-pressed',String(original.getAttribute('aria-pressed')==='true'||original.classList.contains('active')));
+          turns.append(b);
+        }
+        group.append(label,turns);host.append(group);
       }
 
       row('More options',()=>go('Customise Theme'),'gear');
@@ -924,12 +950,15 @@
         transport.append(previous,pause,next);
         host.append(transport);
 
-        const timerLabel=state.sleepMinutes
-          ? `Sleep timer · ${state.sleepMinutes} min`
-          : 'Sleep timer · Off';
-        timer=button(timerLabel,()=>{window.rrAddSleepTime?.();setTimeout(render,40);},'clock');
-        timer.className='rr-books-sleep';
-        timer.setAttribute('aria-description','Tap to add 30 minutes');
+        timer=document.createElement('div');
+        timer.className='rr-books-sleep-stepper';
+        const timerTitle=document.createElement('span');timerTitle.className='rr-books-sleep-label';timerTitle.textContent='Sleep timer';
+        const minus=button('Subtract 30 minutes',()=>{window.rrAdjustSleepTime?.(-30);setTimeout(render,40);},'minus');
+        minus.disabled=!state.sleepMinutes;
+        const timerValue=document.createElement('output');timerValue.textContent=state.sleepMinutes?`${state.sleepMinutes} min`:'Off';
+        timerValue.setAttribute('aria-live','polite');
+        const plus=button('Add 30 minutes',()=>{window.rrAdjustSleepTime?.(30);setTimeout(render,40);},'plus');
+        timer.append(timerTitle,minus,timerValue,plus);
 
         stopReading=button('Stop reading',()=>{window.rrStopReadAloud?.();setTimeout(render,80);},'stop');
         stopReading.className='rr-books-stop';
@@ -948,7 +977,9 @@
 
       if($('.rr-rate') && typeof window.rrSetReadingRate === 'function'){
         const wrap=document.createElement('label');
-        wrap.className='rr-rate-row';
+        wrap.className='rr-rate-card';
+        const header=document.createElement('span');header.className='rr-rate-header';
+        const title=document.createElement('span');title.textContent='Reading speed';
         const min=document.createElement('span');min.className='rr-rate-end';min.textContent='0.5\u00d7';
         const max=document.createElement('span');max.className='rr-rate-end';max.textContent='2\u00d7';
         const slider=document.createElement('input');
@@ -960,7 +991,8 @@
         out.textContent=Number(current).toFixed(1)+'\u00d7';
         slider.oninput=()=>{out.textContent=Number(slider.value).toFixed(1)+'\u00d7';};
         slider.onchange=()=>window.rrSetReadingRate(slider.value);
-        wrap.append(min,slider,max,out);
+        const bounds=document.createElement('span');bounds.className='rr-rate-bounds';bounds.append(min,max);
+        header.append(title,out);wrap.append(header,slider,bounds);
         host.append(wrap);
       }
       if(timer) host.append(timer);
@@ -984,11 +1016,18 @@
   }
   function sync() {
     reader=document.querySelector('.reader-shell');root.classList.toggle('rr-books-controls',!!reader);
-    if(!reader){if(host)host.hidden=true;if(dismissZone)dismissZone.hidden=true;lastOpen=false;themeSynced=false;return;}
+    if(!reader){if(host)host.hidden=true;if(dismissZone)dismissZone.hidden=true;lastOpen=false;themeSynced=false;root.classList.remove('rr-reader-dark','rr-reader-light','rr-reader-sepia','rr-native-panel-open');syncThemeColour(null);return;}
+    const readerTheme=reader.classList.contains('reader-theme-dark')?'dark':reader.classList.contains('reader-theme-sepia')?'sepia':'light';
+    root.classList.toggle('rr-reader-dark',readerTheme==='dark');
+    root.classList.toggle('rr-reader-light',readerTheme==='light');
+    root.classList.toggle('rr-reader-sepia',readerTheme==='sepia');
+    syncThemeColour(readerTheme);
     syncPresetTheme();
     if(!host){host=document.createElement('section');host.className='rr-books-menu';host.setAttribute('role','dialog');document.body.append(host);}
     if(!dismissZone){dismissZone=button('Dismiss settings',close);dismissZone.className='rr-books-dismiss';document.body.append(dismissZone);}
-    const isOpen=open();host.hidden=!isOpen;dismissZone.hidden=!isOpen;
+    const nativePanel=!!reader.querySelector('.reader-panel');
+    root.classList.toggle('rr-native-panel-open',nativePanel);
+    const isOpen=open();host.hidden=!isOpen||nativePanel;dismissZone.hidden=!isOpen||nativePanel;
     if(isOpen&&!lastOpen){
       view='menu';
       // Mark the opening so the row stagger runs once. render() rebuilds every
@@ -1014,6 +1053,14 @@
   // never did - so the reader kept whatever theme it defaulted to.
   let enterTimer = 0;
   let themeSynced = false;
+  let originalThemeColour = null;
+  function syncThemeColour(theme) {
+    let meta=document.querySelector('meta[name="theme-color"]');
+    if(!meta){meta=document.createElement('meta');meta.setAttribute('name','theme-color');document.head.append(meta);}
+    if(originalThemeColour===null)originalThemeColour=meta.getAttribute('content')||'';
+    const colour=theme==='dark'?'#181b1a':theme==='sepia'?'#f3ead7':theme==='light'?'#fffdf7':originalThemeColour;
+    if(meta.getAttribute('content')!==colour)meta.setAttribute('content',colour);
+  }
   function syncPresetTheme() {
     if (themeSynced || !reader) return;
     try {
@@ -1034,7 +1081,7 @@
     } catch (_) { themeSynced = true; }
   }
 
-  function start(){sync();setInterval(sync,600);window.addEventListener?.('rr-close-reading-menu',close);document.addEventListener('keydown',e=>{if(e.key==='Escape'&&open()){e.preventDefault();e.stopImmediatePropagation();view==='menu'?close():go('menu');}},true);}
+  function start(){sync();setInterval(sync,600);window.addEventListener?.('rr-close-reading-menu',close);window.addEventListener?.('rr-open-reading-menu',()=>setTimeout(()=>{const trigger=document.querySelector('.rr-sheet-btn');if(trigger&&!open())trigger.click();view='menu';signature='';sync();},20));document.addEventListener('keydown',e=>{if(e.key==='Escape'&&open()){e.preventDefault();e.stopImmediatePropagation();view==='menu'?close():go('menu');}},true);}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
 
