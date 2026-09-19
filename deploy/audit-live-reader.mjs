@@ -39,6 +39,9 @@ async function evaluate(expression) {
 
 await send("Runtime.enable");
 await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+if (process.argv.includes("--seed-legacy")) {
+  await evaluate(`localStorage.setItem('rr-react-sheet', 'legacy')`);
+}
 if (process.argv.includes("--reload")) {
   await send("Page.enable");
   await send("Page.navigate", {
