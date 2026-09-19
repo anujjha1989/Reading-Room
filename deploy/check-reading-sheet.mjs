@@ -89,9 +89,10 @@ t(missing.length === 0, "every view has a render branch", missing.length ? `miss
 const reader = readFileSync("app/BookReader.tsx", "utf8");
 t(reader.includes("<ReadingSheet"), "BookReader renders the component");
 t(/reactSheetEnabled &&/.test(reader), "render is gated on the flag");
-t(/rr-react-sheet/.test(reader), "flag persists in localStorage for the PWA");
-t(/param === "legacy"/.test(reader) && /!== "legacy"/.test(reader),
-  "React sheet is default and legacy remains an explicit recovery path");
+t(/removeItem\("rr-react-sheet"\)/.test(reader),
+  "stale persisted legacy preference is removed from existing devices");
+t(/param !== "legacy"/.test(reader) && !/setItem\("rr-react-sheet"/.test(reader),
+  "React sheet is default and legacy is a one-load recovery path only");
 
 // 13. Every prop the component declares as required must actually be passed.
 const required = ["open=", "onClose=", "theme=", "onThemeChange="];

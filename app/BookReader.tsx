@@ -325,16 +325,16 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   const [mangaMode, setMangaMode] = useState(false);
   const [epubRevision, setEpubRevision] = useState(0);
   const [panel, setPanel] = useState<"search" | "bookmarks" | null>(null);
-  // The React sheet reached feature parity in step 1c-ii and is now the default.
-  // Keep ?sheet=legacy as a recovery switch until the old override is deleted;
-  // the choice persists so a device can be recovered without another deploy.
+  // The React sheet reached feature parity and is now the default on every
+  // device. Older diagnostic builds persisted `legacy` in localStorage; that
+  // stranded those phones on the obsolete, broken menu after later deploys.
+  // Keep the recovery switch for one explicitly requested page load only.
   const [reactSheetEnabled] = useState(() => {
     if (typeof window === "undefined") return false;
     try {
       const param = new URLSearchParams(window.location.search).get("sheet");
-      if (param === "react") { localStorage.setItem("rr-react-sheet", "1"); return true; }
-      if (param === "legacy") { localStorage.setItem("rr-react-sheet", "legacy"); return false; }
-      return localStorage.getItem("rr-react-sheet") !== "legacy";
+      localStorage.removeItem("rr-react-sheet");
+      return param !== "legacy";
     } catch { return true; }
   });
   const [reactSheetOpen, setReactSheetOpen] = useState(false);
