@@ -87,9 +87,6 @@ cp overrides/assets/* dist/stage/assets/
 cp dist/index.html dist/stage/index.html
 cp overrides/sw.js dist/stage/sw.js
 cp dist/settings.html dist/stage/settings.html
-# The server process. Staged from the repo copy, which is now the source of
-# truth for it; it used to exist only on the Pi.
-cp server/standalone-server.mjs dist/stage/standalone-server.mjs
 
 echo "==> uploading"
 "${SSH[@]}" "$PI" "rm -rf ~/rr-deploy/stage && mkdir -p ~/rr-deploy/stage"
@@ -129,10 +126,6 @@ mkdir -p "$ROLLBACK"
 "${SSH[@]}" "$PI" "cd /opt/reading-room/current/site && tar czf - index.html \
   \$([ -f sw.js ] && echo sw.js) \$([ -f settings.html ] && echo settings.html)" \
   > "$ROLLBACK/site-html.tar.gz"
-# The server too, now that a deploy replaces it: a bad server takes the whole
-# app down, not just the UI layer, so it must be restorable.
-"${SSH[@]}" "$PI" "cd /opt/reading-room/current && tar czf - standalone-server.mjs" \
-  > "$ROLLBACK/server.tar.gz"
 # cat, not cp: cp on this SMB mount leaves an ._ AppleDouble sidecar behind.
 cat deploy/reading-room-deploy > "$ROLLBACK/reading-room-deploy"
 echo "    $ROLLBACK"
@@ -144,9 +137,6 @@ rollback() {
   # and the old hashed files were never removed.
   "${SSH[@]}" "$PI" "rm -rf ~/rr-deploy/stage && mkdir -p ~/rr-deploy/stage/assets"
   "${SSH[@]}" "$PI" "tar xzf - -C ~/rr-deploy/stage" < "$ROLLBACK/site-html.tar.gz"
-  if [ -s "$ROLLBACK/server.tar.gz" ]; then
-    "${SSH[@]}" "$PI" "tar xzf - -C ~/rr-deploy/stage" < "$ROLLBACK/server.tar.gz"
-  fi
   "${SSH[@]}" "$PI" "sudo -n /usr/local/sbin/reading-room-deploy" >&2
   echo "==> rolled back; overrides for v$VERSION remain on disk but are unreferenced" >&2
 }
@@ -247,9 +237,8 @@ verify_origin() {
   fail "$problem"
 }
 
-# The server is replaced by a deploy now, so prove it came back before checking
-# anything it serves. A failed restart shows up here rather than as six
-# confusing asset failures.
+# The installer restarts the server after replacing the web client. Prove it
+# came back before checking anything it serves.
 health=$(curl -fsS --max-time 15 "http://anujrpi.local:4311/api/health" || true)
 case "$health" in
   *'"ok":true'*) echo "  server healthy" ;;
