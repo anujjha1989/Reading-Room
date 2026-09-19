@@ -40,6 +40,18 @@ const values = {
 };
 
 let html = await readFile(join(root, "overrides/index.template.html"), "utf8");
+
+// The committed HTML also carries vinext's serialized root-layout payload.
+// Theme boot intentionally adds data-rr-theme to <html> before hydration, so
+// the payload must retain the matching suppressHydrationWarning from
+// app/layout.tsx. The template predates that prop and otherwise silently
+// overrides a clean build with its stale payload.
+const rootLayout = '[\\"$\\",\\"html\\",null,{\\"lang\\":\\"en\\",\\"children\\"';
+const tolerantRootLayout = '[\\"$\\",\\"html\\",null,{\\"lang\\":\\"en\\",\\"suppressHydrationWarning\\":true,\\"children\\"';
+if (!html.includes(rootLayout) && !html.includes(tolerantRootLayout)) {
+  throw new Error("root layout payload not found in index template");
+}
+html = html.replace(rootLayout, tolerantRootLayout);
 for (const [key, value] of Object.entries(values)) html = html.replaceAll(`{{${key}}}`, value);
 const unresolved = html.match(/\{\{[A-Z_]+\}\}/g);
 if (unresolved) throw new Error(`unresolved placeholders: ${[...new Set(unresolved)].join(", ")}`);
