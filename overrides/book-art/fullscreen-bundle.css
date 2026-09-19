@@ -3276,16 +3276,20 @@ html[data-rr-theme="dark"] #rr-sort-menu {
   border-color: #3a3a3e !important;
 }
 
-/* Preserve translateX(-50%) throughout the entrance animation; replacing it
-   is what pushed the right half of this sheet outside the viewport. */
+/* Use physical viewport insets rather than percentage centring. On platforms
+   that reserve space for a scrollbar, `left:50%` is relative to a narrower
+   containing block and leaves the right edge visibly clipped. */
 @keyframes rr-filter-sheet-in {
-  0%   { opacity: 0; transform: translate(-50%, 14px) scale(.985); }
-  68%  { opacity: 1; transform: translate(-50%, -2px) scale(1.002); }
-  100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  0%   { opacity: 0; transform: translateY(14px) scale(.985); }
+  68%  { opacity: 1; transform: translateY(-2px) scale(1.002); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
-  width: min(560px, calc(100vw - 28px)) !important;
-  max-width: calc(100vw - 28px) !important;
+  left: 14px !important;
+  right: 14px !important;
+  width: auto !important;
+  max-width: 560px !important;
+  margin-inline: auto !important;
   animation: rr-filter-sheet-in .34s cubic-bezier(.18, 1.05, .28, 1) both !important;
 }
 

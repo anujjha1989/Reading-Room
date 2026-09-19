@@ -180,9 +180,9 @@ t(/#rr-settings-link svg\s*\{\s*width:26px[^}]*height:26px/.test(overrideCss),
 //      and theme invariants even when older compatibility rules remain above.
 t(/html\.rr-hide-chrome \.rr-react-sheet-trigger\s*\{[^}]*translateX\(26vw\)/s.test(globalCss),
   "React hamburger slides away with hidden reader chrome");
-t(/@keyframes rr-filter-sheet-in[\s\S]*?translate\(-50%, 0\)/.test(overrideCss)
-  && /rr-filters-open \.catalog \.filters\s*\{[^}]*rr-filter-sheet-in/s.test(overrideCss),
-  "filter sheet stays horizontally centred throughout its entrance");
+t(/@keyframes rr-filter-sheet-in[\s\S]*?translateY\(0\)/.test(overrideCss)
+  && /rr-filters-open \.catalog \.filters\s*\{[^}]*left: 14px[^}]*right: 14px[^}]*rr-filter-sheet-in/s.test(overrideCss),
+  "filter sheet keeps safe viewport insets throughout its entrance");
 t(/data-rr-theme="light"\] #rr-sort-menu\s*\{[^}]*background:[^}]*255, 255, 255/s.test(overrideCss)
   && /data-rr-theme="dark"\] #rr-sort-menu\s*\{[^}]*background:[^}]*36, 36, 38/s.test(overrideCss),
   "library ellipsis menu follows explicit light and dark themes");
