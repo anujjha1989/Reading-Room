@@ -73,6 +73,7 @@ fi
 # called is valid JavaScript and silently does nothing, which is how a fix
 # shipped four times without taking effect.
 node deploy/check-overrides.mjs
+node deploy/check-sheet.mjs
 
 echo "==> staging"
 rm -rf dist/stage && mkdir -p dist/stage/assets
