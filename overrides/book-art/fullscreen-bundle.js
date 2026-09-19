@@ -865,16 +865,16 @@
       }
       host.append(themes);
 
-      // Pages/Scroll as one segmented control. No setTimeout(render) here: the
-      // mode change alters reader.className, which the signature watcher at the
-      // bottom of sync() already notices and re-renders from - adding a timer
-      // would render twice and fight it.
+      // Pages/Scroll as one segmented control. React commits the native mode
+      // controls just after this click; resync once that commit has landed so
+      // the page-animation row appears immediately when Pages is selected (and
+      // disappears again in Scroll) instead of waiting for another menu open.
       const modeButtons=[...reader.querySelectorAll('.reader-modes:not(.reader-page-turn) button')];
       if(modeButtons.length){
         const modes=document.createElement('div');modes.className='rr-books-segment';
         for(const original of modeButtons){
           const label=original.textContent.trim();
-          const b=button(label,()=>{original.click();},label==='Pages'?'pages':'scroll');
+          const b=button(label,()=>{original.click();setTimeout(()=>{signature='';sync();},60);},label==='Pages'?'pages':'scroll');
           const on=original.getAttribute('aria-pressed')==='true'||original.classList.contains('active');
           b.setAttribute('aria-pressed',String(on));
           modes.append(b);
@@ -1043,7 +1043,8 @@
     const pages=[...reader.querySelectorAll('.reader-modes button')].some(b=>b.textContent==='Pages'&&(b.classList.contains('active')||b.getAttribute('aria-pressed')==='true'));
     root.classList.toggle('rr-books-pages',pages);
     const aloudState=typeof window.rrGetReadAloudState==='function'?window.rrGetReadAloudState():null;
-    const key=reader.className+'|'+($('.reader-actions select:not(.rr-voice)')?.options.length||0)+'|'+!!$('.rr-listen')+'|'+contentsLabel()
+    const pageTurnState=[...reader.querySelectorAll('.reader-page-turn button')].map(b=>`${b.textContent.trim()}:${b.getAttribute('aria-pressed')}`).join(',');
+    const key=reader.className+'|'+pages+'|'+pageTurnState+'|'+($('.reader-actions select:not(.rr-voice)')?.options.length||0)+'|'+!!$('.rr-listen')+'|'+contentsLabel()
       +'|'+(aloudState?`${aloudState.playing}:${aloudState.paused}:${aloudState.sleepMinutes}:${aloudState.canPrevious}:${aloudState.canNext}`:'');
     if(key!==signature){signature=key;if(isOpen)render();}
     applyType();
