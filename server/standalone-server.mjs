@@ -1067,29 +1067,6 @@ const GZIP_TYPES = new Set([".css", ".html", ".js", ".json", ".map", ".svg", ".w
 const HASHED_ASSET = /-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/;
 const OVERLAY_ASSET = /(reader-fix|library-fix|read-aloud)\.(css|js)$/;
 
-// iOS uses the installed manifest's theme colour for the standalone area
-// above the CSS viewport. The old on-disk manifest declared the cream Home
-// colour, which is why a cream strip survived every dark-reader CSS fix.
-const standaloneManifest = Buffer.from(JSON.stringify({
-  name: "The Reading Room",
-  short_name: "Reading Room",
-  description: "A private, searchable catalogue for reading ebooks, graphic novels, and scripts.",
-  start_url: "/",
-  scope: "/",
-  display: "standalone",
-  background_color: "#f3efe5",
-  // Home is light by default. Once running, theme-color is changed to the
-  // active Home or reader theme; black-translucent lets that colour show in
-  // the iOS safe area instead of fixing every combination to one colour.
-  theme_color: "#f3efe5",
-  orientation: "any",
-  categories: ["books", "education", "lifestyle"],
-  icons: [
-    { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
-  ],
-}));
-
 const staticCache = new Map();       // relative path -> entry
 
 function respond(request, response, entry, extraHeaders = {}) {
@@ -1125,15 +1102,6 @@ function makeEntry(buffer, type, cacheControl, compress = true) {
 }
 
 async function serveFile(request, response, pathname) {
-  if (pathname === "/manifest.webmanifest") {
-    respond(request, response, makeEntry(
-      standaloneManifest,
-      "application/manifest+json; charset=utf-8",
-      "no-cache",
-      false,
-    ));
-    return;
-  }
   const relative = pathname === "/" ? "index.html" : decodeURIComponent(pathname).replace(/^\/+/, "");
   const safePath = normalize(relative);
   const filePath = resolve(siteRoot, safePath);
