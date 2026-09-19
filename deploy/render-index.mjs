@@ -53,6 +53,17 @@ if (!html.includes(rootLayout) && !html.includes(tolerantRootLayout)) {
 }
 html = html.replace(rootLayout, tolerantRootLayout);
 
+// The template contains the serialized metadata emitted by the old root
+// layout as well as the visible <meta> element above it.  Safari hydrates the
+// serialized value later, so leaving "default" here turns a dark reader's
+// status-bar strip light even though the first HTML paint is correct.
+const defaultStatusBar = '\\"name\\":\\"apple-mobile-web-app-status-bar-style\\",\\"content\\":\\"default\\"';
+const translucentStatusBar = '\\"name\\":\\"apple-mobile-web-app-status-bar-style\\",\\"content\\":\\"black-translucent\\"';
+if (!html.includes(defaultStatusBar) && !html.includes(translucentStatusBar)) {
+  throw new Error("serialized status-bar metadata not found in index template");
+}
+html = html.replaceAll(defaultStatusBar, translucentStatusBar);
+
 // Keep the static first render in lockstep with LibraryClient. This app is
 // deployed as a prerendered document, so the committed template is the server
 // side of React hydration. These guarded replacements both reconcile the older

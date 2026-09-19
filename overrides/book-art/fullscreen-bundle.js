@@ -1070,11 +1070,15 @@
   let themeSynced = false;
   let originalThemeColour = null;
   function syncThemeColour(theme) {
-    let meta=document.querySelector('meta[name="theme-color"]');
-    if(!meta){meta=document.createElement('meta');meta.setAttribute('name','theme-color');document.head.append(meta);}
+    let metas=[...document.querySelectorAll('meta[name="theme-color"]')];
+    let meta=metas[0];
+    if(!meta){meta=document.createElement('meta');meta.setAttribute('name','theme-color');document.head.append(meta);metas=[meta];}
     if(originalThemeColour===null)originalThemeColour=meta.getAttribute('content')||'';
     const colour=theme==='dark'?'#181b1a':theme==='sepia'?'#f3ead7':theme==='light'?'#fffdf7':originalThemeColour;
+    meta.removeAttribute('media');
     if(meta.getAttribute('content')!==colour)meta.setAttribute('content',colour);
+    metas.slice(1).forEach(node=>node.remove());
+    document.querySelectorAll('meta[name="apple-mobile-web-app-status-bar-style"]').forEach(node=>node.setAttribute('content','black-translucent'));
   }
   function syncPresetTheme() {
     if (themeSynced || !reader) return;

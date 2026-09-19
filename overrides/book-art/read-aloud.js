@@ -762,7 +762,7 @@
 
   function scheduleWarmFirstSentence(delay) {
     if (rrWarmTimer) clearTimeout(rrWarmTimer);
-    rrWarmTimer = setTimeout(warmFirstSentence, delay == null ? 450 : delay);
+    rrWarmTimer = setTimeout(warmFirstSentence, delay == null ? 80 : delay);
   }
 
   function mediaSession(doc) {

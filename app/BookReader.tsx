@@ -305,6 +305,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   const comicReaderRef = useRef<ComicReaderHandle>(null);
   const shellRef = useRef<HTMLElement>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const menuTouchAtRef = useRef(0);
   const pageTurnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fontSizeRef = useRef(100);
   const readingModeRef = useRef<ReadingMode>("pages");
@@ -968,14 +969,23 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         <footer className="reader-footer"><button onClick={previous}>{readingMode === "scroll" ? "↑ Up" : "← Previous"}</button><span>{progress || (readingMode === "scroll" ? "Continuous scroll" : "Use the arrow keys to turn pages")}</span><button onClick={next}>{readingMode === "scroll" ? "Down ↓" : "Next →"}</button></footer>
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
 
-      {/* Step 1b: the React sheet, with its own trigger so it can be compared
-          against the imperative one without disturbing it. Both are present only
-          when the flag is on; the default path is unchanged. */}
+      {/* The React-owned reading sheet. The legacy implementation remains an
+          explicit ?sheet=legacy recovery route until live-device validation. */}
       {reactSheetEnabled && <>
         <button type="button" className="rr-react-sheet-trigger"
-          aria-label={reactSheetOpen ? "Close reading menu" : "Open reading menu"}
+          aria-label={reactSheetOpen ? "Close reading settings" : "Open reading settings"}
           aria-expanded={reactSheetOpen}
-          onClick={() => setReactSheetOpen((open) => !open)}>≡</button>
+          onTouchEnd={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            menuTouchAtRef.current = Date.now();
+            setReactSheetOpen((open) => !open);
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (Date.now() - menuTouchAtRef.current < 600) return;
+            setReactSheetOpen((open) => !open);
+          }}>≡</button>
         <ReadingSheet
           open={reactSheetOpen}
           onClose={() => setReactSheetOpen(false)}

@@ -251,6 +251,7 @@ export default function ReadingSheet(props: ReadingSheetProps) {
     <section
       ref={panelRef}
       className={styles.sheet}
+      data-book-theme={theme}
       data-view={view}
       data-direction={direction}
       role="dialog"

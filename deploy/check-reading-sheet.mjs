@@ -58,10 +58,11 @@ for (const token of ["--row-h", "--tile-h", "--radius", "--text", "--fill"]) {
   t(declared >= 1 && used >= 2, `${token} declared (${declared}) and used (${used})`);
 }
 
-// 7. Theme keys off the APP signal. Following the book's theme is what made the
-//    old sheet flip to light inside a dark app.
-t(/data-rr-theme="dark"/.test(css), "dark theme keys off data-rr-theme");
-t(!/rr-theme-dark/.test(css), "does not key off the reader's book theme");
+// 7. The in-reader sheet follows the BOOK signal. A reader may deliberately
+//    differ from Home, so app-level dark mode is not enough to keep it legible.
+t(/data-book-theme="dark"/.test(css), "dark sheet keys off its explicit book theme");
+t(/data-book-theme=\{theme\}/.test(tsx), "book theme is published on the sheet root");
+t(!/html\[data-rr-theme="dark"\]/.test(css), "sheet does not inherit Home's theme by accident");
 
 // 8. Reduced motion covers the animations this file introduces.
 const rm = css.slice(css.indexOf("prefers-reduced-motion"));
@@ -136,6 +137,44 @@ t(/rr-react-sheet-open/.test(reader) && /rr-react-sheet-enabled/.test(reader),
   "React sheet publishes open and enabled state for chrome coordination");
 t(/rrAdjustSleepTime/.test(hook) && /rrSkipSentence\?\.\(-1\)/.test(hook),
   "adapter exposes sleep adjustment and previous sentence without DOM queries");
+
+// 19. The production trigger must be a neutral glass control with a real touch
+//     path. v105 accidentally shipped the bright-blue comparison trigger and
+//     relied solely on a synthetic click, which was unreliable in standalone iOS.
+const globalCss = readFileSync("app/globals.css", "utf8");
+t(/onTouchEnd=/.test(reader) && /menuTouchAtRef/.test(reader),
+  "menu trigger has an explicit, de-duplicated touch path");
+t(/\.rr-react-sheet-trigger[\s\S]*?width:\s*46px[\s\S]*?height:\s*46px/.test(globalCss),
+  "menu trigger uses the standard 46px control geometry");
+t(!/#007aff|rgba\(0,\s*122,\s*255/.test(globalCss),
+  "production menu trigger contains no developer-blue styling");
+
+// 20. Legacy chrome remains available while migration settles, so keep its
+//     compact playback rail and library control geometry coherent too.
+const overrideCss = readFileSync("overrides/book-art/fullscreen-bundle.css", "utf8");
+t(/\.rr-read-transport\{[^}]*flex-direction:column/.test(aloud),
+  "collapsed read-aloud controls form a vertical rail");
+t(/#rr-settings-link svg\s*\{\s*width:26px[^}]*height:26px/.test(overrideCss),
+  "library gear glyph is optically balanced inside its halo");
+
+// 21. First-sentence warming should happen immediately after the reader is
+//     stable, not nearly half a second later.
+const warmDelay = aloud.match(/delay == null \?\s*(\d+)\s*: delay/)?.[1];
+t(Boolean(warmDelay) && Number(warmDelay) <= 100,
+  "Read Aloud warm-up starts within 100ms", warmDelay ? `${warmDelay}ms` : "not found");
+
+// 22. Search and Bookmarks are subviews: their affordance goes back to the
+//     reading menu instead of dismissing an apparently stuck modal.
+t(/aria-label="Back to reading menu"/.test(tsx)
+  && /aria-label="Back to reading menu"/.test(reader)
+  && /backToReadingMenu/.test(reader),
+  "Search and Bookmarks expose the shared Back path");
+
+// 23. Rendering must reconcile the stale serialized root metadata as well as
+//     the visible meta element, or iOS restores a light status bar on hydration.
+const renderer = readFileSync("deploy/render-index.mjs", "utf8");
+t(/serialized status-bar metadata/.test(renderer) && /black-translucent/.test(renderer),
+  "renderer reconciles iOS status-bar metadata");
 
 console.log(`\n${fail ? fail + " FAILED" : "all checks passed"}`);
 process.exit(fail ? 1 : 0);

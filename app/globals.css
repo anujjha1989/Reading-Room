@@ -228,25 +228,33 @@ footer { border-top:1px solid var(--line); padding:36px clamp(24px,5vw,78px); di
 @media(max-width:420px){.reader-actions label,.reader-actions select{display:none}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 
-/* Step 1b trigger for the React reading sheet. Deliberately offset from the
-   override layer's ≡ so both can be open side by side and compared; it goes away
-   with the legacy sheet in step 1c. Global rather than a module because it sits
-   in BookReader's own markup. */
+/* Production reading-settings button. v105 accidentally promoted the blue
+   developer comparison trigger; this matches the established 46px glass
+   reader controls and remains an explicit, reliable iOS touch target. */
 .rr-react-sheet-trigger {
   position: fixed;
-  right: calc(16px + env(safe-area-inset-right));
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 140px);
-  z-index: 151;
+  right: calc(20px + env(safe-area-inset-right));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  z-index: 160;
   width: 46px; height: 46px;
   display: grid; place-items: center;
-  border: 1px solid rgba(0,122,255,.5);
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.5);
   border-radius: 50%;
-  background: rgba(0,122,255,.18);
-  color: inherit;
-  font: 600 20px/1 -apple-system, BlinkMacSystemFont, sans-serif;
+  background: color-mix(in srgb, var(--rr-control-bg, #f3f2ee) 66%, transparent);
+  color: #1c1c1e;
+  box-shadow: 0 3px 16px rgba(0,0,0,.08);
+  font: 500 27px/1 -apple-system, BlinkMacSystemFont, sans-serif;
   cursor: pointer;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+}
+html.rr-reader-dark .rr-react-sheet-trigger {
+  background: rgba(120,120,128,.40);
+  border-color: rgba(255,255,255,.18);
+  color: #f5f5f7;
 }
 .rr-react-sheet-trigger:active { transform: scale(.92); }
 

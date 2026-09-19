@@ -11,10 +11,9 @@
  * different row heights, five font sizes and seven corner radii across a base
  * block and four later patches, which is what made it look unfinished.
  *
- * Colours key off `[data-rr-theme]` on <html>, which is the APP's theme. The
- * sheet is chrome, not page content, so it must not follow the book's theme —
- * mixing those two signals on one element was the direct cause of a sheet that
- * flipped to light while the app stayed dark.
+ * Reader chrome follows the book surface. React supplies the active theme as
+ * data rather than making this component infer it from an outside DOM class,
+ * so every Home/book theme combination remains legible during opening.
  */
 
 .sheet {
@@ -64,10 +63,8 @@
   animation: deal-in 0.4s cubic-bezier(0.18, 1.1, 0.28, 1) both;
 }
 
-/* Dark follows the APP theme, both when chosen explicitly and when the device is
-   dark with no explicit choice. Stated twice because :is() with :not() around an
-   attribute selector is unreliable on older WebKit. */
-:global(html[data-rr-theme="dark"]) .sheet {
+/* The active book theme is authoritative for reader panels. */
+.sheet[data-book-theme="dark"] {
   --surface: rgba(38, 38, 40, 0.95);
   --surface-line: rgba(255, 255, 255, 0.12);
   --fill: rgba(120, 120, 128, 0.24);
@@ -77,19 +74,6 @@
   --invert-bg: #f5f5f7;
   --invert-ink: #14110f;
   --accent: #409cff;
-}
-@media (prefers-color-scheme: dark) {
-  :global(html:not([data-rr-theme="light"])) .sheet {
-    --surface: rgba(38, 38, 40, 0.95);
-    --surface-line: rgba(255, 255, 255, 0.12);
-    --fill: rgba(120, 120, 128, 0.24);
-    --fill-active: rgba(120, 120, 128, 0.36);
-    --ink: #f5f5f7;
-    --ink-dim: rgba(245, 245, 247, 0.55);
-    --invert-bg: #f5f5f7;
-    --invert-ink: #14110f;
-    --accent: #409cff;
-  }
 }
 
 /* --- header ------------------------------------------------------------- */
