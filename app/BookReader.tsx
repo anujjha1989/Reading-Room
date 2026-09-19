@@ -324,20 +324,29 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   const [mangaMode, setMangaMode] = useState(false);
   const [epubRevision, setEpubRevision] = useState(0);
   const [panel, setPanel] = useState<"search" | "bookmarks" | null>(null);
-  // Step 1b of the override collapse: the React reading sheet runs alongside the
-  // imperative one so both can be compared on the device before either is
-  // deleted. Enabled with ?sheet=react, or localStorage rr-react-sheet=1 so the
-  // choice survives a reload in the PWA, where a query string is awkward.
+  // The React sheet reached feature parity in step 1c-ii and is now the default.
+  // Keep ?sheet=legacy as a recovery switch until the old override is deleted;
+  // the choice persists so a device can be recovered without another deploy.
   const [reactSheetEnabled] = useState(() => {
     if (typeof window === "undefined") return false;
     try {
       const param = new URLSearchParams(window.location.search).get("sheet");
       if (param === "react") { localStorage.setItem("rr-react-sheet", "1"); return true; }
-      if (param === "legacy") { localStorage.removeItem("rr-react-sheet"); return false; }
-      return localStorage.getItem("rr-react-sheet") === "1";
-    } catch { return false; }
+      if (param === "legacy") { localStorage.setItem("rr-react-sheet", "legacy"); return false; }
+      return localStorage.getItem("rr-react-sheet") !== "legacy";
+    } catch { return true; }
   });
   const [reactSheetOpen, setReactSheetOpen] = useState(false);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("rr-react-sheet-enabled", reactSheetEnabled);
+    return () => document.documentElement.classList.remove("rr-react-sheet-enabled");
+  }, [reactSheetEnabled]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("rr-react-sheet-open", reactSheetEnabled && reactSheetOpen);
+    return () => document.documentElement.classList.remove("rr-react-sheet-open");
+  }, [reactSheetEnabled, reactSheetOpen]);
 
   /**
    * Typography, migrated from the override's `rr-books-type`.
@@ -440,7 +449,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     // below (which writes on mount) but no flag - and would have been treated
     // as "chosen", keeping the old light default forever. If the stored theme
     // is light and no deliberate choice was ever recorded, treat it as unset.
-    let chosen = localStorage.getItem("reading-room-reader-theme-set") === "1";
+    const chosen = localStorage.getItem("reading-room-reader-theme-set") === "1";
     if (!chosen && savedTheme === "light") {
       try { localStorage.removeItem("reading-room-reader-theme"); } catch {}
     }
@@ -657,6 +666,39 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     setTheme(next);
   }
 
+  function chooseFontFamily(key: string) {
+    if (!(key in FONT_FAMILIES)) return;
+    setFontFamilyKey(key);
+    setTypography((current) => ({ ...current, family: FONT_FAMILIES[key] }));
+  }
+
+  function resetReadingAppearance() {
+    setFontFamilyKey("Original");
+    setTypography(DEFAULT_TYPOGRAPHY);
+    setFontSize(100);
+    setLineHeight(1.65);
+    setMargin(4);
+    try {
+      localStorage.removeItem("reading-room-reader-theme-set");
+      const appTheme = localStorage.getItem("reading-room-theme");
+      const dark = appTheme === "dark"
+        || (appTheme !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      setTheme(dark ? "dark" : "light");
+    } catch {
+      setTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    }
+  }
+
+  async function shareBook() {
+    const data = { title: displayTitle || title, url: window.location.href };
+    try {
+      if (navigator.share) await navigator.share(data);
+      else await navigator.clipboard.writeText(data.url);
+    } catch {
+      // Cancelling the native share sheet is not an application error.
+    }
+  }
+
   useEffect(() => {
     fontSizeRef.current = fontSize;
     renditionRef.current?.themes.fontSize(`${fontSize}%`);
@@ -856,7 +898,8 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
 
   function backToReadingMenu() {
     setPanel(null);
-    window.setTimeout(() => window.dispatchEvent(new Event("rr-open-reading-menu")), 0);
+    if (reactSheetEnabled) setReactSheetOpen(true);
+    else window.setTimeout(() => window.dispatchEvent(new Event("rr-open-reading-menu")), 0);
   }
 
   async function toggleFullscreen() {
@@ -953,6 +996,19 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
           progressLabel={progress || undefined}
           onSearch={(isReflowable || isPdf) ? () => { setReactSheetOpen(false); setPanel("search"); } : undefined}
           onBookmarks={() => { setReactSheetOpen(false); setPanel("bookmarks"); }}
+          onShare={shareBook}
+          fontFamily={isReflowable ? fontFamilyKey : undefined}
+          fontFamilies={isReflowable ? Object.keys(FONT_FAMILIES) : undefined}
+          onFontFamilyChange={chooseFontFamily}
+          bold={isReflowable ? typography.bold : undefined}
+          onBoldChange={(bold) => setTypography((current) => ({ ...current, bold }))}
+          justify={isReflowable ? typography.justify : undefined}
+          onJustifyChange={(justify) => setTypography((current) => ({ ...current, justify }))}
+          charSpacing={isReflowable ? typography.charSpacing : undefined}
+          onCharSpacingChange={(charSpacing) => setTypography((current) => ({ ...current, charSpacing }))}
+          wordSpacing={isReflowable ? typography.wordSpacing : undefined}
+          onWordSpacingChange={(wordSpacing) => setTypography((current) => ({ ...current, wordSpacing }))}
+          onReset={isReflowable ? resetReadingAppearance : undefined}
           readAloud={isReflowable ? readAloud : undefined}
         />
       </>}

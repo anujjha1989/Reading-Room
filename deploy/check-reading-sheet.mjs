@@ -3,7 +3,7 @@
 // The point of the rewrite is that the sheet no longer reaches into the DOM or
 // shouts over other stylesheets. These assertions encode that, so a future edit
 // cannot quietly reintroduce either habit.
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 /**
  * Strips comments before scanning. Three separate checks tonight reported false
@@ -75,7 +75,7 @@ t(/\.scroller > \* \{ animation: none/.test(css), "scroller children do not stag
 
 // 10. Escape must step back before closing, matching the ‹ button.
 const tsxCode = tsx.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-t(/if \(view === "menu"\) onClose\(\); else go\("menu"\)/.test(tsxCode),
+t(/if \(view === "menu"\) close\(\); else go\("menu"\)/.test(tsxCode),
   "Escape steps back then closes");
 
 // 11. Every view in the union is rendered somewhere.
@@ -83,12 +83,14 @@ const views = ["menu", "contents", "text", "advanced", "aloud", "voice"];
 const missing = views.filter((v) => !tsx.includes(`view === "${v}"`));
 t(missing.length === 0, "every view has a render branch", missing.length ? `missing: ${missing}` : "");
 
-// 12. Wired in, but behind a flag: the default path must be untouched so the
-//     legacy sheet keeps working until step 1c deletes it.
+// 12. The parity-complete React sheet is the default, with an explicit legacy
+//     recovery switch until the override is physically removed.
 const reader = readFileSync("app/BookReader.tsx", "utf8");
 t(reader.includes("<ReadingSheet"), "BookReader renders the component");
 t(/reactSheetEnabled &&/.test(reader), "render is gated on the flag");
 t(/rr-react-sheet/.test(reader), "flag persists in localStorage for the PWA");
+t(/param === "legacy"/.test(reader) && /!== "legacy"/.test(reader),
+  "React sheet is default and legacy remains an explicit recovery path");
 
 // 13. Every prop the component declares as required must actually be passed.
 const required = ["open=", "onClose=", "theme=", "onThemeChange="];
@@ -115,6 +117,25 @@ t(!/window\.rr/.test(code(tsx)), "component still free of window.rr* access");
 const aloud = readFileSync("overrides/book-art/read-aloud.js", "utf8");
 t(/window\.rrGetVoices/.test(aloud), "read-aloud exposes rrGetVoices");
 t(/window\.rrSetVoice/.test(aloud), "read-aloud exposes rrSetVoice");
+
+// 18. The controls requested before the migration must exist in the React
+//     surface too; otherwise enabling the new sheet makes a working feature
+//     appear to vanish even though it still exists in the legacy override.
+t(/aloud\.previous/.test(tsx) && /Previous sentence/.test(tsx),
+  "previous sentence is rendered by the React sheet");
+t(/aloud\.skip/.test(tsx) && /Next sentence/.test(tsx),
+  "next sentence is rendered by the React sheet");
+t(/aloud\.adjustSleep\(-30\)/.test(tsx) && /aloud\.adjustSleep\(30\)/.test(tsx),
+  "sleep timer has separate minus and plus controls");
+t(/rateHeader/.test(tsx) && /rateBounds/.test(tsx),
+  "reading speed has a header, current value and endpoint row");
+t(/onFontFamilyChange/.test(tsx) && /onBoldChange/.test(tsx)
+  && /onJustifyChange/.test(tsx) && /onReset/.test(tsx) && /onShare/.test(tsx),
+  "advanced typography, reset and share are present");
+t(/rr-react-sheet-open/.test(reader) && /rr-react-sheet-enabled/.test(reader),
+  "React sheet publishes open and enabled state for chrome coordination");
+t(/rrAdjustSleepTime/.test(hook) && /rrSkipSentence\?\.\(-1\)/.test(hook),
+  "adapter exposes sleep adjustment and previous sentence without DOM queries");
 
 console.log(`\n${fail ? fail + " FAILED" : "all checks passed"}`);
 process.exit(fail ? 1 : 0);

@@ -34,7 +34,7 @@ const features = [
   { name: "Font family",       sheet: /onFontFamilyChange/,       state: /\[fontFamily,/ },
   { name: "Reset theme",       sheet: /onReset/,                  state: null },
   { name: "Share book",        sheet: /onShare/,                  state: null },
-  { name: "Previous sentence", sheet: /previous\(\)|onPrevious/,  state: null },
+  { name: "Previous sentence", sheet: /previous:\s*\(\)|onPrevious|aloud\.previous/, state: null },
 ];
 
 const missing = features.filter((f) => !f.sheet.test(code(sheet)));

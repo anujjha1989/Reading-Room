@@ -30,7 +30,7 @@ deleted only once the replacement is confirmed working on the device.
 
 | Step | Moves into React | Deletes from overrides | Status |
 |---|---|---|---|
-| 1 | Reading sheet | ~1,200 CSS + ~430 JS | in progress |
+| 1 | Reading sheet | ~1,200 CSS + ~430 JS | parity complete; live validation pending |
 | 2 | Library chrome (gear / filter / sort) | ~400 | todo |
 | 3 | Card ⋯ menu CSS | ~200 | todo |
 | 4 | Reader chrome (≡ / ✕, page turns) | ~500 | todo |
@@ -85,7 +85,8 @@ that is already sound:
 2. `app/reading-sheet.module.css` — scoped styles, **no `!important`**.
 3. Rendered by `BookReader.tsx`, which already owns theme, reading mode,
    font size, line height and margins as React state.
-4. Behind a flag so old and new can be compared on the device before deletion.
+4. React is now the default; `?sheet=legacy` is retained as a recovery switch
+   until live phone validation is complete.
 5. Only then delete the override block and its CSS.
 
 ### What must not regress
@@ -101,11 +102,11 @@ Verified working today and easy to lose:
 - Bookmarks / Search return path
 - `prefers-reduced-motion` on every animation
 
-## Step 1c — blocked, and why
+## Step 1c — parity reached
 
-Step 1c was meant to delete the legacy sheet. A parity audit before deleting
-found **seven features the React sheet does not have**, and the reason matters
-more than the list:
+Step 1c was meant to delete the legacy sheet. A parity audit before deleting it
+found **seven features the first React version did not have**, and the reason
+matters more than the list:
 
 | Feature | Where its state lives |
 |---|---|
@@ -126,19 +127,21 @@ So the sheet is not a thin skin over React state, as step 1a assumed. It is
 **two-thirds a skin and one-third the only implementation** of six typography
 features. Deleting it would delete those features.
 
-### Revised plan
+### Resolution
 
 1c is split:
 
-- **1c-i** — move `bold`, `justify`, `chars`, `words`, `font` into `BookReader`
+- **1c-i — complete** — moved `bold`, `justify`, `chars`, `words`, `font` into `BookReader`
   as real state, applied through `epubStyles()` / `mobiStyles()`, which already
   take `lineHeight` and `margin` and are the correct home for this. Add
   `rrPreviousSentence` to the read-aloud API for the transport's back button.
   Migrate the stored `rr-books-type` value so existing preferences survive.
-- **1c-ii** — add the six controls plus Share to `ReadingSheet`.
-- **1c-iii** — only then delete the legacy sheet.
+- **1c-ii — complete** — added the six controls plus Share, Reset, complete
+  Read Aloud transport, speed layout and timer controls to `ReadingSheet`.
+- **1c-iii — pending live validation** — React is the default and the legacy
+  implementation is hidden, but remains available through `?sheet=legacy`.
+  Delete it only after the production phone and iPad checks pass.
 
 This is the right lesson from the evening: the parity check had to come *before*
 the deletion, not after. Had 1c run as planned, six working features would have
 disappeared and the cause would have been hard to see.
-

@@ -39,7 +39,8 @@ type ReadAloudGlobals = {
   rrGetReadAloudState?: () => RawState;
   rrToggleReadAloud?: () => void;
   rrStopReadAloud?: () => void;
-  rrSkipSentence?: () => void;
+  rrSkipSentence?: (direction?: number) => void;
+  rrAdjustSleepTime?: (minutes: number) => void;
   rrSetReadingRate?: (rate: number | string) => void;
   rrGetReadingRate?: () => number;
   rrGetVoices?: () => Voice[];
@@ -74,24 +75,31 @@ export function useReadAloud(active: boolean): ReadAloudApi | undefined {
 
   useEffect(() => {
     if (!active) return;
-    read();
+    const kickoff = window.setTimeout(read, 0);
     const timer = window.setInterval(read, 400);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(kickoff);
+      window.clearInterval(timer);
+    };
   }, [active, read]);
 
   if (!state) return undefined;
 
-  const api = globals();
   return {
     playing: state.playing,
     paused: state.paused,
     rate: state.rate,
+    sleepMinutes: state.sleepMinutes,
+    canPrevious: state.canPrevious,
+    canNext: state.canNext,
     voices,
     // Each action reads its function fresh rather than closing over it: the
     // override may finish loading after the first render.
     toggle: () => { globals().rrToggleReadAloud?.(); read(); },
     stop: () => { globals().rrStopReadAloud?.(); read(); },
-    skip: () => { globals().rrSkipSentence?.(); read(); },
+    skip: () => { globals().rrSkipSentence?.(1); read(); },
+    previous: () => { globals().rrSkipSentence?.(-1); read(); },
+    adjustSleep: (minutes: number) => { globals().rrAdjustSleepTime?.(minutes); read(); },
     setRate: (rate: number) => { globals().rrSetReadingRate?.(rate); read(); },
     setVoice: (value: string) => { globals().rrSetVoice?.(value); read(); },
   } satisfies ReadAloudApi & Record<string, unknown> as ReadAloudApi;

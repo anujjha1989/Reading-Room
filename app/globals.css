@@ -249,3 +249,11 @@ footer { border-top:1px solid var(--line); padding:36px clamp(24px,5vw,78px); di
   -webkit-backdrop-filter: blur(14px);
 }
 .rr-react-sheet-trigger:active { transform: scale(.92); }
+
+/* The legacy sheet remains available through ?sheet=legacy as a recovery path,
+   but it must not leave a second trigger or an invisible click target behind
+   while the React-owned sheet is active. */
+html.rr-react-sheet-enabled .rr-sheet-btn,
+html.rr-react-sheet-enabled .rr-books-menu,
+html.rr-react-sheet-enabled .rr-books-dismiss { display: none !important; }
+html.rr-react-sheet-open .rr-read-transport { visibility: hidden; pointer-events: none; }

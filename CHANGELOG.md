@@ -6,9 +6,12 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ### Added
 
-- A rebuilt reading menu, available for comparison behind `?sheet=react`. It is
-  the same controls written as a proper component, so they read the reader's real
-  state instead of inspecting the page. The existing menu is untouched.
+- Completed the rebuilt reading menu as a proper React component. It now includes
+  sentence back/pause/forward controls, a 30-minute `−`/`+` sleep timer, voice
+  selection, a clearly labelled speed slider, reading-mode and page-animation
+  controls, full typography settings, Reset and Share.
+- Added permanent parity checks for the React and legacy reading menus. A deploy
+  now fails if a working control silently disappears during the migration.
 
 ### Fixed
 
@@ -22,6 +25,14 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
   behind them was almost invisible, so they read as bare marks on black — and
   brought the glyphs up to the size used in the reader.
 - Gave the library settings page an entrance; it appeared instantly before.
+- Fixed v104 showing an incomplete reading menu on devices where Claude's
+  `rr-react-sheet` comparison flag had been saved. The parity-complete React menu
+  is now the default; `?sheet=legacy` remains as a temporary recovery switch.
+- Made Search and Bookmarks return to the active React reading menu instead of
+  crossing back into the legacy implementation.
+- Kept the book theme following the Home theme by default. A book becomes
+  independent only after the reader explicitly chooses Light, Sepia or Dark;
+  Reset returns it to following Home.
 
 ### Changed
 
@@ -33,8 +44,8 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
   back enters from the left, so movement tells you where you are.
 - Made the close and menu buttons slide off the right edge of the screen when
   you centre-tap, and fly back in when you tap again, instead of blinking out.
-
-No unreleased changes.
+- Removed the legacy reading-menu chrome whenever the React menu is active, so
+  the two implementations cannot overlap or intercept the same tap.
 
 ## v95 — 19 September 2026
 
