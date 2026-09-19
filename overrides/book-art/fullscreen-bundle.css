@@ -2916,3 +2916,278 @@ html.rr-library-visible #rr-sort-btn svg { width:22px !important;height:22px !im
   .reader-turn-next .epub-stage,.reader-turn-next .pdf-pages,.reader-turn-next .comic-pages,
   .reader-turn-previous .epub-stage,.reader-turn-previous .pdf-pages,.reader-turn-previous .comic-pages { animation:none !important; }
 }
+
+
+/* ==== v101: motion with a direction and a physical idea ===================
+ * Everything previously travelled 8-14px vertically, which at phone scale is
+ * indistinguishable from a fade. The governing idea now is that panels are
+ * CARDS being dealt: they fly in from an edge, overshoot very slightly as they
+ * land, and settle. Rows arrive in sequence like a hand being fanned out.
+ *
+ * Direction carries meaning rather than being decorative:
+ *   forward (deeper into the menu)  -> enters from the RIGHT
+ *   back    (towards the root)      -> enters from the LEFT
+ *   the sheet itself                -> flies up from the ≡ that summoned it
+ *   the card ⋯ menu                 -> unfolds from the button's corner
+ *   Bookmarks / Search              -> slide in from the right edge
+ * `data-nav` is set by go(); everything here is CSS-only so there is no
+ * animation library to load on a Pi.
+ * ---------------------------------------------------------------------- */
+
+/* --- the sheet: dealt up from the corner button -------------------------- */
+@keyframes rr-deal-in {
+  0%   { opacity: 0; transform: translate(46px, 86px) scale(.82) rotate(3.5deg); }
+  55%  { opacity: 1; transform: translate(0, -7px) scale(1.025) rotate(-.6deg); }
+  78%  { transform: translate(0, 2px) scale(.995) rotate(.15deg); }
+  100% { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
+}
+html.rr-sheet-open .rr-books-menu {
+  transform-origin: bottom right;
+  animation: rr-deal-in .44s cubic-bezier(.18, 1.1, .28, 1) both !important;
+}
+
+/* --- rows: fanned out, from the side you travelled ---------------------- */
+@keyframes rr-fan-right {
+  0%   { opacity: 0; transform: translateX(64px) scale(.94); }
+  60%  { opacity: 1; transform: translateX(-5px) scale(1.008); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes rr-fan-left {
+  0%   { opacity: 0; transform: translateX(-64px) scale(.94); }
+  60%  { opacity: 1; transform: translateX(5px) scale(1.008); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+/* On open, the whole sheet is already flying, so rows only need to assemble. */
+html.rr-sheet-entering .rr-books-menu > * {
+  animation: rr-fan-right .42s cubic-bezier(.2, 1.06, .3, 1) both;
+}
+/* On a view change the sheet stays put, so the rows carry the movement and the
+   direction is what tells you whether you went deeper or came back. */
+html:not(.rr-sheet-entering) .rr-books-menu[data-nav="forward"] > * {
+  animation: rr-fan-right .38s cubic-bezier(.2, 1.06, .3, 1) both;
+}
+html:not(.rr-sheet-entering) .rr-books-menu[data-nav="back"] > * {
+  animation: rr-fan-left .38s cubic-bezier(.2, 1.06, .3, 1) both;
+}
+/* Stagger: tighter than before so a long list still finishes quickly, and the
+   header leads rather than arriving with its content. */
+.rr-books-menu > :nth-child(1) { animation-delay: 0s !important; }
+.rr-books-menu > :nth-child(2) { animation-delay: .045s !important; }
+.rr-books-menu > :nth-child(3) { animation-delay: .085s !important; }
+.rr-books-menu > :nth-child(4) { animation-delay: .12s !important; }
+.rr-books-menu > :nth-child(5) { animation-delay: .15s !important; }
+.rr-books-menu > :nth-child(6) { animation-delay: .175s !important; }
+.rr-books-menu > :nth-child(7) { animation-delay: .195s !important; }
+.rr-books-menu > :nth-child(n+8) { animation-delay: .21s !important; }
+
+/* Tiles inside a group arrive left-to-right, so a toolbar reads as one gesture
+   rather than four things appearing at once. */
+@keyframes rr-tile-in {
+  0%   { opacity: 0; transform: translateY(18px) scale(.9); }
+  65%  { opacity: 1; transform: translateY(-2px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+html.rr-sheet-entering .rr-books-toolbar > button,
+.rr-books-menu[data-nav] .rr-books-toolbar > button {
+  animation: rr-tile-in .4s cubic-bezier(.2, 1.1, .3, 1) both;
+}
+.rr-books-toolbar > button:nth-child(1) { animation-delay: .1s; }
+.rr-books-toolbar > button:nth-child(2) { animation-delay: .145s; }
+.rr-books-toolbar > button:nth-child(3) { animation-delay: .19s; }
+.rr-books-toolbar > button:nth-child(4) { animation-delay: .235s; }
+
+/* Swatches pop in a ripple, which suits a row of circles. */
+@keyframes rr-swatch-in {
+  0%   { opacity: 0; transform: scale(.3); }
+  70%  { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.rr-books-themes > button { animation: rr-swatch-in .34s cubic-bezier(.2, 1.3, .35, 1) both; }
+.rr-books-themes > button:nth-child(1) { animation-delay: .13s; }
+.rr-books-themes > button:nth-child(2) { animation-delay: .16s; }
+.rr-books-themes > button:nth-child(3) { animation-delay: .19s; }
+.rr-books-themes > button:nth-child(4) { animation-delay: .22s; }
+.rr-books-themes > button:nth-child(5) { animation-delay: .25s; }
+.rr-books-themes > button:nth-child(6) { animation-delay: .28s; }
+
+/* --- the card ⋯ menu: unfolds from the button it belongs to -------------- */
+@keyframes rr-unfold {
+  0%   { opacity: 0; transform: translate(14px, -10px) scale(.7) rotate(-2.5deg); }
+  62%  { opacity: 1; transform: translate(-2px, 1px) scale(1.03) rotate(.4deg); }
+  100% { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
+}
+body > .rr-card-menu {
+  transform-origin: top right;
+  animation: rr-unfold .3s cubic-bezier(.18, 1.2, .3, 1) both !important;
+}
+body > .rr-card-menu button { animation: rr-fan-right .26s cubic-bezier(.2, 1.05, .3, 1) both; }
+body > .rr-card-menu button:nth-child(1) { animation-delay: .05s; }
+body > .rr-card-menu button:nth-child(2) { animation-delay: .08s; }
+body > .rr-card-menu button:nth-child(3) { animation-delay: .11s; }
+body > .rr-card-menu button:nth-child(n+4) { animation-delay: .13s; }
+
+/* --- side panels really come from the side ------------------------------- */
+@keyframes rr-slide-in-right {
+  0%   { opacity: 0; transform: translateX(110%) scale(.96); }
+  62%  { opacity: 1; transform: translateX(-9px) scale(1.012); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+html.rr-books-controls .reader-panel {
+  animation: rr-slide-in-right .42s cubic-bezier(.18, 1.08, .28, 1) both !important;
+}
+html.rr-books-controls .reader-panel > * {
+  animation: rr-fan-right .36s cubic-bezier(.2, 1.06, .3, 1) both;
+}
+html.rr-books-controls .reader-panel > :nth-child(1) { animation-delay: .12s; }
+html.rr-books-controls .reader-panel > :nth-child(2) { animation-delay: .17s; }
+html.rr-books-controls .reader-panel > :nth-child(n+3) { animation-delay: .21s; }
+
+/* --- the library ⋯ / filter / sort popovers ------------------------------ */
+#rr-sort-menu {
+  transform-origin: top right;
+  animation: none;
+}
+html.rr-sort-open #rr-sort-menu {
+  animation: rr-unfold .3s cubic-bezier(.18, 1.2, .3, 1) both !important;
+}
+html.rr-sort-open #rr-sort-menu > * { animation: rr-fan-right .26s cubic-bezier(.2,1.05,.3,1) both; }
+html.rr-sort-open #rr-sort-menu > :nth-child(1) { animation-delay: .05s; }
+html.rr-sort-open #rr-sort-menu > :nth-child(2) { animation-delay: .08s; }
+html.rr-sort-open #rr-sort-menu > :nth-child(n+3) { animation-delay: .11s; }
+
+html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
+  animation: rr-slide-in-right .4s cubic-bezier(.18, 1.08, .28, 1) both !important;
+}
+
+/* --- the reading chrome buttons arrive rather than blink ----------------- */
+@keyframes rr-btn-in {
+  0%   { opacity: 0; transform: scale(.55) rotate(-8deg); }
+  68%  { opacity: 1; transform: scale(1.1) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+html.rr-books-controls .rr-sheet-btn,
+html.rr-books-controls .rr-close-btn {
+  animation: rr-btn-in .34s cubic-bezier(.2, 1.25, .3, 1) both;
+}
+html.rr-books-controls .rr-close-btn { animation-delay: .05s; }
+
+@media (prefers-reduced-motion: reduce) {
+  html.rr-sheet-open .rr-books-menu,
+  html.rr-sheet-entering .rr-books-menu > *,
+  .rr-books-menu[data-nav] > *,
+  .rr-books-menu[data-nav] .rr-books-toolbar > button,
+  .rr-books-themes > button,
+  body > .rr-card-menu,
+  body > .rr-card-menu button,
+  html.rr-books-controls .reader-panel,
+  html.rr-books-controls .reader-panel > *,
+  html.rr-sort-open #rr-sort-menu,
+  html.rr-sort-open #rr-sort-menu > *,
+  html[data-rr-library-view="library"].rr-filters-open .catalog .filters,
+  html.rr-books-controls .rr-sheet-btn,
+  html.rr-books-controls .rr-close-btn { animation: none !important; }
+}
+
+
+/* ==== v102: the reading buttons slide off the right edge ==================
+ * Centre-tapping toggled these with opacity plus visibility:hidden!important.
+ * visibility is not an animatable property in the useful sense - it flips at the
+ * end of a transition - so the buttons blinked in and out however long the
+ * opacity fade was. And the v101 entrance ran on mount only, not per toggle.
+ *
+ * They now TRAVEL: both fly out past the right edge of the screen and come back
+ * in, which suits controls that live pinned to that edge. The ≡ leaves a little
+ * later and returns a little sooner than the ✕, so the pair reads as one gesture
+ * with a leader rather than two things moving in lockstep.
+ *
+ * Distance is in vw, so it clears the edge on any width. visibility is dropped
+ * from the transition entirely and handled by pointer-events, which does flip
+ * cleanly and keeps a hidden button untappable.
+ * ---------------------------------------------------------------------- */
+
+html.rr-books-controls .rr-sheet-btn,
+html.rr-books-controls .rr-close-btn {
+  /* One property carries the movement, so nothing fights the animation above. */
+  transition:
+    transform .4s cubic-bezier(.22, 1.12, .3, 1),
+    opacity .26s ease;
+  will-change: transform, opacity;
+}
+
+/* Hidden: pushed clear of the right edge, tilted slightly as it goes.
+ *
+ * Scoped to .rr-books-controls deliberately. There are two hiding modes in this
+ * file and they differ on purpose:
+ *
+ *   .rr-hide-chrome alone (the older reader) keeps the hamburger at opacity .22
+ *   as a deliberate escape hatch - "without it, a centre tap that failed for any
+ *   reason would leave no way back to the controls at all".
+ *
+ *   .rr-books-controls.rr-hide-chrome (the current sheet) hides both outright,
+ *   because the invisible tap layer stays live and restores them.
+ *
+ * The first version of this block set opacity:0 !important on the hamburger
+ * without that scope, which silently removed the escape hatch. */
+html.rr-books-controls.rr-hide-chrome .rr-sheet-btn,
+html.rr-books-controls.rr-hide-chrome .rr-close-btn {
+  visibility: visible !important;          /* let transform do the hiding */
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateX(26vw) rotate(9deg) scale(.82) !important;
+}
+/* The older mode keeps its faint, tappable hamburger - it only needs to travel
+   rather than blink, so the ✕ slides out and the ≡ stays put at .22. */
+html:not(.rr-books-controls).rr-hide-chrome .rr-close-btn {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(26vw) rotate(9deg) scale(.82);
+}
+html:not(.rr-books-controls).rr-hide-chrome .rr-sheet-btn {
+  opacity: .22;
+  transform: translateX(0) rotate(0deg) scale(1);
+  pointer-events: auto;
+}
+/* The ✕ is the outer of the two, so it leads on the way out and trails coming
+   back - the order a hand would use. */
+html.rr-books-controls.rr-hide-chrome .rr-close-btn {
+  transition-delay: 0s, 0s;
+}
+html.rr-books-controls.rr-hide-chrome .rr-sheet-btn {
+  transition-delay: .06s, .06s;
+}
+
+/* Visible: settled at rest. */
+html.rr-books-controls:not(.rr-hide-chrome) .rr-sheet-btn,
+html.rr-books-controls:not(.rr-hide-chrome) .rr-close-btn,
+html:not(.rr-books-controls):not(.rr-hide-chrome) .rr-sheet-btn,
+html:not(.rr-books-controls):not(.rr-hide-chrome) .rr-close-btn {
+  opacity: 1;
+  transform: translateX(0) rotate(0deg) scale(1);
+  pointer-events: auto;
+}
+html.rr-books-controls:not(.rr-hide-chrome) .rr-sheet-btn { transition-delay: 0s; }
+html.rr-books-controls:not(.rr-hide-chrome) .rr-close-btn { transition-delay: .07s; }
+
+/* The press feedback has to compose with the resting transform, or tapping a
+   visible button would snap it back to an untranslated scale. */
+html.rr-books-controls:not(.rr-hide-chrome) .rr-sheet-btn:active,
+html.rr-books-controls:not(.rr-hide-chrome) .rr-close-btn:active {
+  transform: translateX(0) rotate(0deg) scale(.88);
+  transition-duration: .1s;
+}
+
+/* The earlier rule set these from a keyframe on mount, which would replay and
+   fight the transition. Mount is now handled by the same transition, entering
+   from the hidden state. */
+html.rr-books-controls .rr-sheet-btn,
+html.rr-books-controls .rr-close-btn { animation: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  html.rr-books-controls .rr-sheet-btn,
+  html.rr-books-controls .rr-close-btn { transition: opacity .12s ease !important; }
+  html.rr-books-controls.rr-hide-chrome .rr-sheet-btn,
+  html.rr-books-controls.rr-hide-chrome .rr-close-btn {
+    transform: none !important;
+    visibility: hidden !important;
+  }
+}

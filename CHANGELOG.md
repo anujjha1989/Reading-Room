@@ -4,6 +4,17 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+### Changed
+
+- Made panels arrive rather than appear. Menus and sheets now fly in from an
+  edge, overshoot slightly as they land, and settle; rows fan out in sequence
+  behind them. Everything previously moved 8-14px, which at phone scale was
+  indistinguishable from a fade.
+- Gave menu navigation a direction: going deeper enters from the right, coming
+  back enters from the left, so movement tells you where you are.
+- Made the close and menu buttons slide off the right edge of the screen when
+  you centre-tap, and fly back in when you tap again, instead of blinking out.
+
 No unreleased changes.
 
 ## v95 — 19 September 2026

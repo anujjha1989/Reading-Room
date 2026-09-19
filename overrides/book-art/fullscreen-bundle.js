@@ -693,7 +693,7 @@
 (function () {
   'use strict';
   const root = document.documentElement;
-  let host, dismissZone, reader, view = 'menu', lastOpen = false, signature = '';
+  let host, dismissZone, reader, view = 'menu', lastOpen = false, signature = '', navDir = 'forward';
   const $ = s => reader && reader.querySelector(s);
   const open = () => root.classList.contains('rr-sheet-open');
   function close() { root.classList.remove('rr-sheet-open'); view = 'menu'; sync(); }
@@ -757,7 +757,16 @@
     }
     b.onclick = e => { e.stopPropagation(); action(); }; return b;
   }
-  function go(name) { view = name; signature = ''; render(); }
+  // Direction of travel, so a view can enter from the side it came from.
+  // 'menu' is the root, so anything leaving it goes forward and returning to it
+  // goes back; Voice sits one level below Read Aloud.
+  const DEPTH = { menu:0, Contents:1, 'Read Aloud':1, 'Themes & Settings':1, Search:1, More:1,
+                  Voice:2, 'Customise Theme':2 };
+  function go(name) {
+    const from = DEPTH[view] ?? 1, to = DEPTH[name] ?? 1;
+    navDir = to < from ? 'back' : 'forward';
+    view = name; signature = ''; render();
+  }
   function proxy(label) { const b = native(label); if (b) b.click(); }
   function heading(label) {
     const h = document.createElement('header'); const strong = document.createElement('strong'); strong.textContent = label;
@@ -826,7 +835,7 @@
   }
   function render() {
     if (!host || !reader) return;
-    host.replaceChildren(); host.dataset.view = view;
+    host.replaceChildren(); host.dataset.view = view; host.dataset.nav = navDir;
     host.setAttribute('aria-label', view === 'menu' ? 'Reading menu' : view);
     if (view === 'menu') {
       // Contents is the only full-width row: it carries position, which is
