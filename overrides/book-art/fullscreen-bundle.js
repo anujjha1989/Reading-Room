@@ -1097,22 +1097,23 @@
   }
 
   function start(){sync();setInterval(sync,600);window.addEventListener?.('rr-close-reading-menu',close);window.addEventListener?.('rr-open-reading-menu',()=>{
-      // Returning from Bookmarks/Search: open the sheet and show the root view.
-      // Previously this set view then called sync(), but sync() only renders on a
-      // closed->open transition - so if the click had not taken effect yet the
-      // panel closed and nothing opened, which left the back button dead.
-      // Poll briefly for the sheet to actually be open, then render.
-      view='menu'; signature='';
-      let tries=0;
-      const settle=()=>{
-        const trigger=document.querySelector('.rr-sheet-btn');
-        if(!open()&&trigger)trigger.click();
-        sync();
-        if(open()){ view='menu'; navDir='back'; render(); return; }
-        if(++tries<12) setTimeout(settle,40);
-      };
-      setTimeout(settle,20);
-    });document.addEventListener('keydown',e=>{if(e.key==='Escape'&&open()){e.preventDefault();e.stopImmediatePropagation();view==='menu'?close():go('menu');}},true);}
+      // Returning from Bookmarks or Search. Two earlier attempts failed here:
+      // the first called sync(), which only renders on a closed->open
+      // transition; the second clicked .rr-sheet-btn, but that is the reader's
+      // own button and open() reads the rr-sheet-open class on <html>, which
+      // openSheet() sets directly. So set the state the sheet actually reads.
+      requestAnimationFrame(()=>{
+        root.classList.add('rr-sheet-open');
+        view='menu'; navDir='back'; signature='';
+        // rr-sheet-entering drives the row stagger; this is a genuine opening.
+        root.classList.add('rr-sheet-entering');
+        clearTimeout(enterTimer);
+        enterTimer=setTimeout(()=>root.classList.remove('rr-sheet-entering'),620);
+        sync();          // builds host/dismissZone if the sheet never opened before
+        render();        // and shows the root view regardless of transition state
+      });
+    });
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&open()){e.preventDefault();e.stopImmediatePropagation();view==='menu'?close():go('menu');}},true);}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
 

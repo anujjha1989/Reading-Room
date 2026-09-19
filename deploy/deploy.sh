@@ -76,6 +76,7 @@ node deploy/check-overrides.mjs
 node deploy/check-sheet.mjs
 node deploy/check-motion.mjs
 node deploy/check-contrast.mjs
+node deploy/check-panel-return.mjs
 
 echo "==> staging"
 rm -rf dist/stage && mkdir -p dist/stage/assets

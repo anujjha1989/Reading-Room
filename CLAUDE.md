@@ -35,6 +35,31 @@ Interpret creatively and make unexpected choices that feel genuinely designed fo
   over `!important`; the latter has already cost several rounds of specificity
   fights in `fullscreen-bundle.css`.
 
+## Verify the rendered output, not the source
+
+The single most repeated failure on this project is confirming a change in the
+file that *produces* output and declaring the output fixed. It has happened at
+least three times:
+
+- A template's `<meta>` tags were corrected while an **RSC payload lower in the
+  same file** still carried the old `theme-color`, so the browser kept using it.
+- A `BookReader.tsx` fix was committed and deployed four times without checking
+  the **built bundle** contained it. It did not — the build rsyncs over SMB and
+  had used a stale copy.
+- The importmap pinned the bundle at `?v=33` for ~54 deploys, so the Pi served
+  new code that phones never fetched.
+
+So, before reporting anything as fixed:
+
+1. Grep the **built artefact** (`dist/index.html`, `dist/client/assets/*.js`),
+   not just `app/` or `overrides/`.
+2. For the same value appearing twice in one file — meta tags and RSC payloads,
+   CSS rules and their `!important` counterparts — fix **every** occurrence and
+   count them.
+3. Prefer a check that would fail if the change were absent. `deploy/check-*.mjs`
+   exist for this; add to them rather than checking by hand.
+4. State what was verified and how, so a false "fixed" is visible in review.
+
 ## Release documentation — follow this for every change
 
 Three layers, each with one job. Do not collapse them.

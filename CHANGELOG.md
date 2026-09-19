@@ -6,11 +6,12 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ### Fixed
 
-- Removed the white bar across the top of the screen in dark mode. The status bar
-  colour was a single cream value for both themes.
+- Removed the white bar across the top of the screen in dark mode. Two causes: a
+  single cream status-bar colour for both themes, and React reapplying its own
+  cream value on hydration, which overwrote the corrected tags.
 - Stopped Themes & Settings flickering twice when a theme is picked.
-- Fixed the back button in Bookmarks and Search, which closed the panel without
-  reopening the reading menu and left you stuck.
+- Fixed the back button in Bookmarks and Search, which closed the panel and left
+  you stuck with nothing open.
 - Made the library gear, filter and sort buttons legible in dark mode — the disc
   behind them was almost invisible, so they read as bare marks on black — and
   brought the glyphs up to the size used in the reader.
