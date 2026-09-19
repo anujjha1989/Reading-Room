@@ -171,8 +171,24 @@ t(!/#007aff|rgba\(0,\s*122,\s*255/.test(globalCss),
 const overrideCss = readFileSync("overrides/book-art/fullscreen-bundle.css", "utf8");
 t(/\.rr-read-transport\{[^}]*flex-direction:column/.test(aloud),
   "collapsed read-aloud controls form a vertical rail");
+t(/\.rr-read-transport\{[^}]*bottom:calc\(78px/.test(aloud),
+  "collapsed read-aloud controls sit close to the settings trigger");
 t(/#rr-settings-link svg\s*\{\s*width:26px[^}]*height:26px/.test(overrideCss),
   "library gear glyph is optically balanced inside its halo");
+
+// 20b. Current chrome and library popovers must retain their final spatial
+//      and theme invariants even when older compatibility rules remain above.
+t(/html\.rr-hide-chrome \.rr-react-sheet-trigger\s*\{[^}]*translateX\(26vw\)/s.test(globalCss),
+  "React hamburger slides away with hidden reader chrome");
+t(/@keyframes rr-filter-sheet-in[\s\S]*?translate\(-50%, 0\)/.test(overrideCss)
+  && /rr-filters-open \.catalog \.filters\s*\{[^}]*rr-filter-sheet-in/s.test(overrideCss),
+  "filter sheet stays horizontally centred throughout its entrance");
+t(/data-rr-theme="light"\] #rr-sort-menu\s*\{[^}]*background:[^}]*255, 255, 255/s.test(overrideCss)
+  && /data-rr-theme="dark"\] #rr-sort-menu\s*\{[^}]*background:[^}]*36, 36, 38/s.test(overrideCss),
+  "library ellipsis menu follows explicit light and dark themes");
+t(/@keyframes rr-settings-from-right[\s\S]*?translateX\(100%\)[\s\S]*?translateX\(0\)/.test(overrideCss)
+  && /#rr-settings-overlay\s*\{[^}]*rr-settings-from-right \.52s/s.test(overrideCss),
+  "settings page enters smoothly from the right");
 
 // 21. First-sentence warming should happen immediately after the reader is
 //     stable, not nearly half a second later.

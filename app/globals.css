@@ -259,6 +259,28 @@ html.rr-reader-dark .rr-react-sheet-trigger {
 }
 .rr-react-sheet-trigger:active { transform: scale(.92); }
 
+/* The React-owned hamburger is portalled to <body>, so the legacy
+   .rr-sheet-btn motion rules cannot reach it. Keep it paired with the close
+   button when a centre tap hides reader chrome. */
+.rr-react-sheet-trigger {
+  transition:
+    transform .4s cubic-bezier(.22, 1.12, .3, 1),
+    opacity .26s ease;
+  will-change: transform, opacity;
+}
+html.rr-hide-chrome .rr-react-sheet-trigger {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(26vw) rotate(9deg) scale(.82);
+  transition-delay: .06s, .06s;
+}
+html:not(.rr-hide-chrome) .rr-react-sheet-trigger {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0) rotate(0deg) scale(1);
+  transition-delay: 0s;
+}
+
 /* The legacy sheet remains available through ?sheet=legacy as a recovery path,
    but it must not leave a second trigger or an invisible click target behind
    while the React-owned sheet is active. */
@@ -266,3 +288,8 @@ html.rr-react-sheet-enabled .rr-sheet-btn,
 html.rr-react-sheet-enabled .rr-books-menu,
 html.rr-react-sheet-enabled .rr-books-dismiss { display: none !important; }
 html.rr-react-sheet-open .rr-read-transport { visibility: hidden; pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rr-react-sheet-trigger { transition: opacity .12s ease; }
+  html.rr-hide-chrome .rr-react-sheet-trigger { transform: none; visibility: hidden; }
+}

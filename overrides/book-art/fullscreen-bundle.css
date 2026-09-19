@@ -3260,3 +3260,48 @@ html[data-rr-theme="dark"].rr-library-visible #rr-sort-btn {
 @media (prefers-reduced-motion: reduce) {
   #rr-settings-overlay { animation: none !important; }
 }
+
+
+/* ==== v111: coherent reader chrome and bounded library surfaces ========== */
+
+/* App chrome follows the explicit Home theme rather than inherited state. */
+html[data-rr-theme="light"] #rr-sort-menu {
+  background: rgba(255, 255, 255, .97) !important;
+  color: #1c1c1e !important;
+  border-color: #d8d8dc !important;
+}
+html[data-rr-theme="dark"] #rr-sort-menu {
+  background: rgba(36, 36, 38, .97) !important;
+  color: #f5f5f7 !important;
+  border-color: #3a3a3e !important;
+}
+
+/* Preserve translateX(-50%) throughout the entrance animation; replacing it
+   is what pushed the right half of this sheet outside the viewport. */
+@keyframes rr-filter-sheet-in {
+  0%   { opacity: 0; transform: translate(-50%, 14px) scale(.985); }
+  68%  { opacity: 1; transform: translate(-50%, -2px) scale(1.002); }
+  100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
+  width: min(560px, calc(100vw - 28px)) !important;
+  max-width: calc(100vw - 28px) !important;
+  animation: rr-filter-sheet-in .34s cubic-bezier(.18, 1.05, .28, 1) both !important;
+}
+
+/* Settings is a page beyond the library, so it enters from the trailing edge
+   and settles with a small, deliberate landing. */
+@keyframes rr-settings-from-right {
+  0%   { opacity: .35; transform: translateX(100%); }
+  72%  { opacity: 1; transform: translateX(-4px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+#rr-settings-overlay {
+  animation: rr-settings-from-right .52s cubic-bezier(.18, 1.02, .28, 1) both !important;
+  transform-origin: right center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-rr-library-view="library"].rr-filters-open .catalog .filters,
+  #rr-settings-overlay { animation: none !important; }
+}

@@ -1104,7 +1104,7 @@
       ".rr-timer{min-width:44px;font-variant-numeric:tabular-nums;white-space:nowrap;transition:color .2s}" +
       ".rr-timer.rr-timer-active{color:var(--rr-timer-ink,#5a7c62)}" +
       ".rr-theme-dark .rr-timer.rr-timer-active{color:var(--rr-timer-ink-dark,#85b892)}" +
-      ".rr-read-transport{position:fixed;right:15px;bottom:calc(143px + env(safe-area-inset-bottom));z-index:124;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px;border:1px solid rgba(70,70,67,.16);border-radius:25px;background:rgba(245,244,239,.88);color:#202321;box-shadow:0 4px 18px rgba(0,0,0,.13);-webkit-backdrop-filter:blur(20px) saturate(1.25);backdrop-filter:blur(20px) saturate(1.25)}" +
+      ".rr-read-transport{position:fixed;right:15px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:124;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px;border:1px solid rgba(70,70,67,.16);border-radius:25px;background:rgba(245,244,239,.88);color:#202321;box-shadow:0 4px 18px rgba(0,0,0,.13);-webkit-backdrop-filter:blur(20px) saturate(1.25);backdrop-filter:blur(20px) saturate(1.25)}" +
       ".rr-read-transport[hidden]{display:none!important}" +
       ".rr-read-transport button{width:40px;height:40px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;display:grid;place-items:center;font:600 16px/1 -apple-system,BlinkMacSystemFont,sans-serif;-webkit-tap-highlight-color:transparent}" +
       ".rr-read-transport button:active{background:rgba(90,90,90,.14);transform:scale(.94)}" +
