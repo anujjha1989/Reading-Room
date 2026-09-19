@@ -831,7 +831,12 @@
     // reader checks - otherwise the next book would go back to following the
     // app theme and silently undo this.
     try { localStorage.setItem('reading-room-reader-theme-set','1'); } catch (_) {}
-    const nativeTheme=[...reader.querySelectorAll('.theme-options button')].find(b=>b.textContent.toLowerCase()===p[6]);nativeTheme?.click();saveType();render();
+    const nativeTheme=[...reader.querySelectorAll('.theme-options button')].find(b=>b.textContent.toLowerCase()===p[6]);nativeTheme?.click();saveType();
+    // No render() here. Clicking the native theme button changes
+    // reader.className, and the signature watcher in sync() re-renders from
+    // that. Rendering here as well produced two renders per tap, which replayed
+    // the row animation - the double flutter. Invalidate and let sync() own it.
+    signature='';
   }
   function render() {
     if (!host || !reader) return;
@@ -1091,7 +1096,23 @@
     } catch (_) { themeSynced = true; }
   }
 
-  function start(){sync();setInterval(sync,600);window.addEventListener?.('rr-close-reading-menu',close);window.addEventListener?.('rr-open-reading-menu',()=>setTimeout(()=>{const trigger=document.querySelector('.rr-sheet-btn');if(trigger&&!open())trigger.click();view='menu';signature='';sync();},20));document.addEventListener('keydown',e=>{if(e.key==='Escape'&&open()){e.preventDefault();e.stopImmediatePropagation();view==='menu'?close():go('menu');}},true);}
+  function start(){sync();setInterval(sync,600);window.addEventListener?.('rr-close-reading-menu',close);window.addEventListener?.('rr-open-reading-menu',()=>{
+      // Returning from Bookmarks/Search: open the sheet and show the root view.
+      // Previously this set view then called sync(), but sync() only renders on a
+      // closed->open transition - so if the click had not taken effect yet the
+      // panel closed and nothing opened, which left the back button dead.
+      // Poll briefly for the sheet to actually be open, then render.
+      view='menu'; signature='';
+      let tries=0;
+      const settle=()=>{
+        const trigger=document.querySelector('.rr-sheet-btn');
+        if(!open()&&trigger)trigger.click();
+        sync();
+        if(open()){ view='menu'; navDir='back'; render(); return; }
+        if(++tries<12) setTimeout(settle,40);
+      };
+      setTimeout(settle,20);
+    });document.addEventListener('keydown',e=>{if(e.key==='Escape'&&open()){e.preventDefault();e.stopImmediatePropagation();view==='menu'?close():go('menu');}},true);}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
 

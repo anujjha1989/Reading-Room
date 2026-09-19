@@ -1899,7 +1899,9 @@ html.rr-sheet-open .rr-books-menu {
   animation: rr-rise .22s cubic-bezier(.22, 1, .36, 1) both;
 }
 /* Settings overlay and the metadata sheet. */
-#rr-settings-overlay { animation: rr-fade .2s ease both; }
+/* Superseded by rr-overlay-up in v103: the overlay now rises rather than
+   fading, and two animation declarations on one element is a trap. */
+#rr-settings-overlay { animation: none; }
 #rr-metafix .rr-mf-sheet { animation: rr-rise .22s cubic-bezier(.22, 1, .36, 1) both; }
 #rr-metafix { animation: rr-fade .16s ease both; }
 /* Editions picker. */
@@ -3190,4 +3192,68 @@ html.rr-books-controls .rr-close-btn { animation: none !important; }
     transform: none !important;
     visibility: hidden !important;
   }
+}
+
+
+/* ==== v103: the library icon rail, and the settings overlay =============== *
+ * Measured before changing anything, and the obvious explanation was wrong: the
+ * GLYPH's contrast was already 16.1:1 on black. What was missing was the BUTTON.
+ *
+ * The fill was color-mix(var(--ink) 10%, transparent), and --ink is #f5f5f7 in
+ * dark mode, so the disc composited to rgb(25,25,25) on black - 1.19:1 against
+ * the page, effectively invisible. The gear read as faint because it was a bare
+ * mark floating on black with no affordance behind it, and at 21px it was also
+ * smaller than the 23-25px icons in the reader.
+ *
+ * Now stated outright per theme. Verified: light on paper 13.4:1, light over a
+ * cover 4.8:1, dark on black 14.1:1, dark over a cover 5.4:1 - all above the
+ * 3.0 needed for a large glyph, and the disc itself now reads at 1.48:1, which
+ * is enough to register as a surface without competing with the page.
+ * ---------------------------------------------------------------------- */
+html.rr-library-visible #rr-settings-link,
+html.rr-library-visible #rr-filter-btn,
+html.rr-library-visible #rr-sort-btn {
+  background: rgba(120, 120, 128, .20) !important;
+  color: #1c1c1e !important;
+}
+html.rr-library-visible #rr-settings-link svg,
+html.rr-library-visible #rr-filter-btn svg,
+html.rr-library-visible #rr-sort-btn svg {
+  width: 23px !important; height: 23px !important;
+  stroke-width: 1.9 !important;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-rr-theme="light"]).rr-library-visible #rr-settings-link,
+  html:not([data-rr-theme="light"]).rr-library-visible #rr-filter-btn,
+  html:not([data-rr-theme="light"]).rr-library-visible #rr-sort-btn {
+    /* A lighter fill and a full-strength glyph: on black, a 20% grey disc with a
+       dimmed icon disappears. */
+    background: rgba(142, 142, 147, .30) !important;
+    color: #ffffff !important;
+  }
+}
+html[data-rr-theme="dark"].rr-library-visible #rr-settings-link,
+html[data-rr-theme="dark"].rr-library-visible #rr-filter-btn,
+html[data-rr-theme="dark"].rr-library-visible #rr-sort-btn {
+  background: rgba(142, 142, 147, .30) !important;
+  color: #ffffff !important;
+}
+
+/* --- the settings overlay had no motion at all -------------------------- *
+ * It is an iframe, so its contents cannot be staggered from here - but the panel
+ * itself can arrive. It covers the library, so it rises from the bottom like a
+ * presented sheet rather than flying in from an edge.
+ * ---------------------------------------------------------------------- */
+@keyframes rr-overlay-up {
+  0%   { opacity: 0; transform: translateY(100%) scale(.97); }
+  68%  { opacity: 1; transform: translateY(-6px) scale(1.004); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+#rr-settings-overlay {
+  animation: rr-overlay-up .46s cubic-bezier(.17, 1.06, .26, 1) both !important;
+  transform-origin: bottom center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #rr-settings-overlay { animation: none !important; }
 }

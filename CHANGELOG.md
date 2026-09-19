@@ -4,6 +4,18 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+### Fixed
+
+- Removed the white bar across the top of the screen in dark mode. The status bar
+  colour was a single cream value for both themes.
+- Stopped Themes & Settings flickering twice when a theme is picked.
+- Fixed the back button in Bookmarks and Search, which closed the panel without
+  reopening the reading menu and left you stuck.
+- Made the library gear, filter and sort buttons legible in dark mode — the disc
+  behind them was almost invisible, so they read as bare marks on black — and
+  brought the glyphs up to the size used in the reader.
+- Gave the library settings page an entrance; it appeared instantly before.
+
 ### Changed
 
 - Made panels arrive rather than appear. Menus and sheets now fly in from an
