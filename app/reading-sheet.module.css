@@ -1,0 +1,368 @@
+/*
+ * Reading sheet styles.
+ *
+ * A CSS Module, so class names are hashed at build time and cannot collide with
+ * the app's global stylesheet or the override layer. That is the whole point:
+ * the 440 `!important` declarations in fullscreen-bundle.css exist because an
+ * outside layer had to out-shout rules it did not control. Scoped styles have
+ * nothing to fight, so there is not one `!important` in this file.
+ *
+ * Every dimension is a token declared once. The old sheet had accumulated nine
+ * different row heights, five font sizes and seven corner radii across a base
+ * block and four later patches, which is what made it look unfinished.
+ *
+ * Colours key off `[data-rr-theme]` on <html>, which is the APP's theme. The
+ * sheet is chrome, not page content, so it must not follow the book's theme —
+ * mixing those two signals on one element was the direct cause of a sheet that
+ * flipped to light while the app stayed dark.
+ */
+
+.sheet {
+  /* One rhythm for everything in the panel. */
+  --row-h: 46px;
+  --tile-h: 52px;
+  --radius: 14px;
+  --radius-lg: 22px;
+  --gap: 7px;
+  --pad-x: 14px;
+  --text: 15px;
+  --text-sm: 12.5px;
+  --title: 17px;
+
+  /* Light by default; the dark block below overrides these three. */
+  --surface: rgba(250, 250, 251, 0.95);
+  --surface-line: rgba(0, 0, 0, 0.10);
+  --fill: rgba(120, 120, 128, 0.12);
+  --fill-active: rgba(120, 120, 128, 0.22);
+  --ink: #1c1c1e;
+  --ink-dim: rgba(28, 28, 30, 0.55);
+  --invert-bg: #14110f;
+  --invert-ink: #f7f3ec;
+  --accent: #007aff;
+
+  position: fixed;
+  right: 16px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 78px);
+  z-index: 150;
+  width: min(322px, calc(100vw - 28px));
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 140px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: 9px;
+  border: 1px solid var(--surface-line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.10);
+  backdrop-filter: blur(30px) saturate(1.5);
+  -webkit-backdrop-filter: blur(30px) saturate(1.5);
+  color: var(--ink);
+  font: var(--text) / 1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow: hidden;
+
+  transform-origin: bottom right;
+  animation: deal-in 0.4s cubic-bezier(0.18, 1.1, 0.28, 1) both;
+}
+
+/* Dark follows the APP theme, both when chosen explicitly and when the device is
+   dark with no explicit choice. Stated twice because :is() with :not() around an
+   attribute selector is unreliable on older WebKit. */
+:global(html[data-rr-theme="dark"]) .sheet {
+  --surface: rgba(38, 38, 40, 0.95);
+  --surface-line: rgba(255, 255, 255, 0.12);
+  --fill: rgba(120, 120, 128, 0.24);
+  --fill-active: rgba(120, 120, 128, 0.36);
+  --ink: #f5f5f7;
+  --ink-dim: rgba(245, 245, 247, 0.55);
+  --invert-bg: #f5f5f7;
+  --invert-ink: #14110f;
+  --accent: #409cff;
+}
+@media (prefers-color-scheme: dark) {
+  :global(html:not([data-rr-theme="light"])) .sheet {
+    --surface: rgba(38, 38, 40, 0.95);
+    --surface-line: rgba(255, 255, 255, 0.12);
+    --fill: rgba(120, 120, 128, 0.24);
+    --fill-active: rgba(120, 120, 128, 0.36);
+    --ink: #f5f5f7;
+    --ink-dim: rgba(245, 245, 247, 0.55);
+    --invert-bg: #f5f5f7;
+    --invert-ink: #14110f;
+    --accent: #409cff;
+  }
+}
+
+/* --- header ------------------------------------------------------------- */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: var(--row-h);
+  padding: 0 6px 0 var(--pad-x);
+}
+.header > strong {
+  font: 600 var(--title) / 1.2 Georgia, "Iowan Old Style", serif;
+  letter-spacing: -0.01em;
+}
+.headerButton {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fill);
+  color: inherit;
+  cursor: pointer;
+}
+
+/* --- rows -------------------------------------------------------------- */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--row-h);
+  padding: 0 var(--pad-x);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--fill);
+  color: inherit;
+  font: inherit;
+  font-weight: 450;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.13s cubic-bezier(0.2, 0.9, 0.3, 1), background 0.13s ease;
+}
+.row:active { transform: scale(0.965); background: var(--fill-active); }
+
+/* The label takes the space and truncates; the icon is a fixed column. Without
+   this, a short label and its icon sat at opposite edges of a 322px row, which
+   read as an empty control. */
+.rowLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowDetail { flex: 0 0 auto; color: var(--ink-dim); font-size: var(--text-sm); }
+
+.primary {
+  min-height: 54px;
+  justify-content: center;
+  background: var(--invert-bg);
+  color: var(--invert-ink);
+  font-size: 16px;
+  font-weight: 600;
+}
+.danger { color: #d3342f; }
+.current { background: color-mix(in srgb, var(--accent) 22%, transparent); font-weight: 600; }
+
+.icon { flex: 0 0 22px; display: grid; place-items: center; opacity: 0.62; }
+.icon svg { width: 19px; height: 19px; }
+.primary .icon { opacity: 1; }
+
+/* --- the root toolbar: equal tiles, icon above label -------------------- */
+.toolbar { display: flex; gap: var(--gap); }
+.tile {
+  flex: 1 1 0;
+  min-width: 0;
+  height: var(--tile-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--fill);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: transform 0.13s cubic-bezier(0.2, 0.9, 0.3, 1), background 0.13s ease;
+}
+.tile:active { transform: scale(0.94); background: var(--fill-active); }
+.tile .icon { flex: 0 0 auto; opacity: 0.9; }
+.tile .icon svg { width: 23px; height: 23px; }
+/* One tile alone — a PDF has no search, TTS or text settings — should stay tile
+   shaped rather than stretching across the sheet. */
+.toolbar > .tile:only-child { flex: 0 0 76px; }
+.toolbar:has(> .tile:only-child) { justify-content: center; }
+
+/* --- text size stepper ------------------------------------------------- */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.stepper > button {
+  flex: 1 1 0;
+  height: 48px;
+  border: 0;
+  background: var(--fill);
+  color: inherit;
+  font: 500 19px / 1 inherit;
+  cursor: pointer;
+}
+.stepper > button:first-child { border-radius: var(--radius) 6px 6px var(--radius); }
+.stepper > button:last-child { border-radius: 6px var(--radius) var(--radius) 6px; }
+.stepper > button:disabled { opacity: 0.35; cursor: default; }
+.stepperValue {
+  flex: 0 0 56px;
+  text-align: center;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+/* --- theme swatches ---------------------------------------------------- */
+.swatches { display: flex; justify-content: space-around; padding: 4px 6px; }
+.swatch {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.28);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.2, 1.3, 0.35, 1);
+}
+.swatch[aria-checked="true"] { outline: 2.5px solid var(--accent); outline-offset: 2px; }
+.swatch:active { transform: scale(0.9); }
+
+/* --- segmented controls ------------------------------------------------ */
+.segment {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius);
+  background: var(--fill);
+}
+.segment > button {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 38px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: inherit;
+  font: 500 14px / 1 inherit;
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+.segment > button[aria-checked="true"] {
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.groupLabel { padding: 2px var(--pad-x) 0; font-size: 11px; color: var(--ink-dim); }
+
+/* --- sliders ----------------------------------------------------------- */
+.slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--row-h);
+  padding: 0 var(--pad-x);
+  border-radius: var(--radius);
+  background: var(--fill);
+  font-size: var(--text-sm);
+}
+.slider > span { flex: 0 0 auto; color: var(--ink-dim); }
+.slider > input[type="range"] { flex: 1 1 auto; min-width: 0; height: 22px; accent-color: var(--accent); }
+.slider > output {
+  flex: 0 0 44px;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.sliderEnd { font-size: 11px; opacity: 0.6; }
+
+/* --- read aloud transport ---------------------------------------------- */
+.transport { display: flex; gap: var(--gap); }
+.transport > button {
+  flex: 1 1 0;
+  height: var(--tile-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--fill);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.transport > button:active { background: var(--fill-active); }
+
+/* --- scrolling lists (contents, voices) -------------------------------- */
+.scroller {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.tocRow { min-height: 40px; font-size: 14px; }
+.tocRow .rowLabel {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* ==== motion ============================================================
+ * The panel is dealt up from the ≡ that summoned it, and its rows fan in from
+ * the side you travelled — forward from the right, back from the left — so the
+ * movement says where you went rather than merely being decorative.
+ *
+ * Rows animate on view change only. The old version re-animated on every tap,
+ * because the whole panel was rebuilt each time; here React keeps the panel and
+ * only swaps children, so the animation fires when it should.
+ * ====================================================================== */
+@keyframes deal-in {
+  0% { opacity: 0; transform: translate(40px, 80px) scale(0.84) rotate(3deg); }
+  58% { opacity: 1; transform: translate(0, -6px) scale(1.02) rotate(-0.5deg); }
+  100% { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
+}
+@keyframes fan-right {
+  0% { opacity: 0; transform: translateX(56px) scale(0.95); }
+  62% { opacity: 1; transform: translateX(-4px) scale(1.006); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes fan-left {
+  0% { opacity: 0; transform: translateX(-56px) scale(0.95); }
+  62% { opacity: 1; transform: translateX(4px) scale(1.006); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+.sheet[data-direction="forward"] > * { animation: fan-right 0.36s cubic-bezier(0.2, 1.06, 0.3, 1) both; }
+.sheet[data-direction="back"] > * { animation: fan-left 0.36s cubic-bezier(0.2, 1.06, 0.3, 1) both; }
+.sheet > :nth-child(1) { animation-delay: 0s; }
+.sheet > :nth-child(2) { animation-delay: 0.045s; }
+.sheet > :nth-child(3) { animation-delay: 0.085s; }
+.sheet > :nth-child(4) { animation-delay: 0.12s; }
+.sheet > :nth-child(5) { animation-delay: 0.15s; }
+.sheet > :nth-child(n + 6) { animation-delay: 0.175s; }
+
+/* Children of a scroller must not stagger — a 40-chapter contents list would
+   take several seconds to appear. */
+.scroller > * { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .sheet[data-direction="forward"] > *,
+  .sheet[data-direction="back"] > * { animation: none; }
+  .row, .tile, .swatch, .segment > button { transition: none; }
+  .row:active, .tile:active, .swatch:active { transform: none; }
+}

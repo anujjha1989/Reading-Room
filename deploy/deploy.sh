@@ -77,6 +77,7 @@ node deploy/check-sheet.mjs
 node deploy/check-motion.mjs
 node deploy/check-contrast.mjs
 node deploy/check-panel-return.mjs
+node deploy/check-reading-sheet.mjs
 
 echo "==> staging"
 rm -rf dist/stage && mkdir -p dist/stage/assets
