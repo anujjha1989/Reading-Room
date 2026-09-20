@@ -837,10 +837,18 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     void shell.offsetWidth;
     shell.classList.add(direction === "previous" ? "reader-turn-previous" : "reader-turn-next");
     if (pageTurnTimerRef.current) clearTimeout(pageTurnTimerRef.current);
+    // Duration comes from --rr-spring-time, the same token the CSS animation
+    // uses. This was a hardcoded 230ms, which matched the old .22s ease-out; now
+    // that the turn runs on the shared spring the class must survive the whole
+    // animation or the page snaps back mid-flight. Reading the token keeps the
+    // two in step instead of relying on someone updating both.
+    const spring = getComputedStyle(shell).getPropertyValue("--rr-spring-time").trim();
+    const seconds = spring.endsWith("ms") ? parseFloat(spring) / 1000 : parseFloat(spring);
+    const duration = Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 460;
     pageTurnTimerRef.current = setTimeout(() => {
       shell.classList.remove("reader-turn-previous", "reader-turn-next");
       pageTurnTimerRef.current = null;
-    }, 230);
+    }, duration + 40);
   }
 
   function goToChapter(href: string) {

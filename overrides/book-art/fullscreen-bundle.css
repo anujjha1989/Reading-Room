@@ -1036,7 +1036,8 @@ html[data-rr-library-view="library"] .catalog .filters {
   border-radius: 18px !important;
   box-shadow: 0 18px 44px rgba(0, 0, 0, .22);
   opacity: 0; pointer-events: none;
-  transition: opacity .16s ease, transform .16s ease;
+  /* Spring, matching the reading sheet and library panels; was .16s ease. */
+  transition: opacity .2s linear, transform var(--rr-spring-time,.46s) var(--rr-spring,cubic-bezier(.16,1,.3,1));
 }
 html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
   opacity: 1; pointer-events: auto; transform: translate(-50%, 0);
@@ -2867,14 +2868,17 @@ html.rr-native-panel-open .rr-books-dismiss { display:none !important; }
 
 /* A restrained directional fade supplies orientation without fake paper-curl
    physics. It is never used for Scroll mode or reduced-motion users. */
+/* Page turn uses the shared spring rather than its own ease-out. It was .22s
+   ease-out, which read as a twitch next to every other transition in the app;
+   the menus, sheets and panels all run --rr-spring-time with --rr-spring. */
 .reader-turn-next .epub-stage,
 .reader-turn-next .pdf-pages,
-.reader-turn-next .comic-pages { animation:rr-page-next .22s ease-out both; }
+.reader-turn-next .comic-pages { animation:rr-page-next var(--rr-spring-time,.46s) var(--rr-spring,cubic-bezier(.16,1,.3,1)) both; }
 .reader-turn-previous .epub-stage,
 .reader-turn-previous .pdf-pages,
-.reader-turn-previous .comic-pages { animation:rr-page-previous .22s ease-out both; }
-@keyframes rr-page-next { from{opacity:.72;transform:translateX(8px)} to{opacity:1;transform:none} }
-@keyframes rr-page-previous { from{opacity:.72;transform:translateX(-8px)} to{opacity:1;transform:none} }
+.reader-turn-previous .comic-pages { animation:rr-page-previous var(--rr-spring-time,.46s) var(--rr-spring,cubic-bezier(.16,1,.3,1)) both; }
+@keyframes rr-page-next { from{opacity:.72;transform:translateX(18px)} to{opacity:1;transform:none} }
+@keyframes rr-page-previous { from{opacity:.72;transform:translateX(-18px)} to{opacity:1;transform:none} }
 
 /* Speed reads top-to-bottom: name/current value, track, then its bounds. */
 .rr-books-menu .rr-rate-card {

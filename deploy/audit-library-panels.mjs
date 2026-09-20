@@ -31,6 +31,11 @@ const evaluate = async (expression) => {
 };
 
 await send("Page.enable");
+// Exercise the full motion path even when the host Mac is configured to reduce
+// motion. The reduced-motion fallback is covered by the static motion gate.
+await send("Emulation.setEmulatedMedia", {
+  features: [{ name: "prefers-reduced-motion", value: "no-preference" }],
+});
 // Use the LAN endpoint for browser geometry. Public-path version and MIME
 // checks belong to deploy.sh; Chrome for Testing can reject the private
 // Tailscale certificate even while Safari and curl trust it.
@@ -61,7 +66,28 @@ const result = await evaluate(`(async () => {
     document.querySelector('#rr-filter-btn').click();
     return { sort, filter };
   };
-  return { version: document.documentElement.innerHTML.includes('v111'), light: await sample('light'), dark: await sample('dark') };
+  root.dataset.rrTheme = 'light';
+  document.querySelector('#rr-settings-link').click();
+  for (let attempt = 0; attempt < 40 && !document.querySelector('#rr-settings-overlay')?.contentDocument?.querySelector('#close'); attempt += 1) {
+    await wait(100);
+  }
+  const overlay = document.querySelector('#rr-settings-overlay');
+  if (!overlay?.contentDocument?.querySelector('#close')) throw new Error('Settings did not open');
+  overlay.contentDocument.querySelector('#close').click();
+  const settings = {
+    closingImmediately: overlay.classList.contains('rr-settings-closing'),
+    presentImmediately: overlay.isConnected,
+  };
+  await wait(120);
+  const exitStyle = getComputedStyle(overlay);
+  settings.closingDuringExit = overlay.classList.contains('rr-settings-closing');
+  settings.presentDuringExit = overlay.isConnected;
+  settings.animationDuringExit = exitStyle.animationName;
+  settings.transformDuringExit = exitStyle.transform;
+  await wait(500);
+  settings.removedAfterExit = !document.querySelector('#rr-settings-overlay');
+
+  return { light: await sample('light'), dark: await sample('dark'), settings };
 })()`);
 
 for (const theme of ["light", "dark"]) {
@@ -71,4 +97,17 @@ for (const theme of ["light", "dark"]) {
   console.log(`${theme}: filter ${entry.filter.left.toFixed(1)}..${entry.filter.right.toFixed(1)} of ${entry.filter.viewport} ${bounded ? "PASS" : "FAIL"}`);
   if (!bounded) process.exitCode = 1;
 }
+const lightMenuMatches = result.light.sort.background === 'rgba(255, 255, 255, 0.97)'
+  && result.light.sort.color === 'rgb(28, 28, 30)';
+console.log(`light menu palette: ${lightMenuMatches ? "PASS" : "FAIL"}`);
+if (!lightMenuMatches) process.exitCode = 1;
+
+const settingsExitPass = result.settings.presentImmediately
+  && result.settings.closingDuringExit
+  && result.settings.presentDuringExit
+  && (result.settings.animationDuringExit === 'rr-settings-spring-out'
+    || result.settings.transformDuringExit !== 'none')
+  && result.settings.removedAfterExit;
+console.log(`settings exit: ${settingsExitPass ? "PASS" : "FAIL"} (${JSON.stringify(result.settings)})`);
+if (!settingsExitPass) process.exitCode = 1;
 socket.close();
