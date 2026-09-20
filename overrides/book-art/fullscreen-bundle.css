@@ -3307,8 +3307,11 @@ html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
   width: auto !important;
   max-width: 560px !important;
   margin-inline: auto !important;
-  transform: none !important;
-  animation: rr-filter-sheet-in .34s cubic-bezier(.18, 1.05, .28, 1) both !important;
+  /* Layout only. The transform and animation that used to be here are dropped:
+     `transform: none` cancelled the scale the open state needs, and the .34s
+     rr-filter-sheet-in outranked the spring transition declared further down, so
+     the drawer kept opening at the old speed no matter what that transition said.
+     This is the declaration that survived three attempted fixes. */
 }
 
 /* Settings is a page beyond the library, so it enters from the trailing edge
@@ -3391,7 +3394,17 @@ html[data-rr-theme="light"] body > .rr-card-menu {
   }
 }
 @keyframes rr-spring-menu-in {
+  /* The card menu is mounted and unmounted by React, so it cannot use a
+     transition the way the sort menu and filter drawer do - there is no resting
+     closed state to animate from. It therefore needs a keyframe, and the opacity
+     curve has to be written to match what those two get for free.
+
+     They fade with `opacity .24s linear` while the transform runs the full
+     --rr-spring-time (.46s). Fading opacity across the whole keyframe instead
+     made this menu look slower to appear even though the movement was identical,
+     which is the difference that kept showing up on device. 52% ~= .24/.46. */
   from { opacity: 0; transform: translate(12px, -10px) scale(.9); }
+  52%  { opacity: 1; }
   to { opacity: 1; transform: translate(0, 0) scale(1); }
 }
 
@@ -3400,6 +3413,11 @@ html[data-rr-library-view="library"] .catalog .filters {
   animation: none !important;
   opacity: 0;
   pointer-events: none;
+  /* Vertical only. This drawer spans the width via left/right insets and
+     margin-inline:auto, so a horizontal translate would push a centred sheet off
+     centre rather than offsetting it from the icon rail. It is a drawer, not a
+     corner popover - matching the menus' diagonal travel was the wrong goal. The
+     shared part is the spring and the fade, which it now has. */
   transform: translateY(-14px) scale(.96) !important;
   transform-origin: top center;
   transition: opacity .24s linear, transform var(--rr-spring-time) var(--rr-spring) !important;
