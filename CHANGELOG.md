@@ -4,6 +4,12 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+### Fixed
+
+- Restored the filter, sort and Settings icon foregrounds in dark mode. Their
+  React SVGs now use an explicit app theme token instead of browser-default
+  black fills.
+
 ## v129 — 20 September 2026
 
 ### Changed

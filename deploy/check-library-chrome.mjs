@@ -20,6 +20,11 @@ check(client.includes("<LibraryChrome"), "LibraryClient renders the typed chrome
 check(layout.includes('name="rr-react-library-chrome"'), "new renders declare React chrome ownership");
 check(renderer.includes('name="rr-react-library-chrome"'), "the committed prerender is reconciled to React ownership");
 check(renderer.includes('["<h1>Find your next book.</h1>", "<h1>Home</h1>"]'), "the prerendered heading matches hydration");
+check(component.includes('stroke="var(--rr-library-icon)"')
+  && component.includes('fill="var(--rr-library-icon)"'), "React icons declare their own themed stroke and fill");
+const globalCss = readFileSync("app/globals.css", "utf8");
+check(globalCss.includes(':root[data-rr-theme="dark"] { --rr-library-icon:#f5f5f7; }')
+  && globalCss.includes(':root[data-rr-theme="light"] { --rr-library-icon:#26332f; }'), "library icon token covers explicit light and dark themes");
 check(!legacy.includes("rr-library-dock"), "legacy navigation injector is deleted");
 check(!legacy.includes('var ID = "rr-settings-link"'), "legacy Settings injector is deleted");
 check(!legacy.includes('FILTER_ID = "rr-filter-btn"'), "legacy filter/sort injector is deleted");

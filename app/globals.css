@@ -1,7 +1,9 @@
 @import "tailwindcss";
 
-:root { --paper:#f3efe5; --paper-2:#e8e2d3; --ink:#26332f; --muted:#6f776f; --sage:#819387; --line:#d3ccbb; --white:#fffdf7; }
-@media (prefers-color-scheme:dark) { :root { --paper:#1a1c1b; --paper-2:#232624; --ink:#e8e4d8; --muted:#8a9089; --sage:#6e7a71; --line:#2e3330; --white:#141615; } }
+:root { --paper:#f3efe5; --paper-2:#e8e2d3; --ink:#26332f; --muted:#6f776f; --sage:#819387; --line:#d3ccbb; --white:#fffdf7; --rr-library-icon:#26332f; }
+@media (prefers-color-scheme:dark) { :root:not([data-rr-theme="light"]) { --paper:#1a1c1b; --paper-2:#232624; --ink:#e8e4d8; --muted:#8a9089; --sage:#6e7a71; --line:#2e3330; --white:#141615; --rr-library-icon:#f5f5f7; } }
+:root[data-rr-theme="dark"] { --rr-library-icon:#f5f5f7; }
+:root[data-rr-theme="light"] { --rr-library-icon:#26332f; }
 * { box-sizing:border-box; }
 html { scroll-behavior:smooth; }
 body { margin:0; background:var(--paper); color:var(--ink); font-family:Arial, Helvetica, sans-serif; }
