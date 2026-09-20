@@ -158,6 +158,9 @@ if (process.argv.includes("--exercise-menu")) {
       color: darkStyle.color,
       background: darkStyle.backgroundColor,
     };
+    [...darkSheet.querySelectorAll('button')]
+      .find((button) => button.textContent.trim() === 'Scroll')?.click();
+    await wait(1400);
     darkSheet.querySelector('button[aria-label="Back to reading menu"]')?.click(); await wait(100);
 
     clickText(sheet(), 'Aloud'); await wait(100);
@@ -174,6 +177,16 @@ if (process.argv.includes("--exercise-menu")) {
       next: !!sheet().querySelector('button[aria-label="Next sentence"]'),
       sleepMinus: !!sheet().querySelector('button[aria-label="Subtract 30 minutes"]'),
       sleepPlus: !!sheet().querySelector('button[aria-label="Add 30 minutes"]'),
+      follow: (() => {
+        const button = document.querySelector('.rr-read-follow');
+        if (!button) return null;
+        const style = getComputedStyle(button);
+        return {
+          label: button.getAttribute('aria-label'),
+          visible: style.opacity === '1' && style.pointerEvents !== 'none',
+          backdrop: style.backdropFilter || style.webkitBackdropFilter,
+        };
+      })(),
     };
     [...sheet().querySelectorAll('button')]
       .find((button) => button.textContent.includes('Stop reading'))?.click();
