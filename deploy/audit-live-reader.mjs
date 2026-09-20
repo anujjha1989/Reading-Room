@@ -188,6 +188,36 @@ if (process.argv.includes("--exercise-menu")) {
         };
       })(),
     };
+    const highlightedHostTop = () => {
+      const frames = [...document.querySelectorAll('.epub-viewer iframe')];
+      for (const frame of frames) {
+        try {
+          const registry = frame.contentWindow?.CSS?.highlights;
+          const highlight = registry?.get('rr-reading');
+          const range = highlight && [...highlight][0];
+          if (range) return frame.getBoundingClientRect().top + range.getBoundingClientRect().top;
+        } catch (error) {}
+      }
+      return null;
+    };
+    const follow = document.querySelector('.rr-read-follow');
+    const initialHighlightTop = highlightedHostTop();
+    if (follow && initialHighlightTop != null) {
+      const scroller = document.scrollingElement;
+      scroller.scrollTop += Math.min(600, Math.max(180, scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop));
+      await wait(80);
+      const displacedTop = highlightedHostTop();
+      follow.click();
+      await wait(220);
+      const restoredTop = highlightedHostTop();
+      result.followAction = {
+        initialHighlightTop,
+        displacedTop,
+        restoredTop,
+        movedTowardTop: displacedTop != null && restoredTop != null
+          && Math.abs(restoredTop - 20) < Math.abs(displacedTop - 20),
+      };
+    }
     [...sheet().querySelectorAll('button')]
       .find((button) => button.textContent.includes('Stop reading'))?.click();
     return result;

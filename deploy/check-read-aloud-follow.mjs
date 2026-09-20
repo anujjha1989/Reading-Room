@@ -39,6 +39,14 @@ t(/scrollContainerBy/.test(reveal), "has a fallback that scrolls when foliate di
 t(/shadowRoot\s*&&\s*[\w.]*shadowRoot\.getElementById\("container"\)/.test(code),
   "reaches foliate's scroll container defensively");
 t(/window\.scrollBy/.test(code), "falls back again to the host window");
+t(/activeRange\s*\|\|/.test(code),
+  "follows the sentence that is actually highlighted, not a cursor that may already have advanced");
+
+const frameReveal = code.slice(code.indexOf("function revealInFrame"), code.indexOf("function scrollableAncestor"));
+t(/scrollTop\s*=\s*[^;]*scrollTop\s*\+/.test(frameReveal),
+  "moves the EPUB scroller with an observable scrollTop assignment on iOS");
+t((frameReveal.match(/requestAnimationFrame/g) || []).length >= 2,
+  "re-measures both EPUB scrolling arrangements and corrects a silent no-op");
 
 // snapToSpokenSentence must not double-call reveal: reveal now self-corrects on
 // the next frame, so a second call fires mid-correction from a stale rect.

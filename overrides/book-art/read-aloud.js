@@ -55,6 +55,7 @@
   var queue = [];                  // [{ text, range }] for the current document
   var cursor = 0;
   var queueDoc = null;
+  var activeRange = null;          // the sentence that is actually highlighted now
   var keepAlive = null;
   var sweeper = null;
   var btn = null;
@@ -78,14 +79,15 @@
     if (!playing || !queue.length) return;
     var state = reader();
     var item = queue[Math.min(cursor, queue.length - 1)];
-    if (!state || !item || state.mode !== "scroll" || !state.reveal) return;
+    var range = activeRange || (item && item.range);
+    if (!state || !range || state.mode !== "scroll" || !state.reveal) return;
     manualScrollUntil = 0;
     // Only one call now. reveal() already re-measures on the next frame and
     // corrects itself, so the second call this used to make would run while that
     // correction was still pending and re-issue a scroll from a stale rect -
     // the two fought each other. Repeating a reveal is only idempotent if it is
     // a plain scroll; it no longer is.
-    try { state.reveal(item.range); } catch (e) { /* nothing more to try */ }
+    try { state.reveal(range); } catch (e) { /* nothing more to try */ }
   }
 
   var synth = function () { return window.speechSynthesis; };
@@ -230,9 +232,23 @@
     // bottom produces a large backwards scroll; top-aligning it does not.
     var topPad = headerBottom() + 20;
 
+    // Set scrollTop directly rather than trusting Element.scrollTo/scrollBy.
+    // Mobile Safari exposes both methods on several EPUB wrapper elements but
+    // can accept the call without moving them. Direct assignment is observable
+    // and lets the next-frame correction below measure the actual result.
+    function moveScroller(scroller, delta) {
+      if (!scroller || !Number.isFinite(delta) || Math.abs(delta) < 2) return;
+      try { scroller.scrollTop = scroller.scrollTop + delta; } catch (e) { /* try the host */ }
+    }
+
     var scroller = doc.scrollingElement || doc.documentElement;
     if (scroller && scroller.scrollHeight > scroller.clientHeight + 4) {
-      try { scroller.scrollTo({ top: scroller.scrollTop + rect.top - topPad, behavior: "auto" }); } catch (e) {}
+      moveScroller(scroller, rect.top - topPad);
+      requestAnimationFrame(function () {
+        var after;
+        try { after = range.getBoundingClientRect(); } catch (e) { return; }
+        if (after) moveScroller(scroller, after.top - topPad);
+      });
       return;
     }
     if (!frame) return;
@@ -241,7 +257,21 @@
     var frameBox = frame.getBoundingClientRect();
     var hostTop = host === document.scrollingElement ? 0 : host.getBoundingClientRect().top;
     var delta = (frameBox.top + rect.top) - (hostTop + topPad);
-    try { host.scrollBy({ top: delta, behavior: "auto" }); } catch (e) { host.scrollTop += delta; }
+    moveScroller(host, delta);
+    // The iframe height and its host offset can settle one frame after a
+    // narration highlight. Measure the outcome, then make one bounded
+    // correction. This is what turns the arrow into a guarantee rather than a
+    // best-effort API call.
+    requestAnimationFrame(function () {
+      var after, nextFrameBox, nextHostTop;
+      try {
+        after = range.getBoundingClientRect();
+        nextFrameBox = frame.getBoundingClientRect();
+        nextHostTop = host === document.scrollingElement ? 0 : host.getBoundingClientRect().top;
+      } catch (e) { return; }
+      if (!after) return;
+      moveScroller(host, (nextFrameBox.top + after.top) - (nextHostTop + topPad));
+    });
   }
 
   function scrollableAncestor(el) {
@@ -447,10 +477,11 @@
         if (sel && sel.rangeCount) sel.removeAllRanges();
       } catch (e) { /* document torn down */ }
     }
-    if (!except) { hlObject = null; hlWindow = null; }
+    if (!except) { hlObject = null; hlWindow = null; activeRange = null; }
   }
 
   function highlight(doc, range) {
+    activeRange = range;
     clearHighlights(doc);                       // wipe every other document
     try {
       var win = doc.defaultView;
