@@ -105,5 +105,30 @@ for (const [label, state] of perms) {
     }
   }
 }
+
+// Page turn must share the popovers' shape, not just their duration. It ran on
+// var(--rr-spring-time) for several versions while still starting at opacity .72
+// with 18px of pure translate, which reads as a twitch however long the spring
+// lasts - the duration was never the thing that was wrong.
+{
+  const raw = readFileSync("overrides/book-art/fullscreen-bundle.css", "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+  const kf = raw.slice(raw.indexOf("@keyframes rr-page-next"));
+  const block = kf.slice(0, kf.indexOf("}", kf.indexOf("to")) + 1);
+  for (const [ok, label] of [
+    [/opacity:\s*0\s*;/.test(block), "page turn fades from fully transparent"],
+    [/scale\(\./.test(block), "page turn scales, like every other spring surface"],
+    [/translateX\(-?[\d.]+vw\)/.test(block), "page turn travel scales with viewport width"],
+    [!/opacity:\s*\.7/.test(block)
+      && !/opacity:\s*\.7/.test(
+        raw.slice(raw.indexOf("@keyframes rr-page-previous"),
+          raw.indexOf("}", raw.indexOf("to", raw.indexOf("@keyframes rr-page-previous"))) + 1)),
+      "page turn no longer starts near-opaque"],
+  ]) {
+    console.log(`  ${ok ? "ok  " : "FAIL"}  ${label}`);
+    if (!ok) fail++;
+  }
+}
+
 console.log(`\n${fail ? fail+' INVARIANT FAILURES' : 'all permutations sound'}`);
 process.exit(fail?1:0);

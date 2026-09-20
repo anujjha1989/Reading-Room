@@ -2851,8 +2851,26 @@ html.rr-native-panel-open .rr-books-dismiss { display:none !important; }
 .reader-turn-previous .epub-stage,
 .reader-turn-previous .pdf-pages,
 .reader-turn-previous .comic-pages { animation:rr-page-previous var(--rr-spring-time,.46s) var(--rr-spring,cubic-bezier(.16,1,.3,1)) both; }
-@keyframes rr-page-next { from{opacity:.72;transform:translateX(18px)} to{opacity:1;transform:none} }
-@keyframes rr-page-previous { from{opacity:.72;transform:translateX(-18px)} to{opacity:1;transform:none} }
+/* The duration was already correct - var(--rr-spring-time) on the rule above - but
+   the geometry gave it nothing to show. Starting at opacity .72 means the page is
+   almost fully visible in the first frame, so the eye reads it as already arrived
+   no matter how long the spring runs, and 18px of pure translate with no scale is
+   a nudge rather than a turn.
+
+   The popovers all animate opacity 0 -> 1 together with a scale, which is why they
+   read as springing. Matching that here: a real fade, a wider travel, and a slight
+   scale so the page appears to settle into place rather than slide past.
+
+   Travel is in vw rather than px so a tablet gets proportionally more movement
+   than a phone; 7vw is ~27px at 390px wide and ~57px at 810px. */
+@keyframes rr-page-next {
+  from { opacity: 0; transform: translateX(7vw) scale(.985); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes rr-page-previous {
+  from { opacity: 0; transform: translateX(-7vw) scale(.985); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
 
 /* Speed reads top-to-bottom: name/current value, track, then its bounds. */
 .rr-books-menu .rr-rate-card {
