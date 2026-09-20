@@ -31,7 +31,10 @@ const evaluate = async (expression) => {
 };
 
 await send("Page.enable");
-await send("Page.navigate", { url: `https://anujrpi.tail549492.ts.net/?audit=${Date.now()}` });
+// Use the LAN endpoint for browser geometry. Public-path version and MIME
+// checks belong to deploy.sh; Chrome for Testing can reject the private
+// Tailscale certificate even while Safari and curl trust it.
+await send("Page.navigate", { url: `http://anujrpi.local:4311/?audit=${Date.now()}` });
 await new Promise((resolve) => setTimeout(resolve, 3500));
 const result = await evaluate(`(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

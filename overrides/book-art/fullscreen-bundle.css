@@ -3290,6 +3290,7 @@ html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
   width: auto !important;
   max-width: 560px !important;
   margin-inline: auto !important;
+  transform: none !important;
   animation: rr-filter-sheet-in .34s cubic-bezier(.18, 1.05, .28, 1) both !important;
 }
 
