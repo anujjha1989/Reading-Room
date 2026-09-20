@@ -80,11 +80,12 @@
     var item = queue[Math.min(cursor, queue.length - 1)];
     if (!state || !item || state.mode !== "scroll" || !state.reveal) return;
     manualScrollUntil = 0;
-    state.reveal(item.range);
-    // iOS sometimes applies the iframe's new height one frame after the first
-    // reveal. Repeating against the same Range is idempotent and makes the
-    // spoken line reliably land below the header rather than merely on-screen.
-    requestAnimationFrame(function () { try { state.reveal(item.range); } catch (e) {} });
+    // Only one call now. reveal() already re-measures on the next frame and
+    // corrects itself, so the second call this used to make would run while that
+    // correction was still pending and re-issue a scroll from a stale rect -
+    // the two fought each other. Repeating a reveal is only idempotent if it is
+    // a plain scroll; it no longer is.
+    try { state.reveal(item.range); } catch (e) { /* nothing more to try */ }
   }
 
   var synth = function () { return window.speechSynthesis; };
@@ -118,6 +119,23 @@
     return isControlTap(now) || (active && isAppleMobile());
   }
 
+
+  // foliate's scroller lives inside the paginator's shadow root as #container,
+  // and the element exposes no public "nudge the scroll position" method. This
+  // reaches it directly, which is a deliberate coupling to foliate's internals:
+  // it is the fallback path when scrollToAnchor silently does nothing, and it
+  // degrades to no movement rather than an exception if the internals change.
+  function scrollContainerBy(renderer, delta) {
+    if (!renderer || !delta) return;
+    var box = null;
+    try { box = renderer.shadowRoot && renderer.shadowRoot.getElementById("container"); } catch (e) { box = null; }
+    if (box && box.scrollHeight > box.clientHeight + 4) {
+      try { box.scrollTop += delta; return; } catch (e) { /* try the window next */ }
+    }
+    // Scrolled mode can also let the host page scroll instead.
+    try { window.scrollBy({ top: delta, behavior: "auto" }); } catch (e) {}
+  }
+
   // --- which engine is on screen -------------------------------------------
   function reader() {
     var v = document.querySelector("foliate-view");
@@ -132,8 +150,41 @@
           visible: function (range) { return visibleInDoc(c.doc, range); },
           turn: function () { return v.next(); },
           reveal: function (range) {
-            // foliate owns its scroller; ask it to bring the range into view.
-            try { v.renderer.scrollToAnchor(range, false); } catch (e) { /* ignore */ }
+            // foliate owns its scroller, so asking it to bring the range into
+            // view is the right first move - but scrollToAnchor cannot be
+            // trusted on its own here, for three reasons found by reading
+            // paginator.js:
+            //
+            //   1. It is `async`. The old `try { ... } catch (e) {}` around it
+            //      was synchronous, so a rejected promise escaped entirely and
+            //      surfaced as an unhandled rejection, not as a caught error.
+            //   2. `#scrollToAnchor` returns silently when the range yields no
+            //      rect with width and height - which is exactly the case for a
+            //      sentence sitting in a not-yet-laid-out part of a tall
+            //      scrolled iframe.
+            //   3. `#scrollTo` early-returns when `containerPosition` already
+            //      equals the computed offset, so a stale anchor can make the
+            //      call a no-op even when the sentence is far off screen.
+            //
+            // So: attempt it, catch async failure properly, then measure whether
+            // the sentence actually ended up under the header and fall back to
+            // scrolling the container directly if it did not.
+            var renderer = v.renderer;
+            try {
+              var p = renderer.scrollToAnchor(range, false);
+              if (p && typeof p.catch === "function") p.catch(function () {});
+            } catch (e) { /* fall through to the measured fallback */ }
+
+            requestAnimationFrame(function () {
+              var rect;
+              try { rect = range.getBoundingClientRect(); } catch (e) { return; }
+              if (!rect || (!rect.height && !rect.width)) return;
+              var wanted = headerBottom() + 20;
+              // Already within a sensible band: leave it alone rather than
+              // fighting foliate's own scrolling.
+              if (Math.abs(rect.top - wanted) <= 24) return;
+              scrollContainerBy(renderer, rect.top - wanted);
+            });
           },
         };
       }

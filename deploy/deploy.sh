@@ -78,6 +78,7 @@ node deploy/check-contrast.mjs
 node deploy/check-reading-sheet.mjs
 node deploy/check-sheet-parity.mjs
 node deploy/check-popover-motion.mjs
+node deploy/check-read-aloud-follow.mjs
 node deploy/check-panel-return.mjs
 
 echo "==> staging"
