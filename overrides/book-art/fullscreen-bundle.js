@@ -1176,8 +1176,12 @@
   // An overlay leaves the library mounted, so closing is instant.
   function closeOverlay() {
     var f = document.getElementById("rr-settings-overlay");
-    if (f) f.remove();
     document.documentElement.classList.remove("rr-settings-open");
+    if (!f || f.classList.contains("rr-settings-closing")) return;
+    f.classList.add("rr-settings-closing");
+    // Keep the iframe mounted for its matching spring return to the right.
+    // Immediate removal was the only abrupt exit in the settings flow.
+    setTimeout(function () { if (f.parentNode) f.remove(); }, 430);
   }
 
   function openOverlay() {

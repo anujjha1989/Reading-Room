@@ -60,7 +60,14 @@
   overflow: hidden;
 
   transform-origin: bottom right;
-  animation: deal-in 0.4s cubic-bezier(0.18, 1.1, 0.28, 1) both;
+  animation: deal-in 0.46s cubic-bezier(.16, 1, .3, 1) both;
+  animation: deal-in 0.46s linear(0, .03, .11, .23, .37, .52, .66, .78, .87, .93, .97, .99, 1) both;
+}
+
+.sheet[data-motion-state="closed"] {
+  animation: deal-out 0.42s cubic-bezier(.16, 1, .3, 1) both;
+  animation: deal-out 0.42s linear(0, .03, .11, .23, .37, .52, .66, .78, .87, .93, .97, .99, 1) both;
+  pointer-events: none;
 }
 
 /* The active book theme is authoritative for reader panels. */
@@ -412,23 +419,24 @@
  * only swaps children, so the animation fires when it should.
  * ====================================================================== */
 @keyframes deal-in {
-  0% { opacity: 0; transform: translate(40px, 80px) scale(0.84) rotate(3deg); }
-  58% { opacity: 1; transform: translate(0, -6px) scale(1.02) rotate(-0.5deg); }
-  100% { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
+  0% { opacity: 0; transform: translate(34px, 70px) scale(0.86); }
+  100% { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+@keyframes deal-out {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(34px, 70px) scale(0.86); }
 }
 @keyframes fan-right {
   0% { opacity: 0; transform: translateX(56px) scale(0.95); }
-  62% { opacity: 1; transform: translateX(-4px) scale(1.006); }
   100% { opacity: 1; transform: translateX(0) scale(1); }
 }
 @keyframes fan-left {
   0% { opacity: 0; transform: translateX(-56px) scale(0.95); }
-  62% { opacity: 1; transform: translateX(4px) scale(1.006); }
   100% { opacity: 1; transform: translateX(0) scale(1); }
 }
 
-.sheet[data-direction="forward"] > * { animation: fan-right 0.36s cubic-bezier(0.2, 1.06, 0.3, 1) both; }
-.sheet[data-direction="back"] > * { animation: fan-left 0.36s cubic-bezier(0.2, 1.06, 0.3, 1) both; }
+.sheet[data-direction="forward"] > * { animation: fan-right 0.4s cubic-bezier(.16, 1, .3, 1) both; animation-timing-function: linear(0, .03, .11, .23, .37, .52, .66, .78, .87, .93, .97, .99, 1); }
+.sheet[data-direction="back"] > * { animation: fan-left 0.4s cubic-bezier(.16, 1, .3, 1) both; animation-timing-function: linear(0, .03, .11, .23, .37, .52, .66, .78, .87, .93, .97, .99, 1); }
 .sheet > :nth-child(1) { animation-delay: 0s; }
 .sheet > :nth-child(2) { animation-delay: 0.045s; }
 .sheet > :nth-child(3) { animation-delay: 0.085s; }

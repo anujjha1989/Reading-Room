@@ -3310,3 +3310,110 @@ html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
   html[data-rr-library-view="library"].rr-filters-open .catalog .filters,
   #rr-settings-overlay { animation: none !important; }
 }
+
+/* ==== v114: one calm spring language =====================================
+ * A monotonic, critically damped spring: fast response, long gentle settle,
+ * no overshoot. Every surface returns to the same origin it entered from.
+ * `linear()` describes sampled spring displacement rather than a decorative
+ * bezier bounce, which avoids the flutter/waviness of the older animations. */
+:root {
+  --rr-spring: cubic-bezier(.16, 1, .3, 1);
+  --rr-spring-time: .46s;
+}
+@supports (animation-timing-function: linear(0, 1)) {
+  :root { --rr-spring: linear(0, .03, .11, .23, .37, .52, .66, .78, .87, .93, .97, .99, 1); }
+}
+
+/* Home controls grow from their own centre; hiding Home reverses that path. */
+#rr-filter-btn, #rr-sort-btn, #rr-settings-link {
+  transition: opacity .24s linear, transform var(--rr-spring-time) var(--rr-spring) !important;
+  transform-origin: center !important;
+}
+html:not([data-rr-library-view="library"]) #rr-filter-btn,
+html:not([data-rr-library-view="library"]) #rr-sort-btn,
+html.rr-book-open #rr-settings-link {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: scale(.78) !important;
+}
+
+/* Kebab/sort menu: the trigger's top-right corner is both start and finish. */
+#rr-sort-menu {
+  animation: none !important;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(12px, -10px) scale(.90);
+  transform-origin: top right;
+  transition: opacity .24s linear, transform var(--rr-spring-time) var(--rr-spring) !important;
+}
+html.rr-sort-open #rr-sort-menu {
+  animation: none !important;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(0, 0) scale(1);
+}
+html.rr-sort-open #rr-sort-menu > *, body > .rr-card-menu button {
+  animation: none !important;
+}
+body > .rr-card-menu {
+  animation: rr-spring-menu-in var(--rr-spring-time) var(--rr-spring) both !important;
+  transform-origin: top right;
+}
+@keyframes rr-spring-menu-in {
+  from { opacity: 0; transform: translate(12px, -10px) scale(.9); }
+  to { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+
+/* Filter drawer is anchored to the toolbar above it, in both directions. */
+html[data-rr-library-view="library"] .catalog .filters {
+  animation: none !important;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-14px) scale(.96) !important;
+  transform-origin: top center;
+  transition: opacity .24s linear, transform var(--rr-spring-time) var(--rr-spring) !important;
+}
+html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
+  animation: none !important;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1) !important;
+}
+
+/* Settings is a page to the right. Its closing class runs the exact reverse. */
+#rr-settings-overlay {
+  animation: rr-settings-spring-in .5s var(--rr-spring) both !important;
+  transform-origin: right center;
+}
+#rr-settings-overlay.rr-settings-closing {
+  animation: rr-settings-spring-out .42s var(--rr-spring) both !important;
+  pointer-events: none;
+}
+@keyframes rr-settings-spring-in {
+  from { opacity: .35; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes rr-settings-spring-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: .35; transform: translateX(100%); }
+}
+
+/* Reader chrome chips share one origin and the same damped trajectory. */
+html .rr-react-sheet-trigger,
+html.rr-books-controls .rr-close-btn,
+html.rr-books-controls .rr-sheet-btn {
+  transition: opacity .24s linear, transform var(--rr-spring-time) var(--rr-spring) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #rr-filter-btn, #rr-sort-btn, #rr-settings-link, #rr-sort-menu,
+  html[data-rr-library-view="library"] .catalog .filters,
+  html .rr-react-sheet-trigger, html.rr-books-controls .rr-close-btn,
+  html.rr-books-controls .rr-sheet-btn {
+    animation: none !important;
+    transition: opacity .12s linear !important;
+  }
+  #rr-settings-overlay, #rr-settings-overlay.rr-settings-closing {
+    animation: none !important;
+  }
+}

@@ -213,7 +213,17 @@ export default function ReadingSheet(props: ReadingSheetProps) {
   const { open, onClose, theme, onThemeChange } = props;
   const [view, setView] = useState<View>("menu");
   const [direction, setDirection] = useState<"forward" | "back">("forward");
+  const [present, setPresent] = useState(open);
   const panelRef = useRef<HTMLElement | null>(null);
+
+  // Keep the sheet mounted while it follows the same spring path back to the
+  // hamburger. Unmounting immediately made every close abrupt even when the
+  // opening animation was polished.
+  useEffect(() => {
+    if (open) { setPresent(true); return; }
+    const timer = window.setTimeout(() => setPresent(false), 460);
+    return () => window.clearTimeout(timer);
+  }, [open]);
 
   const go = useCallback((next: View) => {
     setDirection(DEPTH[next] < DEPTH[view] ? "back" : "forward");
@@ -242,7 +252,7 @@ export default function ReadingSheet(props: ReadingSheetProps) {
     return () => document.removeEventListener("keydown", onKey, true);
   }, [open, view, close, go]);
 
-  if (!open) return null;
+  if (!present) return null;
 
   const reflowable = props.mode !== undefined;
   const aloud = props.readAloud;
@@ -254,6 +264,7 @@ export default function ReadingSheet(props: ReadingSheetProps) {
       data-book-theme={theme}
       data-view={view}
       data-direction={direction}
+      data-motion-state={open ? "open" : "closed"}
       role="dialog"
       aria-modal="false"
       aria-label={view === "menu" ? "Reading menu" : view}

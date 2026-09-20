@@ -190,6 +190,27 @@ t(/@keyframes rr-settings-from-right[\s\S]*?translateX\(100%\)[\s\S]*?translateX
   && /#rr-settings-overlay\s*\{[^}]*rr-settings-from-right \.52s/s.test(overrideCss),
   "settings page enters smoothly from the right");
 
+// 20c. Motion is paired and damped; read-aloud can explicitly recover the
+//      highlighted sentence after a reader scrolls away from it.
+t(/--rr-spring:\s*cubic-bezier\(\.16, 1, \.3, 1\)/.test(overrideCss)
+  && /@supports \(animation-timing-function: linear\(0, 1\)\)/.test(overrideCss),
+  "motion system has a monotonic spring and an older-Safari fallback");
+t(/rr-settings-closing/.test(fullscreen)
+  && /rr-settings-spring-in/.test(overrideCss)
+  && /rr-settings-spring-out/.test(overrideCss),
+  "settings entry and exit use the same right-edge reference point");
+t(/data-motion-state=\{open \? "open" : "closed"\}/.test(tsx)
+  && /@keyframes deal-out/.test(css),
+  "React reading drawer remains mounted for its matching spring exit");
+t(/className = "rr-read-follow"/.test(aloud)
+  && /Return to the sentence being read/.test(aloud)
+  && /snapToSpokenSentence/.test(aloud)
+  && /state\.reveal\(item\.range\)/.test(aloud),
+  "scroll-mode read aloud exposes a direct current-sentence follow control");
+t(/rr-read-follow\{[^}]*backdrop-filter:blur\(22px\)/.test(aloud)
+  && /playing && readingMode\(\) === "scroll"/.test(aloud),
+  "follow control is blurred and restricted to active scroll-mode narration");
+
 // 21. First-sentence warming should happen immediately after the reader is
 //     stable, not nearly half a second later.
 const warmDelay = aloud.match(/delay == null \?\s*(\d+)\s*: delay/)?.[1];
