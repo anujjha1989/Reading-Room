@@ -182,7 +182,12 @@ t(/html\.rr-hide-chrome \.rr-react-sheet-trigger\s*\{[^}]*translateX\(26vw\)/s.t
 // The insets are the invariant; the animation that used to be asserted here was
 // superseded and has been removed. Which declaration drives the motion is
 // check-popover-motion.mjs's job - it resolves the cascade, which a regex cannot.
-t(/rr-filters-open \.catalog \.filters\s*\{[^}]*left: 14px[^}]*right: 14px[^}]*margin-inline: auto/s.test(overrideCss),
+// Checks the BASE rule, not .rr-filters-open. The insets used to live on the open
+// state, which made the panel jump sideways on close; they are now unconditional.
+// This assertion required the old arrangement, so it directly contradicted
+// check-popover-motion.mjs's rule that geometry must stay out of the open state.
+t(/library"\] \.catalog \.filters\s*\{[^}]*left: 14px[^}]*right: 14px[^}]*margin-inline: auto/s.test(
+    overrideCss.replace(/\/\*[\s\S]*?\*\//g, "")),
   "filter sheet keeps safe viewport insets");
 t(/data-rr-theme="light"\] #rr-sort-menu\s*\{[^}]*background:[^}]*255, 255, 255/s.test(overrideCss)
   && /data-rr-theme="dark"\] #rr-sort-menu\s*\{[^}]*background:[^}]*36, 36, 38/s.test(overrideCss),
