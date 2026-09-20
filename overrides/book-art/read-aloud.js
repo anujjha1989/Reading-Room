@@ -241,8 +241,14 @@
       try { scroller.scrollTop = scroller.scrollTop + delta; } catch (e) { /* try the host */ }
     }
 
+    var host = frame ? scrollableAncestor(frame) : null;
+    var hostScrolls = host && host.scrollHeight > host.clientHeight + 4;
     var scroller = doc.scrollingElement || doc.documentElement;
-    if (scroller && scroller.scrollHeight > scroller.clientHeight + 4) {
+    // In continuous EPUB mode epub.js exposes two plausible scrollers. The
+    // document inside the iframe may report overflow, but the visible motion is
+    // owned by the outer .epub-container. Prefer that observable host whenever
+    // it can scroll; writing to the inner document was the inert-arrow bug.
+    if (!hostScrolls && scroller && scroller.scrollHeight > scroller.clientHeight + 4) {
       moveScroller(scroller, rect.top - topPad);
       requestAnimationFrame(function () {
         var after;
@@ -251,9 +257,7 @@
       });
       return;
     }
-    if (!frame) return;
-    var host = scrollableAncestor(frame);
-    if (!host) return;
+    if (!frame || !hostScrolls) return;
     var frameBox = frame.getBoundingClientRect();
     var hostTop = host === document.scrollingElement ? 0 : host.getBoundingClientRect().top;
     var delta = (frameBox.top + rect.top) - (hostTop + topPad);

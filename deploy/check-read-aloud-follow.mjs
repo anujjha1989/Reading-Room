@@ -47,6 +47,8 @@ t(/scrollTop\s*=\s*[^;]*scrollTop\s*\+/.test(frameReveal),
   "moves the EPUB scroller with an observable scrollTop assignment on iOS");
 t((frameReveal.match(/requestAnimationFrame/g) || []).length >= 2,
   "re-measures both EPUB scrolling arrangements and corrects a silent no-op");
+t(frameReveal.indexOf("hostScrolls") < frameReveal.indexOf("!hostScrolls && scroller"),
+  "prefers epub.js's visible outer scroll container over its inert iframe scroller");
 
 // snapToSpokenSentence must not double-call reveal: reveal now self-corrects on
 // the next frame, so a second call fires mid-correction from a stale rect.
