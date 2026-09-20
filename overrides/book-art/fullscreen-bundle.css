@@ -566,7 +566,6 @@ html.rr-books-controls.rr-hide-chrome .reader-footer{
  visibility:hidden!important;opacity:0!important;pointer-events:none!important;
 }
 
-
 /* ==== v44: carousel scroll performance ================================= *
  * The rails were re-rastering and re-anchoring on every frame of a drag.
  * Nothing here changes layout or palette; it changes what the browser has
@@ -600,7 +599,6 @@ html .discovery .smart-shelf + .smart-shelf {
   content-visibility: auto;
   contain-intrinsic-size: auto 360px;
 }
-
 
 /* ==== v45: a dark mode you can choose ================================== *
  * Derived from the @media (prefers-color-scheme:dark) rules above rather
@@ -676,7 +674,6 @@ html #rr-settings-link:hover { background: color-mix(in srgb, var(--ink) 8%, tra
 }
 html[data-rr-theme="dark"] .rr-shelf-chevron { color:#409CFF; }
 
-
 /* ---- settings gear: colours that do not depend on the hero's scope ----- *
  * The gear hangs off <body>, which the dark theme's variable block does not
  * cover, so --paper there is still the light value. State its colours
@@ -715,7 +712,6 @@ html[data-rr-theme="dark"] #rr-settings-link {
 html[data-rr-theme="dark"] #rr-settings-overlay { background: #000; }
 html.rr-settings-open { overflow: hidden; }
 
-
 /* ==== v49: bare gear ==================================================== *
  * The disc, border and blur existed to keep the icon legible over artwork,
  * but the gear sits in the empty corner above the shelves and never overlaps
@@ -740,7 +736,6 @@ html[data-rr-theme="dark"] #rr-settings-link {
 }
 html #rr-settings-link svg { width: 25px; height: 25px; }
 html #rr-settings-link:active { opacity: .55; }
-
 
 /* ==== v52: no halo behind the gear ===================================== *
  * v49 took away the disc, the border and the blur but left a drop-shadow
@@ -942,7 +937,6 @@ html .catalog .thumbnail-view .book { contain-intrinsic-size:156px 330px; }
   html.rr-library-visible body { padding-left:220px; }
 }
 
-
 /* ---- v72: iOS Books-style library header ---------------------------------
  * The library view had four stacked control layers above the first cover:
  * title, search, category chips, then a toolbar carrying Filters, a sort
@@ -1091,7 +1085,6 @@ html[data-rr-theme="dark"] #rr-sort-menu {
 html.rr-filters-open #rr-popover-scrim,
 html.rr-sort-open #rr-popover-scrim { display: block; }
 
-
 /* ==== v73: fixes to the v72 header ======================================= *
  * Found by using the app rather than reading the diff:
  *
@@ -1175,7 +1168,6 @@ html.rr-book-open .rr-library-dock,
 html.rr-book-open #rr-sort-menu,
 html.rr-book-open #rr-popover-scrim { display: none !important; }
 
-
 /* ---- reader controls need to be visible on any page ---------------------- *
  * The close and menu buttons took --white/--ink, which on a light book page is
  * near-white on near-white: the screenshot showed both as faint ghosts. They
@@ -1199,7 +1191,6 @@ html.rr-theme-dark .rr-close-btn {
 }
 .rr-sheet-btn:active,
 .rr-close-btn:active { opacity: .6; }
-
 
 /* ==== v74: freeze the header on every library view ====================== *
  * v73 froze the header for data-rr-library-view="library" only, so Home,
@@ -1238,7 +1229,6 @@ html.rr-book-open main > .hero { display: none !important; }
 html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
   display: grid !important;
 }
-
 
 /* ==== v75: smaller library cards ========================================= *
  * The library grid forced two columns on mobile, so each cover was ~48% of the
@@ -1309,7 +1299,6 @@ html[data-rr-library-view="search"] .catalog .cover,
 html[data-rr-library-view="favorites"] .catalog .cover {
   box-shadow: 2px 4px 11px #00000026;
 }
-
 
 /* ==== v76: Books-style Home shelves, and gear alignment everywhere ========
  * Two problems:
@@ -1395,7 +1384,6 @@ html[data-rr-library-view="home"] .shelf-book > small {
 html[data-rr-library-view="home"] .rr-continue-shelf .shelf-strip {
   grid-auto-columns: 132px;
 }
-
 
 /* ==== v77: Continue tiles, and the shelf gradient back ===================
  * Two corrections after comparing against Books side by side.
@@ -1487,7 +1475,6 @@ html[data-rr-library-view="home"] .rr-continue-shelf .rr-cover-label strong {
   font-size: 7px; line-height: 1.15; -webkit-line-clamp: 4;
 }
 
-
 /* ==== v77: ⋯ menu on every card ==========================================
  * Cards carried a row of icon buttons (✓ finish, ♡ favourite, Series) plus
  * format chips and a copies count, and metadata editing was hidden behind a
@@ -1578,7 +1565,6 @@ html[data-rr-theme="dark"] .rr-card-more {
   background: rgba(40, 40, 42, .78); color: #f5f5f7;
 }
 
-
 /* ==== v78: fix ⋯ placement and stop the menu being clipped ================
  * Three corrections from the screenshots:
  *
@@ -1642,7 +1628,6 @@ html .catalog .book-tools .rr-card-menu {
 }
 html[data-rr-theme="dark"] .rr-card-menu { background: rgba(44, 44, 46, .94); }
 
-
 /* ==== v78: the gear looks the same on every view =========================
  * The disc, blur and 21px glyph were scoped to [data-rr-library-view="library"]
  * - the same mistake as the 14px offset - so on Home the gear fell back to the
@@ -1670,7 +1655,6 @@ html.rr-library-visible #rr-sort-btn svg {
 html.rr-library-visible #rr-settings-link:active,
 html.rr-library-visible #rr-filter-btn:active,
 html.rr-library-visible #rr-sort-btn:active { opacity: .55; }
-
 
 /* ==== v79: ⋯ on the author line, and a menu that actually shows ===========
  * The menu was invisible even after v78 made it position:fixed, because
@@ -1764,7 +1748,6 @@ html[data-rr-theme="dark"] .rr-card-menu {
 }
 html[data-rr-theme="dark"] .rr-card-menu button.danger { color: #ff6b6b; }
 
-
 /* ==== v80: ⋯ on the author baseline, and a scrim ==========================
  * The ⋯ was absolutely positioned against the card, so where it landed
  * depended on how the title wrapped - never reliably on the author line. It is
@@ -1840,7 +1823,6 @@ body > .rr-card-scrim {
   background: transparent;
 }
 
-
 /* ==== v80: reading-menu controls, and motion =============================== */
 
 /* --- voice row: icon, no label ------------------------------------------- */
@@ -1890,7 +1872,6 @@ body > .rr-card-scrim {
 /* Card ⋯ menu: out of the button's corner. */
 body > .rr-card-menu {
   transform-origin: top right;
-  animation: rr-pop var(--rr-spring-time, .46s) var(--rr-spring, cubic-bezier(.16, 1, .3, 1)) both;
 }
 /* Sort and filter popovers hang from the icon rail. */
 /* These four all opened on their own short easings - .17s to .22s - which is why
@@ -1903,14 +1884,11 @@ body > .rr-card-menu {
    earlier - the transition was corrected but this animation still won. */
 #rr-sort-menu { transform-origin: top right; }
 html.rr-sort-open #rr-sort-menu {
-  animation: rr-pop var(--rr-spring-time, .46s) var(--rr-spring, cubic-bezier(.16, 1, .3, 1)) both;
 }
 html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
-  animation: rr-rise var(--rr-spring-time, .46s) var(--rr-spring, cubic-bezier(.16, 1, .3, 1)) both;
 }
 /* The reading sheet slides up from the ≡ that opened it. */
 html.rr-sheet-open .rr-books-menu {
-  animation: rr-rise var(--rr-spring-time, .46s) var(--rr-spring, cubic-bezier(.16, 1, .3, 1)) both;
 }
 /* Settings overlay and the metadata sheet. */
 /* Superseded by rr-overlay-up in v103: the overlay now rises rather than
@@ -1944,7 +1922,6 @@ html #rr-filter-btn:active, html #rr-sort-btn:active, html #rr-settings-link:act
     transform: none;
   }
 }
-
 
 /* ==== v81: the reading sheet, tightened =================================== *
  * It was a stack of full-width text rows on a near-transparent panel, so it
@@ -2044,12 +2021,8 @@ html.rr-hide-chrome .rr-close-btn { opacity: 0; transform: scale(.85); }
 /* The sheet rises from the ≡ in the bottom-right corner it belongs to. */
 html.rr-sheet-open .rr-books-menu {
   transform-origin: bottom right;
-  animation: rr-sheet-in .24s cubic-bezier(.22, 1, .36, 1) both !important;
 }
-@keyframes rr-sheet-in {
-  from { opacity: 0; transform: scale(.92) translateY(18px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
-}
+
 /* Switching views inside the sheet slides the new panel in. */
 .rr-books-menu > * { animation: rr-row-in .2s ease both; }
 @keyframes rr-row-in {
@@ -2062,7 +2035,6 @@ html.rr-sheet-open .rr-books-menu {
   .rr-books-menu > * { animation: none !important; }
   .rr-sheet-btn, .rr-close-btn { transition: none; }
 }
-
 
 /* ==== v82: one theme signal for the reading sheet ========================= *
  * The sheet's dark styling keyed off html.rr-theme-dark, which follows the
@@ -2145,7 +2117,6 @@ html[data-rr-theme="light"] .rr-books-menu[data-view=menu] > .rr-books-actions >
   background: rgba(120, 120, 128, .12) !important;
   color: #1c1c1e !important;
 }
-
 
 /* ==== v83: theme consistency, done properly ===============================
  * Three faults, and the first two are mine.
@@ -2230,7 +2201,6 @@ html[data-rr-theme="light"] .rr-books-menu *:not(.rr-books-themes):not(.rr-books
 html[data-rr-theme="dark"] .rr-books-menu select { color: #f5f5f7 !important; }
 html[data-rr-theme="light"] .rr-books-menu select { color: #1c1c1e !important; }
 
-
 /* The swatch colours, stated at a specificity that beats every chrome rule in
    this file. Earlier attempts used `.rr-books-themes button[data-theme=x]`
    (0,2,1), which lost to `html[data-rr-theme=dark] .rr-books-menu *` (0,2,2) -
@@ -2246,7 +2216,6 @@ html .rr-books-menu .rr-books-themes button[data-theme][data-theme=focus] { back
 html .rr-books-menu .rr-books-themes button[data-theme][data-theme=sepia] { background: #f4e8ce !important; color: #433526 !important; }
 html .rr-books-menu .rr-books-themes button[data-theme][data-theme=dark] { background: #191919 !important; color: #ddd !important; }
 html .rr-books-menu .rr-books-themes button[data-theme] * { color: inherit !important; }
-
 
 /* ==== v90: inverted rows need inverted text ==============================
  * Two rows are deliberately given a light fill in dark mode for emphasis: the
@@ -2291,7 +2260,6 @@ html[data-rr-theme="light"] .rr-books-menu[data-view=Contents] > button[aria-cur
   opacity: 1;
   font-weight: 600 !important;
 }
-
 
 /* ==== v91: one consistent system for the reading sheet ====================
  * Measured before rewriting: the sheet had accumulated 9 different min-heights
@@ -2445,7 +2413,6 @@ html[data-rr-theme="light"] .rr-books-menu[data-view=Contents] > button[aria-cur
  * ---------------------------------------------------------------------- */
 html.rr-sheet-open .rr-books-menu {
   transform-origin: bottom right;
-  animation: rr-sheet-pop .34s cubic-bezier(.16, 1.16, .3, 1) both !important;
 }
 @keyframes rr-sheet-pop {
   0%   { opacity: 0; transform: scale(.86) translate(10px, 34px); }
@@ -2492,7 +2459,6 @@ html.rr-sheet-open .rr-books-menu {
   .rr-books-actions > button:active,
   .rr-books-themes > button:active { transform: none; filter: none; }
 }
-
 
 /* ==== v92: bookmarks panel, and stop the sheet fluttering =================
  * Two defects, one of them introduced by v91.
@@ -2567,7 +2533,6 @@ html.rr-sheet-entering .rr-books-menu > * {
   html.rr-books-controls .reader-panel,
   html.rr-sheet-entering .rr-books-menu > * { animation: none !important; }
 }
-
 
 /* ==== v93: shapes instead of a stack of identical pills ===================
  * Every control was a full-width pill of equal weight, so nothing was primary
@@ -2721,7 +2686,6 @@ html[data-rr-theme="light"] .rr-books-menu > .rr-books-primary {
 .rr-books-toolbar > button:only-child { flex: 0 0 76px !important; }
 .rr-books-toolbar:has(> button:only-child) { justify-content: center; }
 
-
 /* ==== Read Aloud transport =================================================
  * Playback navigation belongs together, but ending a session does not. The
  * three transport buttons therefore share one quiet glass rail; Sleep Timer
@@ -2794,7 +2758,6 @@ html[data-rr-theme="light"] .rr-books-transport > .rr-books-transport-main {
   width: 13px !important;
   height: 13px !important;
 }
-
 
 /* ==== v96: coherent reader controls and independent reader theming ========
  * Reader theme and library theme are separate choices. All floating reader
@@ -2936,7 +2899,6 @@ html.rr-library-visible #rr-sort-btn svg { width:22px !important;height:22px !im
   .reader-turn-previous .epub-stage,.reader-turn-previous .pdf-pages,.reader-turn-previous .comic-pages { animation:none !important; }
 }
 
-
 /* ==== v101: motion with a direction and a physical idea ===================
  * Everything previously travelled 8-14px vertically, which at phone scale is
  * indistinguishable from a fade. The governing idea now is that panels are
@@ -3030,14 +2992,9 @@ html.rr-sheet-entering .rr-books-toolbar > button,
 .rr-books-themes > button:nth-child(6) { animation-delay: .28s; }
 
 /* --- the card ⋯ menu: unfolds from the button it belongs to -------------- */
-@keyframes rr-unfold {
-  0%   { opacity: 0; transform: translate(14px, -10px) scale(.7) rotate(-2.5deg); }
-  62%  { opacity: 1; transform: translate(-2px, 1px) scale(1.03) rotate(.4deg); }
-  100% { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
-}
+
 body > .rr-card-menu {
   transform-origin: top right;
-  animation: rr-unfold .3s cubic-bezier(.18, 1.2, .3, 1) both !important;
 }
 body > .rr-card-menu button { animation: rr-fan-right .26s cubic-bezier(.2, 1.05, .3, 1) both; }
 body > .rr-card-menu button:nth-child(1) { animation-delay: .05s; }
@@ -3046,13 +3003,8 @@ body > .rr-card-menu button:nth-child(3) { animation-delay: .11s; }
 body > .rr-card-menu button:nth-child(n+4) { animation-delay: .13s; }
 
 /* --- side panels really come from the side ------------------------------- */
-@keyframes rr-slide-in-right {
-  0%   { opacity: 0; transform: translateX(110%) scale(.96); }
-  62%  { opacity: 1; transform: translateX(-9px) scale(1.012); }
-  100% { opacity: 1; transform: translateX(0) scale(1); }
-}
+
 html.rr-books-controls .reader-panel {
-  animation: rr-slide-in-right .42s cubic-bezier(.18, 1.08, .28, 1) both !important;
 }
 html.rr-books-controls .reader-panel > * {
   animation: rr-fan-right .36s cubic-bezier(.2, 1.06, .3, 1) both;
@@ -3067,7 +3019,6 @@ html.rr-books-controls .reader-panel > :nth-child(n+3) { animation-delay: .21s; 
   animation: none;
 }
 html.rr-sort-open #rr-sort-menu {
-  animation: rr-unfold .3s cubic-bezier(.18, 1.2, .3, 1) both !important;
 }
 html.rr-sort-open #rr-sort-menu > * { animation: rr-fan-right .26s cubic-bezier(.2,1.05,.3,1) both; }
 html.rr-sort-open #rr-sort-menu > :nth-child(1) { animation-delay: .05s; }
@@ -3075,7 +3026,6 @@ html.rr-sort-open #rr-sort-menu > :nth-child(2) { animation-delay: .08s; }
 html.rr-sort-open #rr-sort-menu > :nth-child(n+3) { animation-delay: .11s; }
 
 html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
-  animation: rr-slide-in-right .4s cubic-bezier(.18, 1.08, .28, 1) both !important;
 }
 
 /* --- the reading chrome buttons arrive rather than blink ----------------- */
@@ -3106,7 +3056,6 @@ html.rr-books-controls .rr-close-btn { animation-delay: .05s; }
   html.rr-books-controls .rr-sheet-btn,
   html.rr-books-controls .rr-close-btn { animation: none !important; }
 }
-
 
 /* ==== v102: the reading buttons slide off the right edge ==================
  * Centre-tapping toggled these with opacity plus visibility:hidden!important.
@@ -3211,7 +3160,6 @@ html.rr-books-controls .rr-close-btn { animation: none !important; }
   }
 }
 
-
 /* ==== v103: the library icon rail, and the settings overlay =============== *
  * Measured before changing anything, and the obvious explanation was wrong: the
  * GLYPH's contrast was already 16.1:1 on black. What was missing was the BUTTON.
@@ -3264,20 +3212,14 @@ html[data-rr-theme="dark"].rr-library-visible #rr-sort-btn {
  * itself can arrive. It covers the library, so it rises from the bottom like a
  * presented sheet rather than flying in from an edge.
  * ---------------------------------------------------------------------- */
-@keyframes rr-overlay-up {
-  0%   { opacity: 0; transform: translateY(100%) scale(.97); }
-  68%  { opacity: 1; transform: translateY(-6px) scale(1.004); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
+
 #rr-settings-overlay {
-  animation: rr-overlay-up .46s cubic-bezier(.17, 1.06, .26, 1) both !important;
   transform-origin: bottom center;
 }
 
 @media (prefers-reduced-motion: reduce) {
   #rr-settings-overlay { animation: none !important; }
 }
-
 
 /* ==== v111: coherent reader chrome and bounded library surfaces ========== */
 
@@ -3296,11 +3238,6 @@ html[data-rr-theme="dark"] #rr-sort-menu {
 /* Use physical viewport insets rather than percentage centring. On platforms
    that reserve space for a scrollbar, `left:50%` is relative to a narrower
    containing block and leaves the right edge visibly clipped. */
-@keyframes rr-filter-sheet-in {
-  0%   { opacity: 0; transform: translateY(14px) scale(.985); }
-  68%  { opacity: 1; transform: translateY(-2px) scale(1.002); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
 html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
   left: 14px !important;
   right: 14px !important;
@@ -3316,13 +3253,8 @@ html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
 
 /* Settings is a page beyond the library, so it enters from the trailing edge
    and settles with a small, deliberate landing. */
-@keyframes rr-settings-from-right {
-  0%   { opacity: .35; transform: translateX(100%); }
-  72%  { opacity: 1; transform: translateX(-4px); }
-  100% { opacity: 1; transform: translateX(0); }
-}
+
 #rr-settings-overlay {
-  animation: rr-settings-from-right .52s cubic-bezier(.18, 1.02, .28, 1) both !important;
   transform-origin: right center;
 }
 

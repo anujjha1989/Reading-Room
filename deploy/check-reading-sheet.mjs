@@ -179,9 +179,11 @@ t(!/rr-books-menu/.test(code(fullscreen)),
 //      and theme invariants even when older compatibility rules remain above.
 t(/html\.rr-hide-chrome \.rr-react-sheet-trigger\s*\{[^}]*translateX\(26vw\)/s.test(globalCss),
   "React hamburger slides away with hidden reader chrome");
-t(/@keyframes rr-filter-sheet-in[\s\S]*?translateY\(0\)/.test(overrideCss)
-  && /rr-filters-open \.catalog \.filters\s*\{[^}]*left: 14px[^}]*right: 14px[^}]*transform: none[^}]*rr-filter-sheet-in/s.test(overrideCss),
-  "filter sheet keeps safe viewport insets throughout its entrance");
+// The insets are the invariant; the animation that used to be asserted here was
+// superseded and has been removed. Which declaration drives the motion is
+// check-popover-motion.mjs's job - it resolves the cascade, which a regex cannot.
+t(/rr-filters-open \.catalog \.filters\s*\{[^}]*left: 14px[^}]*right: 14px[^}]*margin-inline: auto/s.test(overrideCss),
+  "filter sheet keeps safe viewport insets");
 t(/data-rr-theme="light"\] #rr-sort-menu\s*\{[^}]*background:[^}]*255, 255, 255/s.test(overrideCss)
   && /data-rr-theme="dark"\] #rr-sort-menu\s*\{[^}]*background:[^}]*36, 36, 38/s.test(overrideCss),
   "library ellipsis menu follows explicit light and dark themes");
@@ -191,9 +193,11 @@ t(/data-rr-theme="light"\] body > \.rr-card-menu\s*\{[^}]*background:[^}]*255, 2
 t(/rr-close-settings/.test(readFileSync("overrides/settings.template.html", "utf8"))
   && /e\.data\.type === "rr-close-settings"/.test(fullscreen),
   "embedded Settings asks its parent to run the exit animation");
-t(/@keyframes rr-settings-from-right[\s\S]*?translateX\(100%\)[\s\S]*?translateX\(0\)/.test(overrideCss)
-  && /#rr-settings-overlay\s*\{[^}]*rr-settings-from-right \.52s/s.test(overrideCss),
-  "settings page enters smoothly from the right");
+// rr-settings-from-right was likewise superseded, by rr-settings-spring-in, which
+// is the declaration the browser uses. Assert the live one.
+t(/@keyframes rr-settings-spring-in[\s\S]*?translateX\(0\)/.test(overrideCss)
+  && /#rr-settings-overlay\s*\{[^}]*rr-settings-spring-in[^}]*var\(--rr-spring\)/s.test(overrideCss),
+  "settings page enters from the right on the shared spring");
 
 // 20c. Motion is paired and damped; read-aloud can explicitly recover the
 //      highlighted sentence after a reader scrolls away from it.
