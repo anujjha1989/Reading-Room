@@ -39,6 +39,20 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
       if (!sortButton || !filterButton || !gear) throw new Error('library chrome is incomplete');
 
       root.dataset.rrTheme = 'light';
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const iconColours = { light: {
+        filter: getComputedStyle(filterButton.querySelector('svg')).stroke,
+        sort: getComputedStyle(sortButton.querySelector('svg')).fill,
+        settings: getComputedStyle(gear.querySelector('svg')).stroke,
+      }};
+      root.dataset.rrTheme = 'dark';
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      iconColours.dark = {
+        filter: getComputedStyle(filterButton.querySelector('svg')).stroke,
+        sort: getComputedStyle(sortButton.querySelector('svg')).fill,
+        settings: getComputedStyle(gear.querySelector('svg')).stroke,
+      };
+      root.dataset.rrTheme = 'light';
       sortButton.click(); await wait(120);
       const sortMenu = document.querySelector('#rr-sort-menu');
       const sortStyle = getComputedStyle(sortMenu);
@@ -68,13 +82,17 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
       frame?.contentDocument?.querySelector('#close')?.click();
       await wait(520);
       settings.closed = !document.querySelector('#rr-settings-overlay');
-      return { sort, filters, settings };
+      return { sort, filters, settings, iconColours };
     })()`);
     assert.equal(menus.sort.visible, true);
     assert.equal(menus.sort.background, "rgba(255, 255, 255, 0.97)");
     assert.equal(menus.sort.color, "rgb(28, 28, 30)");
     assert.deepEqual(menus.filters, { visible: true, bounded: true });
     assert.deepEqual(menus.settings, { visible: true, hasAbout: true, closed: true });
+    assert.deepEqual(menus.iconColours, {
+      light: { filter: "rgb(38, 51, 47)", sort: "rgb(38, 51, 47)", settings: "rgb(38, 51, 47)" },
+      dark: { filter: "rgb(245, 245, 247)", sort: "rgb(245, 245, 247)", settings: "rgb(245, 245, 247)" },
+    });
     await browser.screenshot("01-library-menus.png");
   });
 
