@@ -42,9 +42,8 @@ const values = {
 let html = await readFile(join(root, "overrides/index.template.html"), "utf8");
 
 // Library navigation, filter/sort controls, and Settings are now React-owned.
-// The committed index predates that head marker, so reconcile it just as we do
-// the serialized layout below. The old override code uses this marker only as
-// a migration guard and is removed after the live parity pass.
+// The committed index predates that ownership marker, so reconcile it just as
+// we do the serialized layout below.
 if (!html.includes('name="rr-react-library-chrome"')) {
   html = html.replace("<head>", '<head><meta name="rr-react-library-chrome" content="1"/>');
 }

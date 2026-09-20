@@ -151,6 +151,7 @@ t((reader.match(/createPortal\(<aside className="reader-panel rr-reader-panel-po
 t(/\.rr-reader-panel-portal\s*\{[^}]*position:\s*fixed;[^}]*z-index:\s*170/.test(globalCss),
   "reader subviews sit above the transparent page-turn layer");
 const fullscreen = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8");
+const libraryChrome = readFileSync("app/LibraryChrome.tsx", "utf8");
 t(/\.rr-react-sheet-trigger/.test(fullscreen)
   && /addEventListener\("touchend"[\s\S]*?capture: true, passive: false/.test(fullscreen)
   && /rr-toggle-reading-sheet/.test(fullscreen),
@@ -199,7 +200,7 @@ t(/data-rr-theme="light"\] body > \.rr-card-menu\s*\{[^}]*background:[^}]*255, 2
   && /data-rr-theme="dark"\][^}]*\.rr-card-menu\s*\{[^}]*background:/s.test(overrideCss),
   "book options menu follows explicit light and dark themes");
 t(/rr-close-settings/.test(readFileSync("overrides/settings.template.html", "utf8"))
-  && /e\.data\.type === "rr-close-settings"/.test(fullscreen),
+  && /event\.data\.type === "rr-close-settings"/.test(libraryChrome),
   "embedded Settings asks its parent to run the exit animation");
 // rr-settings-from-right was likewise superseded, by rr-settings-spring-in, which
 // is the declaration the browser uses. Assert the live one.
@@ -212,7 +213,7 @@ t(/@keyframes rr-settings-spring-in[\s\S]*?translateX\(0\)/.test(overrideCss)
 t(/--rr-spring:\s*cubic-bezier\(\.16, 1, \.3, 1\)/.test(overrideCss)
   && /@supports \(animation-timing-function: linear\(0, 1\)\)/.test(overrideCss),
   "motion system has a monotonic spring and an older-Safari fallback");
-t(/rr-settings-closing/.test(fullscreen)
+t(/rr-settings-closing/.test(libraryChrome)
   && /rr-settings-spring-in/.test(overrideCss)
   && /rr-settings-spring-out/.test(overrideCss),
   "settings entry and exit use the same right-edge reference point");

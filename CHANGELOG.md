@@ -4,12 +4,16 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+## v129 — 20 September 2026
+
 ### Changed
 
 - Moved the Home/Library/Favorites dock, library filter and sort controls, and
   the Settings overlay lifecycle into typed React components. These controls
   now update the catalogue state directly instead of injecting buttons into the
   page and remotely clicking hidden controls.
+- Deleted the three superseded body-injected implementations after the React
+  version passed the full browser suite against the live Pi catalogue.
 - Added a deployment gate that fails if library chrome ownership drifts back to
   the override layer or the static first render no longer matches hydration.
 
