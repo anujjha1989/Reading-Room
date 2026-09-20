@@ -4,6 +4,20 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+## v127 — 20 September 2026
+
+### Changed
+
+- Added a repeatable mobile-browser regression suite for library menus,
+  settings, opening a book, reader themes, search/bookmark return controls,
+  scrolling and Read Aloud controls. This is test infrastructure only and does
+  not add another runtime override.
+
+### Fixed
+
+- EPUBs without an optional navigation package no longer raise a browser
+  exception while opening; they remain readable with an empty Contents list.
+
 ### Changed
 
 - Gave the drawn covers real variety. There were six palettes, but all of them

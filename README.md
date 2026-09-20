@@ -32,8 +32,14 @@ Requires Node.js 22.13 or newer.
 pnpm install
 pnpm dev
 pnpm test
+pnpm test:browser
 pnpm build
 ```
+
+`pnpm test:browser` runs the critical mobile flows against the deployed Pi app
+(`http://anujrpi.local:4311` by default) in an isolated Chromium profile. Set
+`READING_ROOM_BASE_URL` to audit another origin. Screenshots are written to the
+system temporary directory, not committed to the repository.
 
 ## Deployment
 

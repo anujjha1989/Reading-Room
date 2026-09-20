@@ -578,12 +578,11 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
             reportLocation({ label, position: location.start.cfi, status: atEnd ? "finished" : "reading" });
           }
         });
-        try {
-          const navigation = await book.loaded.navigation;
-          if (!disposed) setToc(flattenToc(navigation.toc));
-        } catch {
-          if (!disposed) setToc([]);
-        }
+        // Some otherwise-readable EPUBs omit the optional navigation package.
+        // Do not throw merely because they have no table of contents: the book
+        // body is already open and can be read normally.
+        const navigation = await book.loaded?.navigation;
+        if (!disposed) setToc(navigation ? flattenToc(navigation.toc) : []);
         setStatus("");
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
