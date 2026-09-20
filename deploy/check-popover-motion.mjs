@@ -82,9 +82,16 @@ t(/scale\(\.9/.test(closedSort) || /translate/.test(closedSort),
 // The filter drawer travels vertically on purpose: it spans the width via
 // left/right insets and margin-inline:auto, so a horizontal translate would push
 // a centred sheet off centre rather than offsetting it from the icon rail.
-const closedFilters = css.slice(css.lastIndexOf('html[data-rr-library-view="library"] .catalog .filters {'));
-t(/transform:\s*translateY\(-14px\)\s*scale\(\.96\)/.test(closedFilters.slice(0, 700)),
-  "filter drawer springs vertically, not diagonally (it is a drawer, not a corner popover)");
+{
+  // Read the whole rule body rather than a fixed character window. This assertion
+  // previously sliced 700 chars from the selector and broke the moment geometry
+  // was added above the transform - a self-inflicted failure, not a real one.
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rule = [...stripped.matchAll(/html\[data-rr-library-view="library"\] \.catalog \.filters\s*\{([^{}]*)\}/g)]
+    .map((m) => m[1]).join(";");
+  t(/transform:\s*translateY\(-14px\)\s*scale\(\.96\)/.test(rule),
+    "filter drawer springs vertically, not diagonally (it is a drawer, not a corner popover)");
+}
 
 // 5. The card menu keyframe must cap opacity early, or it fades over .46s while
 //    the other two fade over .24s and looks slower despite identical movement.
@@ -105,7 +112,23 @@ if (/\.expanded-filters\{display:none/.test(globalsCss)) {
     "filter drawer is position:fixed, so an always-laid-out grid costs no space");
 }
 
-// 7. Reduced motion must still neutralise all three.
+// 7. Geometry must not live in the open state. If insets/width are set only on
+//    .rr-filters-open, the panel snaps back to its base geometry the instant the
+//    class is removed and slides sideways before fading - which is what "the text
+//    moves right before disappearing" was. Only opacity, transform and
+//    pointer-events belong to state.
+{
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const openRules = [...stripped.matchAll(/([^{}]*rr-filters-open[^{}]*)\{([^{}]*)\}/g)];
+  const strays = openRules.flatMap(([, , body]) =>
+    [...body.matchAll(/(?:^|;)\s*(left|right|top|bottom|width|max-width|margin-inline|position)\s*:/g)]
+      .map((m) => m[1]));
+  t(strays.length === 0,
+    "filter drawer keeps geometry out of its open state",
+    strays.length ? `found in open state: ${[...new Set(strays)].join(", ")}` : "");
+}
+
+// 8. Reduced motion must still neutralise all three.
 const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion"));
 for (const nameSel of ["rr-card-menu", "rr-sort-menu", ".filters"]) {
   t(reduced.includes(nameSel), `${nameSel} is named in a reduced-motion block`);

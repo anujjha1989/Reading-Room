@@ -203,7 +203,8 @@ html.rr-hide-chrome .rr-sheet-btn {
   display: none;
   position: fixed;
   top: calc(48px + env(safe-area-inset-top));
-  left: 50%;
+  /* left/right insets live with the rest of the geometry further down, on the
+     same base rule, so they apply open and closed alike. */
   transform: translateX(-50%);
   z-index: 121;
   padding: 10px 18px;
@@ -3239,11 +3240,6 @@ html[data-rr-theme="dark"] #rr-sort-menu {
    that reserve space for a scrollbar, `left:50%` is relative to a narrower
    containing block and leaves the right edge visibly clipped. */
 html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
-  left: 14px !important;
-  right: 14px !important;
-  width: auto !important;
-  max-width: 560px !important;
-  margin-inline: auto !important;
   /* Layout only. The transform and animation that used to be here are dropped:
      `transform: none` cancelled the scale the open state needs, and the .34s
      rr-filter-sheet-in outranked the spring transition declared further down, so
@@ -3345,6 +3341,18 @@ html[data-rr-library-view="library"] .catalog .filters {
   animation: none !important;
   opacity: 0;
   pointer-events: none;
+  /* Geometry must be identical open and closed. These five were previously set
+     only on .rr-filters-open, while the base rule further up still said
+     `left: 50%` - a value that only ever made sense combined with a
+     translate(-50%) that is no longer part of the transform. On close the panel
+     therefore snapped from left:14px back to left:50%, about 181px to the right on
+     a 390px screen, and only then faded. That sideways lurch was the "text moving
+     right before disappearing". Insets belong to layout, not to state. */
+  left: 14px !important;
+  right: 14px !important;
+  width: auto !important;
+  max-width: 560px !important;
+  margin-inline: auto !important;
   /* Vertical only. This drawer spans the width via left/right insets and
      margin-inline:auto, so a horizontal translate would push a centred sheet off
      centre rather than offsetting it from the icon rail. It is a drawer, not a
