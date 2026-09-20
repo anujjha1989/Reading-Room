@@ -43,7 +43,10 @@ if [ "${1:-}" != "--no-build" ]; then
   # it has to fetch pnpm, which makes an otherwise unattended deploy wait for a
   # keypress. The first call already had it; the second was missed.
   (cd "$BUILD_DIR" && npx --yes pnpm@10 install --prefer-offline && npx --yes pnpm@10 run build)
-  rsync -a "$BUILD_DIR/dist/" dist/
+  # Replace the local artifact tree instead of merging it. Merging leaves
+  # every historical content-hashed asset in dist/, making each staging upload
+  # slower and larger even though the Pi intentionally keeps its old assets.
+  rsync -a --delete "$BUILD_DIR/dist/" dist/
 fi
 # Persist the version after a successful build (or immediately for --no-build).
 # render-index.mjs reads this file, while the upload step uses $VERSION; keeping
