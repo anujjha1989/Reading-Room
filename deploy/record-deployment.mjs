@@ -42,7 +42,7 @@ const assetFiles = [
   [join(root, "dist/client/assets", libraryAsset), "react-client"],
   [join(root, "overrides/book-art/fullscreen-bundle.js"), "reader-controls"],
   [join(root, "overrides/book-art/fullscreen-bundle.css"), "reader-styles"],
-  [join(root, "overrides/book-art/read-aloud.js"), "read-aloud"],
+  [join(root, "app/readAloudEngine.js"), "read-aloud-source"],
 ];
 
 const record = {

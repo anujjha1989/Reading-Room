@@ -1,3 +1,5 @@
+import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudController";
+
 // The Reading Room — read aloud.
 //
 // Works on both reading engines the app uses: epub.js (EPUB) and foliate
@@ -6,19 +8,19 @@
 // guarantee it reads the prose and nothing else — no running heads, footers,
 // nav lists, page-number markers or footnotes.
 //
-// Highlighting uses the CSS Custom Highlight API where available, so nothing
-// in the book's DOM is touched and pagination can't shift under the reader.
+// Highlighting is drawn in a pointer-transparent overlay. Rectangles on the
+// same visual line are merged, so word boundaries do not leave vertical gaps,
+// and the book's text/layout remains untouched.
 (function () {
   "use strict";
 
   var RATES = [0.8, 1, 1.2, 1.5, 2];
   var RATE_KEY = "reading-room-tts-rate";
-  var VOICE_KEY = "reading-room-tts-voice";
-  var VOICE_NAME_KEY = "reading-room-tts-voice-name";
-  var VOICE_LANG_KEY = "reading-room-tts-voice-lang";
   var MAX_TURNS = 40;              // safety bound when chasing a sentence across pages
   var TURN_SETTLE = 70;            // poll interval while a page turn lands
   var TURN_TIMEOUT = 850;
+  var PAGE_TURN_SETTLE = 520;      // one animated turn must finish before another can begin
+  var STALL_TIMEOUT = 9000;
   var MAX_CHARS = 220;             // short enough for reliable iOS Web Speech callbacks
 
   // Anything matching these is furniture, not the novel. Checked in JS rather
@@ -57,14 +59,8 @@
   var queueDoc = null;
   var keepAlive = null;
   var sweeper = null;
-  var btn = null;
-  var floatTray = null;
-  var floatBtn = null;
-  var floatPrev = null;
-  var floatNext = null;
-  var rateBtn = null;
-  var voiceSel = null;
-  var timerBtn = null;
+  var mountedShell = null;
+  var piperVoices = [];
   var sleepMs = 0;    // remaining ms; 0 = no timer
   var sleepRef = null;
   var manualScrollUntil = 0;
@@ -73,7 +69,6 @@
     if (playing && readingMode() === "scroll") manualScrollUntil = Date.now() + 5000;
   }
 
-  var synth = function () { return window.speechSynthesis; };
   var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
 
   function readingMode() {
@@ -432,10 +427,6 @@
   // before each sentence. Replacing a registry entry *should* be enough, but
   // it demonstrably is not in every browser, and a trail of stale highlights
   // is the most visible possible failure.
-  var highlightName = "rr-reading";
-  var hlObject = null;
-  var hlWindow = null;
-
   function allDocs() {
     var out = [];
     var view = document.querySelector("foliate-view");
@@ -458,43 +449,48 @@
       var doc = docs[i];
       if (except && doc === except) continue;
       try {
-        var win = doc.defaultView;
-        if (win && win.CSS && win.CSS.highlights) win.CSS.highlights.delete(highlightName);
+        var overlay = doc.querySelector && doc.querySelector(".rr-reading-highlight-overlay");
+        if (overlay) overlay.remove();
         var sel = doc.getSelection && doc.getSelection();
         if (sel && sel.rangeCount) sel.removeAllRanges();
       } catch (e) { /* document torn down */ }
     }
-    if (!except) { hlObject = null; hlWindow = null; }
   }
 
   function highlight(doc, range) {
     clearHighlights(doc);                       // wipe every other document
     try {
+      var rects = Array.prototype.filter.call(range.getClientRects(), function (rect) {
+        return rect.width > 0 && rect.height > 0;
+      }).sort(function (a, b) { return a.top - b.top || a.left - b.left; });
+      if (!rects.length) return;
+      var lines = [];
+      rects.forEach(function (rect) {
+        var line = lines[lines.length - 1];
+        if (!line || Math.abs(line.top - rect.top) > Math.max(3, rect.height * 0.28)) {
+          lines.push({ left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom });
+        } else {
+          line.left = Math.min(line.left, rect.left);
+          line.right = Math.max(line.right, rect.right);
+          line.top = Math.min(line.top, rect.top);
+          line.bottom = Math.max(line.bottom, rect.bottom);
+        }
+      });
+      var root = doc.createElement("div");
+      root.className = "rr-reading-highlight-overlay";
+      root.setAttribute("aria-hidden", "true");
+      root.style.cssText = "position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:2147483646";
       var win = doc.defaultView;
-      if (win && win.CSS && win.CSS.highlights && typeof win.Highlight === "function") {
-        if (!doc.__rrHighlightStyle) {
-          var st = doc.createElement("style");
-          st.textContent = "::highlight(" + highlightName + "){background:rgba(129,147,135,.34)}";
-          (doc.head || doc.body).appendChild(st);
-          doc.__rrHighlightStyle = st;
-        }
-        if (hlWindow !== win || !hlObject) {
-          hlObject = new win.Highlight();
-          hlWindow = win;
-        }
-        if (typeof hlObject.clear === "function") hlObject.clear();
-        else { hlObject = new win.Highlight(); hlWindow = win; }
-        hlObject.add(range);
-        win.CSS.highlights.set(highlightName, hlObject);
-        return;
-      }
-      // Safari's Selection fallback can itself scroll the iframe on iOS. A
-      // missing highlight is preferable to the text jumping under the reader.
-      if (isAppleMobile()) return;
-      var sel = doc.getSelection();
-      if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+      var sx = (win && win.scrollX) || 0, sy = (win && win.scrollY) || 0;
+      lines.forEach(function (line) {
+        var mark = doc.createElement("span");
+        mark.style.cssText = "position:absolute;display:block;background:rgba(129,147,135,.34);border-radius:2px;" +
+          "left:" + (line.left + sx) + "px;top:" + (line.top + sy) + "px;width:" + (line.right - line.left) + "px;height:" + (line.bottom - line.top) + "px";
+        root.appendChild(mark);
+      });
+      (doc.body || doc.documentElement).appendChild(root);
     } catch (e) {
-      try { var s2 = doc.getSelection(); if (s2) { s2.removeAllRanges(); s2.addRange(range); } } catch (e2) { /* give up */ }
+      // A highlight failure must never interrupt narration.
     }
   }
 
@@ -516,9 +512,9 @@
            right > 0 && left < window.innerWidth - 1;
   }
 
-  // Visible AND still in the upper part of the reading area, so speaking on
-  // will not run off the bottom. Anything lower triggers a reveal, which
-  // top-aligns it.
+  // Wait until the active sentence reaches the final part of the viewport.
+  // The old 50% boundary made the page jump while the highlight was midway
+  // down the screen; the lower 12% is now the reveal safety band.
   //
   // The frame of reference has to match the mode's own visibility test. In
   // epub.js scrolled mode the iframe is as tall as the whole chapter and the
@@ -538,7 +534,7 @@
       try { f = state.frame.getBoundingClientRect(); } catch (e) { return true; }
       var top = f.top + r.top, bottom = f.top + r.bottom;
       var head = headerBottom();
-      var limit = head + (window.innerHeight - head) * 0.5;
+      var limit = head + (window.innerHeight - head) * 0.88;
       return top >= head - 2 && bottom <= limit;
     }
 
@@ -546,7 +542,7 @@
     var doc = state.doc;
     var h = (doc && (doc.documentElement.clientHeight || doc.body.clientHeight)) || 0;
     if (!h) return true;
-    return r.top >= -2 && r.bottom <= h * 0.55;
+    return r.top >= -2 && r.bottom <= h * 0.88;
   }
 
   function visibleInDoc(doc, range) {
@@ -585,10 +581,8 @@
     if (!playing || paused || mine !== epoch) return false;
     if (screenAsleep()) return true;
     // In scroll mode "visible" is not enough: a sentence sitting on the last
-    // line still counts, so nothing scrolled until it had left the screen and
-    // the next reveal then jumped a long way - which read as reverting to the
-    // top. Keep the spoken line inside the upper band instead, so the text
-    // moves up steadily as it is read.
+    // line still counts, so reveal only once it enters the lower safety band.
+    // This keeps most of a page stable instead of snapping at its midpoint.
     if (state.mode === "scroll" && state.reveal) {
       if (comfortablyVisible(state, item.range)) return true;
       // A finger drag or wheel belongs to the reader. Do not have narration
@@ -623,7 +617,7 @@
       if (screenAsleep()) return true;
       var beforeRect = rectKey(item.range);
       state.turn();
-      await sleep(TURN_SETTLE);
+      await sleep(PAGE_TURN_SETTLE);
       if (!playing || paused || mine !== epoch) return false;
       if (screenAsleep()) return true;
       var now = reader();
@@ -711,7 +705,7 @@
     doc.addEventListener("touchmove", markManualScroll, { passive: true });
     doc.addEventListener("wheel", markManualScroll, { passive: true });
     doc.addEventListener("click", function (event) {
-      if (!btn) return;                                   // reader not mounted
+      if (!mountedShell) return;                          // reader not mounted
       if (ignoreSteeringClick(playing, Date.now())) return;
       var t = event.target;
       if (t && t.closest && t.closest("a,button,input,select,textarea")) return;
@@ -726,8 +720,7 @@
       playing = true;
       paused = false;
       epoch += 1;
-      try { if (rrTtsAudio) { rrTtsAudio.pause(); rrTtsAudio.removeAttribute('src'); rrTtsAudio.load(); } } catch (e) { /* ignore */ }
-    try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none'; } catch (e) {}
+      haltCurrentAudio();
       render();
       step(epoch);
     }, true);
@@ -780,6 +773,24 @@
   // playback to an element it has seen the user start, so it is created once
   // and reused rather than per sentence.
   var rrTtsAudio = null, rrPrefetch = Object.create(null), rrWarmTimer = null;
+  var stallTimer = null, stallRetries = 0, stallText = "";
+
+  function clearStallWatchdog() {
+    if (stallTimer) clearTimeout(stallTimer);
+    stallTimer = null;
+  }
+
+  function armStallWatchdog(text, mine) {
+    clearStallWatchdog();
+    stallTimer = setTimeout(function () {
+      stallTimer = null;
+      if (!playing || paused || mine !== epoch) return;
+      if (stallText !== text) { stallText = text; stallRetries = 0; }
+      stallRetries += 1;
+      if (stallRetries <= 2) restartCurrentSentence();
+      else { stallRetries = 0; cursor += 1; restartCurrentSentence(); }
+    }, STALL_TIMEOUT);
+  }
 
   function ttsVoice() {
     try { return localStorage.getItem("reading-room-voice") || ""; } catch (e) { return ""; }
@@ -880,17 +891,26 @@
     a.onplay = applyRate;
     a.onended = function () {
       if (!playing || mine !== epoch) return;
+      clearStallWatchdog();
+      stallRetries = 0;
       cursor += 1;
       step(mine);
     };
     a.onerror = function () {
       if (!playing || mine !== epoch) return;
-      // A sentence that will not synthesise must not end the session: skip it.
-      cursor += 1;
-      step(mine);
+      clearStallWatchdog();
+      if (stallText !== text) { stallText = text; stallRetries = 0; }
+      stallRetries += 1;
+      if (stallRetries <= 2) restartCurrentSentence();
+      else { stallRetries = 0; cursor += 1; restartCurrentSentence(); }
     };
+    a.onplaying = function () { armStallWatchdog(text, mine); };
+    a.ontimeupdate = function () { armStallWatchdog(text, mine); };
+    a.onwaiting = function () { armStallWatchdog(text, mine); };
     a.src = ttsUrl(text);
     mediaSession(doc);
+    stallText = text;
+    armStallWatchdog(text, mine);
     var go = a.play();
     if (go && go.catch) {
       go.catch(function () {
@@ -906,23 +926,8 @@
   }
 
   // --- sleep timer -----------------------------------------------------------
-  function sleepLabel() {
-    if (!sleepMs) return "+30m";
-    var mins = Math.ceil(sleepMs / 60000);
-    if (mins >= 60) {
-      var h = Math.floor(mins / 60), m = mins % 60;
-      return m ? h + "h" + m + "m" : h + "h";
-    }
-    return mins + "m";
-  }
-
   function renderTimer() {
-    if (!timerBtn) return;
-    timerBtn.textContent = sleepLabel();
-    timerBtn.setAttribute("aria-label", sleepMs
-      ? sleepLabel() + " remaining — tap to add 30 min"
-      : "Sleep timer: tap to set 30 min");
-    timerBtn.classList.toggle("rr-timer-active", sleepMs > 0);
+    render();
   }
 
   function adjustSleepTime(minutes) {
@@ -946,8 +951,6 @@
     }
     renderTimer();
   }
-
-  function addSleepSlot() { adjustSleepTime(30); }
 
   function clearSleepTimer() {
     sleepMs = 0;
@@ -981,6 +984,7 @@
     epoch += 1;
     queue = []; queueDoc = null; cursor = 0;
     clearSleepTimer();
+    clearStallWatchdog();
     try { if (rrTtsAudio) { rrTtsAudio.pause(); rrTtsAudio.removeAttribute('src'); rrTtsAudio.load(); } } catch (e) { /* ignore */ }
     try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none'; } catch (e) {}
     if (keepAlive) { clearInterval(keepAlive); keepAlive = null; }
@@ -989,26 +993,29 @@
     render();
   }
 
-  // Rather than trusting speechSynthesis.pause()/resume(), stop the utterance
-  // and re-speak the current sentence on resume. Deterministic everywhere, and
-  // it costs at most a repeated sentence.
+  // Keep the same audio element and source paused so iOS retains the media
+  // session and AirPods/lock-screen Play can resume without a foreground tap.
   function toggle() {
     if (!playing) { play(); return; }
     if (paused) {
       paused = false;
-      epoch += 1;
+      try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; } catch (e) {}
       render();
-      step(epoch);
+      if (rrTtsAudio && rrTtsAudio.src) {
+        var resumed = rrTtsAudio.play();
+        if (resumed && resumed.catch) resumed.catch(restartCurrentSentence);
+      } else restartCurrentSentence();
       return;
     }
     paused = true;
-    epoch += 1;
-    try { if (rrTtsAudio) { rrTtsAudio.pause(); rrTtsAudio.removeAttribute('src'); rrTtsAudio.load(); } } catch (e) { /* ignore */ }
-    try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none'; } catch (e) {}
+    clearStallWatchdog();
+    try { if (rrTtsAudio) rrTtsAudio.pause(); } catch (e) { /* ignore */ }
+    try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; } catch (e) {}
     render();
   }
 
   function haltCurrentAudio() {
+    clearStallWatchdog();
     try {
       if (rrTtsAudio) {
         rrTtsAudio.onended = null;
@@ -1018,6 +1025,14 @@
         rrTtsAudio.load();
       }
     } catch (e) { /* ignore */ }
+  }
+
+  function restartCurrentSentence() {
+    if (!playing || paused) return;
+    epoch += 1;
+    var mine = epoch;
+    haltCurrentAudio();
+    setTimeout(function () { if (playing && !paused && mine === epoch) step(mine); }, 80);
   }
 
   // One implementation backs the expanded sheet, the collapsed transport and
@@ -1053,31 +1068,63 @@
   // <select> and read .options, which coupled it to this module's markup; a
   // React component should not have to know a select exists. The select stays as
   // the source of truth so nothing about playback changes.
-  window.rrGetVoices = function () {
-    if (!voiceSel) return [];
-    return Array.prototype.map.call(voiceSel.options, function (opt) {
-      return { label: opt.textContent, value: opt.value, current: opt.selected };
+  function getVoices() {
+    var selected = ttsVoice();
+    return piperVoices.map(function (voice) {
+      return { label: voice.label, value: voice.id, current: voice.id === selected };
     });
-  };
-  window.rrSetVoice = function (value) {
-    if (!voiceSel) return;
-    voiceSel.value = value;
-    // The change listener wired above is what persists the choice and restarts
-    // the sentence, so dispatch rather than duplicating that logic here.
-    voiceSel.dispatchEvent(new Event("change", { bubbles: true }));
-  };
+  }
+  function setVoice(value) {
+    try { localStorage.setItem("reading-room-voice", value || ""); } catch (e) {}
+    scheduleWarmFirstSentence(40);
+    render();
+    if (playing && !paused) restartCurrentSentence();
+  }
 
-  window.rrToggleReadAloud = toggle;
-  window.rrStopReadAloud = stop;
-  window.rrSkipSentence = skipSentence;
-  // Named wrappers. skipSentence already takes a direction, so previous needs no
-  // new logic - only the legacy sheet knew to pass -1, which is why the React one
-  // had no back button.
-  window.rrNextSentence = function () { skipSentence(1); };
-  window.rrPreviousSentence = function () { skipSentence(-1); };
-  window.rrAddSleepTime = addSleepSlot;
-  window.rrAdjustSleepTime = adjustSleepTime;
-  window.rrGetReadAloudState = publicState;
+  window.addEventListener("rr-reading-mode-change", function (event) {
+    var requested = event.detail && event.detail.mode;
+    if (requested !== "pages" && requested !== "scroll") return;
+    var before = reader();
+    if (before) ensureQueue(before.doc);
+    var anchorText = queue[cursor] && queue[cursor].text;
+    var oldDoc = before && before.doc;
+    var wasPlaying = playing;
+    var wasPaused = paused;
+    epoch += 1;
+    var mine = epoch;
+    haltCurrentAudio();
+    clearHighlights();
+    queue = []; queueDoc = null; cursor = 0;
+    if (!wasPlaying || !anchorText) { render(); return; }
+
+    (async function restoreAfterModeChange() {
+      var state = null;
+      for (var attempt = 0; attempt < 50; attempt += 1) {
+        await sleep(100);
+        if (mine !== epoch) return;
+        state = reader();
+        if (state && state.mode === requested && state.doc !== oldDoc) break;
+      }
+      if (!state || mine !== epoch) return;
+      ensureQueue(state.doc);
+      var normalized = anchorText.replace(/\s+/g, " ").trim();
+      var found = queue.findIndex(function (item) {
+        return item.text.replace(/\s+/g, " ").trim() === normalized;
+      });
+      if (found >= 0) cursor = found;
+      else {
+        var visible = queue.findIndex(function (item) { return isVisible(state, item.range); });
+        cursor = visible >= 0 ? visible : 0;
+      }
+      playing = true;
+      paused = wasPaused;
+      render();
+      if (paused) {
+        if (queue[cursor]) highlight(state.doc, queue[cursor].range);
+        try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; } catch (e) {}
+      } else step(mine);
+    })();
+  });
 
   // Exposed so the reading menu can offer a slider instead of a cycle button.
   // Restarting the sentence is what makes a change audible immediately; without
@@ -1089,147 +1136,22 @@
     try { localStorage.setItem(RATE_KEY, String(rate)); } catch (e) {}
     try { if (rrTtsAudio) rrTtsAudio.playbackRate = rate; } catch (e) {}
     render();
-  }
-  window.rrSetReadingRate = setRate;
-  window.rrGetReadingRate = function () { return rate; };
-
-  function cycleRate() {
-    rate = RATES[(RATES.indexOf(rate) + 1) % RATES.length];
-    try { localStorage.setItem(RATE_KEY, String(rate)); } catch (e) { /* ignore */ }
-    render();
-    if (playing && !paused) {            // re-speak the current sentence at the new speed
-      epoch += 1;
-      var mine = epoch;
-      try { if (rrTtsAudio) { rrTtsAudio.pause(); rrTtsAudio.removeAttribute('src'); rrTtsAudio.load(); } } catch (e) { /* ignore */ }
-    try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none'; } catch (e) {}
-      setTimeout(function () { if (playing && !paused && mine === epoch) step(mine); }, 60);
-    }
+    if (playing && !paused) restartCurrentSentence();
   }
 
-  // --- voices ---------------------------------------------------------------
-  // macOS ships plain voices by default; the good ones (Siri, Premium,
-  // Enhanced) are optional downloads and only appear here once installed.
-  function voiceList() {
-    var all = [];
-    try { all = synth().getVoices() || []; } catch (e) { return []; }
-    var docLang = "en";
-    var st = reader();
-    if (st && st.doc.documentElement && st.doc.documentElement.lang) {
-      docLang = st.doc.documentElement.lang.slice(0, 2);
-    }
-    var matching = all.filter(function (v) { return (v.lang || "").slice(0, 2) === docLang; });
-    var pool = matching.length ? matching : all;
-    var quality = /siri|premium|enhanced|natural|neural/i;
-    return pool.slice().sort(function (a, b) {
-      var qa = quality.test(a.name) ? 0 : 1, qb = quality.test(b.name) ? 0 : 1;
-      if (qa !== qb) return qa - qb;
-      if (a.localService !== b.localService) return a.localService ? -1 : 1;
-      return (a.name || "").localeCompare(b.name || "");
-    });
-  }
-
-  // Returns null unless you have explicitly chosen a voice — null means "let
-  // the system use its default", which is what the browser did before any of
-  // this existed and is a far safer starting point than guessing.
-  function chosenVoice() {
-    var uri = null, name = null, lang = null;
-    try {
-      uri = localStorage.getItem(VOICE_KEY);
-      name = localStorage.getItem(VOICE_NAME_KEY);
-      lang = localStorage.getItem(VOICE_LANG_KEY);
-    } catch (e) { /* ignore */ }
-    if (!uri && !name) return null;
-    return resolveVoice(voiceList(), uri, name, lang);
-  }
-
+  // --- Piper voices ---------------------------------------------------------
   function fillVoices() {
-    if (!voiceSel) return;
-    // Piper's voices, from the server. Populated once and cached; the list
-    // only changes when a voice file is added to the Pi.
-    var saved = "";
-    try { saved = localStorage.getItem("reading-room-voice") || ""; } catch (e) {}
-    if (!voiceSel.dataset.rrWired) {
-      voiceSel.dataset.rrWired = "1";
-      voiceSel.addEventListener("change", function () {
-        try { localStorage.setItem("reading-room-voice", voiceSel.value); } catch (e) {}
-        // Cached audio is keyed by voice, so a change takes effect on the next
-        // sentence with no further bookkeeping.
-        scheduleWarmFirstSentence(40);
+    if (piperVoices.length) return;
+    fetch("/api/tts/voices").then(function (r) { return r.json(); }).then(function (d) {
+      piperVoices = (d.voices || []).map(function (voice) {
+        return { id: String(voice.id || ""), label: String(voice.label || voice.id || "") };
       });
-    }
-    if (voiceSel.options.length < 2) {
-      fetch("/api/tts/voices").then(function (r) { return r.json(); }).then(function (d) {
-        voiceSel.innerHTML = "";
-        (d.voices || []).forEach(function (v) {
-          var o = document.createElement("option");
-          o.value = v.id;
-          o.textContent = v.label;
-          if (v.id === saved) o.selected = true;
-          voiceSel.appendChild(o);
-        });
-        if (saved) voiceSel.value = saved;
-      }).catch(function () { /* leave whatever is there */ });
-    }
+      render();
+    }).catch(function () { /* keep the system default */ });
   }
-
-  // --- UI ------------------------------------------------------------------
-  function transportIcon(path) {
-    return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px">' + path + '</svg>';
-  }
-
-  (function injectStyle() {
-    var s = document.createElement("style");
-    s.setAttribute("data-rr", "read-aloud");
-    s.textContent = ".rr-rate{min-width:54px;font-variant-numeric:tabular-nums}" +
-      ".rr-listen,.rr-rate{white-space:nowrap}" +
-      ".rr-voice{max-width:150px}" +
-      ".rr-timer{min-width:44px;font-variant-numeric:tabular-nums;white-space:nowrap;transition:color .2s}" +
-      ".rr-timer.rr-timer-active{color:var(--rr-timer-ink,#5a7c62)}" +
-      ".rr-theme-dark .rr-timer.rr-timer-active{color:var(--rr-timer-ink-dark,#85b892)}" +
-      ".rr-read-transport{position:fixed;right:15px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:124;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px;border:1px solid rgba(70,70,67,.16);border-radius:25px;background:rgba(245,244,239,.88);color:#202321;box-shadow:0 4px 18px rgba(0,0,0,.13);-webkit-backdrop-filter:blur(20px) saturate(1.25);backdrop-filter:blur(20px) saturate(1.25);opacity:0;pointer-events:none;transform:translateX(26vw) rotate(9deg) scale(.82);transform-origin:right center;transition:opacity .28s linear,transform .46s cubic-bezier(.16,1,.3,1);transition-timing-function:linear,linear(0,.03,.11,.23,.37,.52,.66,.78,.87,.93,.97,.99,1)}" +
-      ".rr-read-transport.rr-visible{opacity:1;pointer-events:auto;transform:translateX(0) rotate(0deg) scale(1)}" +
-      "html.rr-hide-chrome .rr-read-transport{opacity:0;pointer-events:none;transform:translateX(26vw) rotate(9deg) scale(.82)}" +
-      ".rr-read-transport button{width:40px;height:40px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;display:grid;place-items:center;font:600 16px/1 -apple-system,BlinkMacSystemFont,sans-serif;-webkit-tap-highlight-color:transparent}" +
-      ".rr-read-transport button:active{background:rgba(90,90,90,.14);transform:scale(.94)}" +
-      ".rr-read-transport button:disabled{opacity:.28}" +
-      ".rr-read-transport .rr-read-toggle{width:44px;height:44px;background:rgba(255,255,255,.72);box-shadow:0 1px 5px rgba(0,0,0,.09)}" +
-      ".rr-theme-dark .rr-read-transport,html.rr-reader-dark .rr-read-transport{background:rgba(42,42,40,.88);color:#f7f5ef;border-color:rgba(255,255,255,.16)}" +
-      ".rr-theme-dark .rr-read-transport .rr-read-toggle,html.rr-reader-dark .rr-read-transport .rr-read-toggle{background:rgba(255,255,255,.10)}" +
-      "@media(prefers-reduced-motion:reduce){.rr-read-transport{transition:opacity .12s linear;transform:none!important}}";
-    document.head.appendChild(s);
-  })();
 
   function render() {
-    if (!btn) return;
-    var active = playing && !paused;
-    btn.className = "rr-listen" + (active ? " active" : "");
-    btn.setAttribute("aria-pressed", active ? "true" : "false");
-    btn.innerHTML = active
-      ? "❚❚ <span class=\"reader-action-label\">Pause</span>"
-      : "▶ <span class=\"reader-action-label\">Listen</span>";
-    rateBtn.hidden = !playing;
-    rateBtn.textContent = rate.toFixed(1) + "×";
-    if (timerBtn) { timerBtn.hidden = !playing; renderTimer(); }
-    if (floatBtn) {
-      if (floatTray) {
-        floatTray.hidden = false;
-        floatTray.classList.toggle("rr-visible", playing);
-        floatTray.setAttribute("aria-hidden", playing ? "false" : "true");
-      }
-      floatBtn.innerHTML = paused
-        ? transportIcon('<path d="M8 5v14l11-7Z" fill="currentColor" stroke="none"/>')
-        : transportIcon('<path d="M8 5v14M16 5v14"/>');
-      floatBtn.setAttribute("aria-label", paused ? "Resume read aloud" : "Pause read aloud");
-      floatBtn.setAttribute("aria-pressed", paused ? "false" : "true");
-    }
-    if (floatPrev) floatPrev.disabled = !playing || cursor <= 0;
-    if (floatNext) floatNext.disabled = !playing || !queue.length;
-    if (voiceSel) {
-      // Voices arrive asynchronously in some browsers, so keep trying to fill
-      // the menu; show it whenever the reader is open, not only while playing.
-      if (voiceSel.options.length <= 1) fillVoices();
-      voiceSel.hidden = false;
-    }
+    notifyReadAloudChange();
   }
 
   function mount() {
@@ -1239,106 +1161,12 @@
     var shell = document.querySelector(".reader-shell");
     if (!shell) {
       if (playing) stop();
-      if (floatTray) { floatTray.remove(); floatTray = null; }
-      floatBtn = null; floatPrev = null; floatNext = null;
-      btn = null; rateBtn = null;
+      mountedShell = null;
       return;
     }
-    var actions = shell.querySelector(".reader-actions");
-    if (!actions) return;
-    if (btn && actions.contains(btn)) return;
+    if (mountedShell === shell) return;
     if (!reader()) return;               // no engine yet — wait, don't stop
-
-    btn = document.createElement("button");
-    btn.type = "button";
-    btn.setAttribute("aria-label", "Read aloud");
-    btn.addEventListener("click", toggle);
-
-    if (!floatTray) {
-      floatTray = document.createElement("div");
-      floatTray.className = "rr-read-transport";
-      floatTray.setAttribute("role", "group");
-      floatTray.setAttribute("aria-label", "Read aloud controls");
-      floatTray.hidden = true;
-
-      floatPrev = document.createElement("button");
-      floatPrev.type = "button";
-      floatPrev.innerHTML = transportIcon('<path d="M6 5v14"/><path d="m17 6-7 6 7 6"/>');
-      floatPrev.setAttribute("aria-label", "Previous sentence");
-      floatPrev.addEventListener("click", function (event) {
-        event.preventDefault(); event.stopPropagation();
-        window.__rrControlTapAt = Date.now();
-        skipSentence(-1);
-      });
-
-      floatBtn = document.createElement("button");
-      floatBtn.type = "button";
-      floatBtn.className = "rr-read-toggle";
-      floatBtn.addEventListener("click", function (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        window.__rrControlTapAt = Date.now();
-        toggle();
-      });
-
-      floatNext = document.createElement("button");
-      floatNext.type = "button";
-      floatNext.innerHTML = transportIcon('<path d="M18 5v14"/><path d="m7 6 7 6-7 6"/>');
-      floatNext.setAttribute("aria-label", "Next sentence");
-      floatNext.addEventListener("click", function (event) {
-        event.preventDefault(); event.stopPropagation();
-        window.__rrControlTapAt = Date.now();
-        skipSentence(1);
-      });
-
-      floatTray.append(floatPrev, floatBtn, floatNext);
-      document.body.appendChild(floatTray);
-
-    }
-
-    rateBtn = document.createElement("button");
-    rateBtn.type = "button";
-    rateBtn.className = "rr-rate";
-    rateBtn.hidden = true;
-    rateBtn.setAttribute("aria-label", "Reading speed");
-    rateBtn.addEventListener("click", cycleRate);
-
-    timerBtn = document.createElement("button");
-    timerBtn.type = "button";
-    timerBtn.className = "rr-timer";
-    timerBtn.hidden = true;
-    renderTimer();
-    timerBtn.addEventListener("click", addSleepSlot);
-
-    voiceSel = document.createElement("select");
-    voiceSel.className = "rr-voice";
-    voiceSel.setAttribute("aria-label", "Voice");
-    voiceSel.addEventListener("change", function () {
-      var selected = voiceSel.options[voiceSel.selectedIndex];
-      try {
-        localStorage.setItem(VOICE_KEY, voiceSel.value);
-        if (voiceSel.value && selected) {
-          localStorage.setItem(VOICE_NAME_KEY, selected.getAttribute("data-voice-name") || selected.textContent || "");
-          localStorage.setItem(VOICE_LANG_KEY, selected.getAttribute("data-voice-lang") || "");
-        } else {
-          localStorage.removeItem(VOICE_NAME_KEY);
-          localStorage.removeItem(VOICE_LANG_KEY);
-        }
-      } catch (e) { /* ignore */ }
-      if (playing && !paused) {                 // re-speak this sentence in the new voice
-        epoch += 1;
-        var mine = epoch;
-        try { if (rrTtsAudio) { rrTtsAudio.pause(); rrTtsAudio.removeAttribute('src'); rrTtsAudio.load(); } } catch (e) { /* ignore */ }
-    try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none'; } catch (e) {}
-        setTimeout(function () { if (playing && !paused && mine === epoch) step(mine); }, 60);
-      }
-    });
-
-    var close = actions.querySelector(".reader-close");
-    var parts = [btn, rateBtn, timerBtn, voiceSel];
-    for (var i = 0; i < parts.length; i += 1) {
-      if (close) actions.insertBefore(parts[i], close); else actions.appendChild(parts[i]);
-    }
+    mountedShell = shell;
     fillVoices();
     render();
     scheduleWarmFirstSentence();
@@ -1349,9 +1177,16 @@
     if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || "")) return;
     if (e.key === "l" || e.key === "L") { e.preventDefault(); toggle(); }
   });
-  window.addEventListener("beforeunload", function () { try { synth().cancel(); } catch (e) {} });
-
-  try { synth().addEventListener("voiceschanged", function () { fillVoices(); render(); }); } catch (e) { /* ignore */ }
+  registerReadAloudEngine({
+    getState: publicState,
+    getVoices: getVoices,
+    toggle: toggle,
+    stop: stop,
+    skip: skipSentence,
+    adjustSleep: adjustSleepTime,
+    setRate: setRate,
+    setVoice: setVoice,
+  });
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);
   else mount();

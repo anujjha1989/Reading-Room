@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { driveDownloadUrl } from "./drive";
 import ReadingSheet, { type SheetTocItem } from "./ReadingSheet";
 import { useReadAloud } from "./useReadAloud";
+import "./readAloudEngine.js";
+import ReadAloudTransport from "./ReadAloudTransport";
 import type { Book as EpubBook, Location, Rendition } from "epubjs";
 import type { RenditionOptions } from "epubjs/types/rendition";
 import PdfReader, { type PdfReaderHandle } from "./PdfReader";
@@ -808,6 +810,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
 
   function chooseReadingMode(mode: ReadingMode) {
     if (mode === readingModeRef.current) return;
+    window.dispatchEvent(new CustomEvent("rr-reading-mode-change", { detail: { mode } }));
     localStorage.setItem("reading-room-reader-mode", mode);
     readingModeRef.current = mode;
     setReadingMode(mode);
@@ -966,8 +969,8 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     }
   }
 
-  // Unconditional hook call; polling only runs while the sheet is open.
-  const readAloud = useReadAloud(reactSheetOpen);
+  // Keep transport state current even while the expanded sheet is closed.
+  const readAloud = useReadAloud(isReflowable);
 
   // The TOC is already state here. The old sheet cloned a <select> to get it,
   // which is why its depth prefixes were baked into the label string.
@@ -1015,6 +1018,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
 
       {readingSheetHost ? createPortal(<>
+        <ReadAloudTransport api={readAloud} />
         <button type="button" className="rr-react-sheet-trigger"
           aria-label={reactSheetOpen ? "Close reading settings" : "Open reading settings"}
           aria-expanded={reactSheetOpen}

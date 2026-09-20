@@ -79,6 +79,7 @@ node deploy/check-reading-sheet.mjs
 node deploy/check-sheet-parity.mjs
 node deploy/check-popover-motion.mjs
 node deploy/check-read-aloud-follow.mjs
+node deploy/check-read-aloud-integration.mjs
 node deploy/check-panel-return.mjs
 node deploy/check-library-chrome.mjs
 
@@ -104,15 +105,13 @@ COPYFILE_DISABLE=1 tar czf - -C dist/stage . | "${SSH[@]}" "$PI" "tar xzf - -C ~
 # as 0700, and tar preserves modes, so without this the files arrive unreadable
 # by the service user and the server falls back to index.html for them - a JS
 # request answered with HTML, which is exactly the failure this looks like.
-COPYFILE_DISABLE=1 tar czf - -C overrides/book-art fullscreen-bundle.js fullscreen-bundle.css read-aloud.js \
+COPYFILE_DISABLE=1 tar czf - -C overrides/book-art fullscreen-bundle.js fullscreen-bundle.css \
   | "${SSH[@]}" "$PI" "set -e
       tmp=\$(mktemp -d) && tar xzf - -C \$tmp
       mv \$tmp/fullscreen-bundle.js  $BOOK_ART/fullscreen-bundle-v$VERSION.js
       mv \$tmp/fullscreen-bundle.css $BOOK_ART/fullscreen-bundle-v$VERSION.css
-      mv \$tmp/read-aloud.js         $BOOK_ART/read-aloud-v$VERSION.js
       chmod 0644 $BOOK_ART/fullscreen-bundle-v$VERSION.js \
-                 $BOOK_ART/fullscreen-bundle-v$VERSION.css \
-                 $BOOK_ART/read-aloud-v$VERSION.js
+                 $BOOK_ART/fullscreen-bundle-v$VERSION.css
       rm -rf \$tmp"
 
 echo "==> capturing rollback"
@@ -180,8 +179,7 @@ verify_origin() {
     /settings.html \
     /assets/$library_asset \
     /assets/book-art/images/fullscreen-bundle-v$VERSION.js \
-    /assets/book-art/images/fullscreen-bundle-v$VERSION.css \
-    /assets/book-art/images/read-aloud-v$VERSION.js; do
+    /assets/book-art/images/fullscreen-bundle-v$VERSION.css; do
     headers=$(curl -fsSI --max-time 15 "$origin$asset_path") || {
       check "$origin$asset_path could not be fetched"
       break

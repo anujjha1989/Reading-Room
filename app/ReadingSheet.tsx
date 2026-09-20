@@ -25,11 +25,8 @@
  * Here the state arrives as props and changes leave as callbacks. There is no
  * DOM query, no string matching, and no `!important`.
  *
- * Read Aloud is the exception, and deliberately so: it lives in read-aloud.js
- * and already exposes a proper function API on `window`. Calling that is sound —
- * it is a module boundary, not a DOM hack — so this component calls it directly
- * instead of clicking a hidden `.rr-listen` button. Absent TTS, the section
- * simply does not render.
+ * Read Aloud arrives through a typed adapter to the app-bundled narration
+ * engine. This component never queries narration DOM or browser globals.
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -43,8 +40,8 @@ export type PageTurn = "none" | "slide";
 export type SheetTocItem = { label: string; value: string; current?: boolean };
 
 /**
- * Read Aloud's public surface. Mirrors the window.rr* functions read-aloud.js
- * installs; BookReader adapts them so this component never touches globals.
+ * Read Aloud's public surface. BookReader adapts the engine so this component
+ * never touches globals.
  */
 export type ReadAloudApi = {
   playing: boolean;

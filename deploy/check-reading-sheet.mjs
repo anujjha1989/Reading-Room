@@ -102,19 +102,21 @@ t(/isReflowable \? fontSize : undefined/.test(reader), "fontSize gated on reflow
 t(/isReflowable \? readAloud : undefined/.test(reader), "readAloud gated on reflowable");
 
 // 15. The hook must be called unconditionally — React's rules of hooks — with
-//     only its polling gated.
-t(/useReadAloud\(reactSheetOpen\)/.test(reader),
-  "hook called unconditionally, polling gated by argument");
+//     only its event subscription gated.
+t(/useReadAloud\(isReflowable\)/.test(reader),
+  "hook called unconditionally, subscription gated by reader capability");
 
-// 16. The adapter is the only place touching globals.
+// 16. Narration crosses into React through a typed store, not browser globals.
 const hook = readFileSync("app/useReadAloud.ts", "utf8");
-t(/window as unknown as ReadAloudGlobals/.test(hook), "globals accessed through one typed shim");
+const controller = readFileSync("app/readAloudController.ts", "utf8");
+t(/useSyncExternalStore/.test(hook) && /registerReadAloudEngine/.test(controller),
+  "narration uses a typed external store");
 t(!/window\.rr/.test(code(tsx)), "component still free of window.rr* access");
 
-// 17. read-aloud.js must expose voices as data, not a DOM node to clone.
-const aloud = readFileSync("overrides/book-art/read-aloud.js", "utf8");
-t(/window\.rrGetVoices/.test(aloud), "read-aloud exposes rrGetVoices");
-t(/window\.rrSetVoice/.test(aloud), "read-aloud exposes rrSetVoice");
+// 17. The engine must expose voices as data, not a DOM node to clone.
+const aloud = readFileSync("app/readAloudEngine.js", "utf8");
+t(/getVoices:\s*getVoices/.test(aloud), "read-aloud registers typed voice data");
+t(/setVoice:\s*setVoice/.test(aloud), "read-aloud registers typed voice selection");
 
 // 18. The controls requested before the migration must exist in the React
 //     surface too; otherwise enabling the new sheet makes a working feature
@@ -132,7 +134,7 @@ t(/onFontFamilyChange/.test(tsx) && /onBoldChange/.test(tsx)
   "advanced typography, reset and share are present");
 t(/rr-react-sheet-open/.test(reader),
   "React sheet publishes open state for chrome coordination");
-t(/rrAdjustSleepTime/.test(hook) && /rrSkipSentence\?\.\(-1\)/.test(hook),
+t(/adjustSleep/.test(controller) && /engine\?\.skip\(-1\)/.test(controller),
   "adapter exposes sleep adjustment and previous sentence without DOM queries");
 
 // 19. The production trigger must be a neutral glass control with a real touch
@@ -165,11 +167,13 @@ t(!/#007aff|rgba\(0,\s*122,\s*255/.test(globalCss),
 
 // 20. The collapsed playback rail and library control geometry remain coherent.
 const overrideCss = readFileSync("overrides/book-art/fullscreen-bundle.css", "utf8");
-t(/\.rr-read-transport\{[^}]*flex-direction:column/.test(aloud),
+const transport = readFileSync("app/ReadAloudTransport.tsx", "utf8");
+t(/\.rr-read-transport\s*\{[^}]*flex-direction:column/s.test(globalCss)
+  && /className="rr-read-transport rr-visible"/.test(transport),
   "collapsed read-aloud controls form a vertical rail");
-t(/\.rr-read-transport\{[^}]*bottom:calc\(78px/.test(aloud),
+t(/\.rr-read-transport\s*\{[^}]*bottom:calc\(78px/s.test(globalCss),
   "collapsed read-aloud controls sit close to the settings trigger");
-t(/html\.rr-hide-chrome \.rr-read-transport\{[^}]*opacity:0[^}]*pointer-events:none[^}]*translateX\(26vw\)/.test(aloud),
+t(/html\.rr-hide-chrome \.rr-read-transport\s*\{[^}]*opacity:0[^}]*pointer-events:none[^}]*translateX\(26vw\)/s.test(globalCss),
   "collapsed read-aloud controls leave with the rest of the reader chrome");
 t(/#rr-settings-link svg\s*\{\s*width:26px[^}]*height:26px/.test(overrideCss),
   "library gear glyph is optically balanced inside its halo");

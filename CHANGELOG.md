@@ -9,6 +9,26 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 - Restored the filter, sort and Settings icon foregrounds in dark mode. Their
   React SVGs now use an explicit app theme token instead of browser-default
   black fills.
+- Read Aloud now waits until the active sentence reaches the lower edge before
+  following in Scroll mode, and paginated reading waits for each animated turn
+  to settle instead of advancing multiple pages.
+- Switching between Pages and Scroll while narration is active now restores the
+  same sentence and highlight in the new layout.
+- Replaced fragmented word highlights with one continuous highlight per visual
+  line, and added bounded automatic recovery when a Piper audio clip stalls.
+- Kept the iOS media session alive while paused so AirPods and Lock Screen Play
+  can resume the existing audio element instead of requiring the book to reopen.
+
+### Changed
+
+- Moved the Read Aloud engine into the main application bundle. React now talks
+  to it through a typed controller/store; the separately deployed narration
+  override and its browser-global API have been removed.
+- The floating narration transport is now React-owned and uses the same
+  translucent glass treatment and reader-chrome visibility as the close and
+  reading-menu controls.
+- Moved pnpm's native-build allowlist into its supported workspace config so
+  clean production builds no longer stop on an obsolete package setting.
 
 ## v129 — 20 September 2026
 

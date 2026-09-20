@@ -7,12 +7,12 @@ import { readFileSync } from "node:fs";
 
 const files = [
   "overrides/book-art/fullscreen-bundle.js",
-  "overrides/book-art/read-aloud.js",
+  "app/readAloudEngine.js",
 ];
 
 // Pre-existing dead code, left in place deliberately: removing it is a separate
 // change with its own risk. The check exists to stop NEW dead code shipping.
-const KNOWN_DEAD = new Set(["mkDown", "mkUp", "scrollToPart", "bookFromNode", "chosenVoice"]);
+const KNOWN_DEAD = new Set(["mkDown", "mkUp", "scrollToPart", "bookFromNode"]);
 
 let failed = false;
 const fail = (msg) => { console.error("FAILED: " + msg); failed = true; };
@@ -36,10 +36,11 @@ for (const file of files) {
   if (opens !== closes) fail(`${file}: ${opens} IIFE openings vs ${closes} closings`);
 }
 
-const readAloud = readFileSync("overrides/book-art/read-aloud.js", "utf8");
+const readAloud = readFileSync("app/readAloudEngine.js", "utf8");
 const readingSheet = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8");
 const bookReader = readFileSync("app/BookReader.tsx", "utf8");
 const readAloudHook = readFileSync("app/useReadAloud.ts", "utf8");
+const readAloudController = readFileSync("app/readAloudController.ts", "utf8");
 
 // Read Aloud navigation is asynchronous. Every operation which can move the
 // page must be tied to the current epoch and pause state; otherwise a promise
@@ -55,18 +56,19 @@ for (const required of [
 
 // Expanded and collapsed controls must use the same public state machine.
 for (const api of [
-  "window.rrToggleReadAloud = toggle",
-  "window.rrStopReadAloud = stop",
-  "window.rrSkipSentence = skipSentence",
-  "window.rrAddSleepTime = addSleepSlot",
-  "window.rrAdjustSleepTime = adjustSleepTime",
-  "window.rrGetReadAloudState = publicState",
+  "registerReadAloudEngine({",
+  "getState: publicState",
+  "toggle: toggle",
+  "stop: stop",
+  "skip: skipSentence",
+  "adjustSleep: adjustSleepTime",
 ]) {
   if (!readAloud.includes(api)) fail(`read-aloud transport API missing: ${api}`);
 }
-for (const call of ["rrSkipSentence?.(-1)", "rrSkipSentence?.(1)", "rrAdjustSleepTime?.(minutes)", "rrToggleReadAloud?.()"]) {
-  if (!readAloudHook.includes(call)) fail(`React read-aloud adapter is not wired to ${call}`);
+for (const call of ["engine?.skip(-1)", "engine?.skip(1)", "engine?.adjustSleep(minutes)", "engine?.toggle()"]) {
+  if (!readAloudController.includes(call)) fail(`typed React read-aloud controller is not wired to ${call}`);
 }
+if (/window\.rr/.test(readAloud + readAloudHook + readAloudController)) fail("Read Aloud still exposes window.rr globals");
 
 // The first Piper clip is warmed without changing playback state, and the two
 // native side panels have a return path to the body-owned reading sheet.
