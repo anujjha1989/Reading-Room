@@ -281,12 +281,6 @@ html:not(.rr-hide-chrome) .rr-react-sheet-trigger {
   transition-delay: 0s;
 }
 
-/* The legacy sheet remains available through ?sheet=legacy as a recovery path,
-   but it must not leave a second trigger or an invisible click target behind
-   while the React-owned sheet is active. */
-html.rr-react-sheet-enabled .rr-sheet-btn,
-html.rr-react-sheet-enabled .rr-books-menu,
-html.rr-react-sheet-enabled .rr-books-dismiss { display: none !important; }
 html.rr-react-sheet-open .rr-read-transport { visibility: hidden; pointer-events: none; }
 
 @media (prefers-reduced-motion: reduce) {

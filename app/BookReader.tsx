@@ -326,18 +326,6 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   const [mangaMode, setMangaMode] = useState(false);
   const [epubRevision, setEpubRevision] = useState(0);
   const [panel, setPanel] = useState<"search" | "bookmarks" | null>(null);
-  // The React sheet reached feature parity and is now the default on every
-  // device. Older diagnostic builds persisted `legacy` in localStorage; that
-  // stranded those phones on the obsolete, broken menu after later deploys.
-  // Keep the recovery switch for one explicitly requested page load only.
-  const [reactSheetEnabled] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      const param = new URLSearchParams(window.location.search).get("sheet");
-      localStorage.removeItem("rr-react-sheet");
-      return param !== "legacy";
-    } catch { return true; }
-  });
   const [reactSheetOpen, setReactSheetOpen] = useState(false);
   const [readingSheetHost, setReadingSheetHost] = useState<HTMLElement | null>(null);
 
@@ -349,25 +337,56 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     return () => setReadingSheetHost(null);
   }, []);
 
-  useEffect(() => {
-    document.documentElement.classList.toggle("rr-react-sheet-enabled", reactSheetEnabled);
-    return () => document.documentElement.classList.remove("rr-react-sheet-enabled");
-  }, [reactSheetEnabled]);
-
   // Standalone iOS can lose React's delegated touch event when the EPUB
   // surface has just handled the same gesture. The fullscreen bridge listens
   // in the native capture phase and sends this event directly to the reader.
   useEffect(() => {
-    if (!reactSheetEnabled) return;
     const toggleReadingSheet = () => setReactSheetOpen((open) => !open);
+    const closeReadingSheet = () => setReactSheetOpen(false);
     window.addEventListener("rr-toggle-reading-sheet", toggleReadingSheet);
-    return () => window.removeEventListener("rr-toggle-reading-sheet", toggleReadingSheet);
-  }, [reactSheetEnabled]);
+    window.addEventListener("rr-close-reading-menu", closeReadingSheet);
+    return () => {
+      window.removeEventListener("rr-toggle-reading-sheet", toggleReadingSheet);
+      window.removeEventListener("rr-close-reading-menu", closeReadingSheet);
+    };
+  }, []);
 
   useEffect(() => {
-    document.documentElement.classList.toggle("rr-react-sheet-open", reactSheetEnabled && reactSheetOpen);
+    document.documentElement.classList.toggle("rr-react-sheet-open", reactSheetOpen);
     return () => document.documentElement.classList.remove("rr-react-sheet-open");
-  }, [reactSheetEnabled, reactSheetOpen]);
+  }, [reactSheetOpen]);
+
+  // Publish reader-only presentation state from the component that owns it.
+  // The retired injected sheet used to set these classes as a side effect.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("rr-books-controls");
+    root.classList.toggle("rr-reader-dark", theme === "dark");
+    root.classList.toggle("rr-reader-light", theme === "light");
+    root.classList.toggle("rr-reader-sepia", theme === "sepia");
+    root.classList.toggle("rr-native-panel-open", panel !== null);
+    return () => {
+      root.classList.remove("rr-books-controls", "rr-reader-dark", "rr-reader-light", "rr-reader-sepia", "rr-native-panel-open");
+    };
+  }, [panel, theme]);
+
+  // Keep iOS's safe-area colour aligned with the book, independently of the
+  // Home theme. This used to live in the removed DOM-injected sheet, which made
+  // status-bar correctness depend on an unrelated menu implementation.
+  useEffect(() => {
+    const metas = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')];
+    const meta = metas[0] ?? document.head.appendChild(document.createElement("meta"));
+    meta.setAttribute("name", "theme-color");
+    meta.removeAttribute("media");
+    meta.content = theme === "dark" ? "#181b1a" : theme === "sepia" ? "#f3ead7" : "#fffdf7";
+    metas.slice(1).forEach((node) => node.remove());
+    document.querySelectorAll<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]')
+      .forEach((node) => { node.content = "black-translucent"; });
+    return () => {
+      const homeTheme = document.documentElement.getAttribute("data-rr-theme");
+      meta.content = homeTheme === "dark" ? "#000000" : "#f7f3ec";
+    };
+  }, [theme]);
 
   /**
    * Typography, migrated from the override's `rr-books-type`.
@@ -919,8 +938,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
 
   function backToReadingMenu() {
     setPanel(null);
-    if (reactSheetEnabled) setReactSheetOpen(true);
-    else window.setTimeout(() => window.dispatchEvent(new Event("rr-open-reading-menu")), 0);
+    setReactSheetOpen(true);
   }
 
   async function toggleFullscreen() {
@@ -942,7 +960,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   }
 
   // Unconditional hook call; polling only runs while the sheet is open.
-  const readAloud = useReadAloud(reactSheetEnabled && reactSheetOpen);
+  const readAloud = useReadAloud(reactSheetOpen);
 
   // The TOC is already state here. The old sheet cloned a <select> to get it,
   // which is why its depth prefixes were baked into the label string.
@@ -989,9 +1007,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         <footer className="reader-footer"><button onClick={previous}>{readingMode === "scroll" ? "↑ Up" : "← Previous"}</button><span>{progress || (readingMode === "scroll" ? "Continuous scroll" : "Use the arrow keys to turn pages")}</span><button onClick={next}>{readingMode === "scroll" ? "Down ↓" : "Next →"}</button></footer>
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
 
-      {/* The React-owned reading sheet. The legacy implementation remains an
-          explicit ?sheet=legacy recovery route until live-device validation. */}
-      {reactSheetEnabled && readingSheetHost ? createPortal(<>
+      {readingSheetHost ? createPortal(<>
         <button type="button" className="rr-react-sheet-trigger"
           aria-label={reactSheetOpen ? "Close reading settings" : "Open reading settings"}
           aria-expanded={reactSheetOpen}

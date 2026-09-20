@@ -73,10 +73,8 @@ fi
 # called is valid JavaScript and silently does nothing, which is how a fix
 # shipped four times without taking effect.
 node deploy/check-overrides.mjs
-node deploy/check-sheet.mjs
 node deploy/check-motion.mjs
 node deploy/check-contrast.mjs
-node deploy/check-panel-return.mjs
 node deploy/check-reading-sheet.mjs
 node deploy/check-sheet-parity.mjs
 

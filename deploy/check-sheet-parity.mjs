@@ -27,11 +27,11 @@ const legacyPresent = /rr-books-menu/.test(code(legacy));
 // Each entry: the feature, a marker proving it exists in React, and the state it
 // needs to live in BookReader rather than the override.
 const features = [
-  { name: "Bold text",         sheet: /onBoldChange|bold=/,      state: /\[bold,/ },
-  { name: "Justify text",      sheet: /onJustifyChange|justify=/, state: /\[justify,/ },
-  { name: "Character spacing", sheet: /onCharSpacingChange/,      state: /\[charSpacing,/ },
-  { name: "Word spacing",      sheet: /onWordSpacingChange/,      state: /\[wordSpacing,/ },
-  { name: "Font family",       sheet: /onFontFamilyChange/,       state: /\[fontFamily,/ },
+  { name: "Bold text",         sheet: /onBoldChange|bold=/,       state: /typography\.bold/ },
+  { name: "Justify text",      sheet: /onJustifyChange|justify=/, state: /typography\.justify/ },
+  { name: "Character spacing", sheet: /onCharSpacingChange/,      state: /typography\.charSpacing/ },
+  { name: "Word spacing",      sheet: /onWordSpacingChange/,      state: /typography\.wordSpacing/ },
+  { name: "Font family",       sheet: /onFontFamilyChange/,       state: /fontFamilyKey/ },
   { name: "Reset theme",       sheet: /onReset/,                  state: null },
   { name: "Share book",        sheet: /onShare/,                  state: null },
   { name: "Previous sentence", sheet: /previous:\s*\(\)|onPrevious|aloud\.previous/, state: null },

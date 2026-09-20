@@ -84,15 +84,11 @@ const views = ["menu", "contents", "text", "advanced", "aloud", "voice"];
 const missing = views.filter((v) => !tsx.includes(`view === "${v}"`));
 t(missing.length === 0, "every view has a render branch", missing.length ? `missing: ${missing}` : "");
 
-// 12. The parity-complete React sheet is the default, with an explicit legacy
-//     recovery switch until the override is physically removed.
+// 12. The parity-complete React sheet is the only implementation.
 const reader = readFileSync("app/BookReader.tsx", "utf8");
 t(reader.includes("<ReadingSheet"), "BookReader renders the component");
-t(/reactSheetEnabled &&/.test(reader), "render is gated on the flag");
-t(/removeItem\("rr-react-sheet"\)/.test(reader),
-  "stale persisted legacy preference is removed from existing devices");
-t(/param !== "legacy"/.test(reader) && !/setItem\("rr-react-sheet"/.test(reader),
-  "React sheet is default and legacy is a one-load recovery path only");
+t(!/reactSheetEnabled|sheet=legacy|rr-react-sheet-enabled/.test(reader),
+  "no feature flag or legacy recovery route remains");
 
 // 13. Every prop the component declares as required must actually be passed.
 const required = ["open=", "onClose=", "theme=", "onThemeChange="];
@@ -107,7 +103,7 @@ t(/isReflowable \? readAloud : undefined/.test(reader), "readAloud gated on refl
 
 // 15. The hook must be called unconditionally — React's rules of hooks — with
 //     only its polling gated.
-t(/useReadAloud\(reactSheetEnabled && reactSheetOpen\)/.test(reader),
+t(/useReadAloud\(reactSheetOpen\)/.test(reader),
   "hook called unconditionally, polling gated by argument");
 
 // 16. The adapter is the only place touching globals.
@@ -134,8 +130,8 @@ t(/rateHeader/.test(tsx) && /rateBounds/.test(tsx),
 t(/onFontFamilyChange/.test(tsx) && /onBoldChange/.test(tsx)
   && /onJustifyChange/.test(tsx) && /onReset/.test(tsx) && /onShare/.test(tsx),
   "advanced typography, reset and share are present");
-t(/rr-react-sheet-open/.test(reader) && /rr-react-sheet-enabled/.test(reader),
-  "React sheet publishes open and enabled state for chrome coordination");
+t(/rr-react-sheet-open/.test(reader),
+  "React sheet publishes open state for chrome coordination");
 t(/rrAdjustSleepTime/.test(hook) && /rrSkipSentence\?\.\(-1\)/.test(hook),
   "adapter exposes sleep adjustment and previous sentence without DOM queries");
 
@@ -166,8 +162,7 @@ t(/\.rr-react-sheet-trigger[\s\S]*?width:\s*46px[\s\S]*?height:\s*46px/.test(glo
 t(!/#007aff|rgba\(0,\s*122,\s*255/.test(globalCss),
   "production menu trigger contains no developer-blue styling");
 
-// 20. Legacy chrome remains available while migration settles, so keep its
-//     compact playback rail and library control geometry coherent too.
+// 20. The collapsed playback rail and library control geometry remain coherent.
 const overrideCss = readFileSync("overrides/book-art/fullscreen-bundle.css", "utf8");
 t(/\.rr-read-transport\{[^}]*flex-direction:column/.test(aloud),
   "collapsed read-aloud controls form a vertical rail");
@@ -175,6 +170,10 @@ t(/\.rr-read-transport\{[^}]*bottom:calc\(78px/.test(aloud),
   "collapsed read-aloud controls sit close to the settings trigger");
 t(/#rr-settings-link svg\s*\{\s*width:26px[^}]*height:26px/.test(overrideCss),
   "library gear glyph is optically balanced inside its halo");
+
+// 21. The body-injected reader sheet was deliberately removed after parity.
+t(!/rr-books-menu/.test(code(fullscreen)),
+  "legacy body-injected reading sheet is absent");
 
 // 20b. Current chrome and library popovers must retain their final spatial
 //      and theme invariants even when older compatibility rules remain above.
@@ -231,13 +230,13 @@ t(/serialized status-bar metadata/.test(renderer) && /black-translucent/.test(re
   "renderer reconciles iOS status-bar metadata to translucent safe-area mode");
 
 // 24. Home and Reader are independent. Verify every colour in the 2 × 3
-//     matrix is present rather than fixing the reported dark-reader case with
-//     a global black bar that would regress a light Home or light book.
-t(/homeTheme===['"]dark['"]\?['"]#000000['"]:['"]#f7f3ec['"]/.test(fullscreen),
+//     matrix in the React owner rather than an unrelated override.
+t(/homeTheme === "dark" \? "#000000" : "#f7f3ec"/.test(reader),
   "Home status area maps both dark and light themes");
 for (const [theme, colour] of [["dark", "#181b1a"], ["light", "#fffdf7"], ["sepia", "#f3ead7"]]) {
-  t(fullscreen.includes(`theme==='${theme}'?'${colour}'`)
-    || fullscreen.includes(`theme==='${theme}'?'${colour}':`),
+  t(reader.includes(`theme === "${theme}" ? "${colour}"`)
+    || reader.includes(`theme === "${theme}" ? "${colour}" :`)
+    || reader.includes(`: "${colour}"`),
   `reader status area maps ${theme} independently`);
 }
 
