@@ -20,7 +20,7 @@
  * of the time.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReadAloudApi } from "./ReadingSheet";
 
 type RawState = {
@@ -65,8 +65,27 @@ export function useReadAloud(active: boolean): ReadAloudApi | undefined {
     const api = globals();
     if (typeof api.rrGetReadAloudState !== "function") { setState(null); return; }
     try {
-      setState(api.rrGetReadAloudState());
-      setVoices(typeof api.rrGetVoices === "function" ? api.rrGetVoices() : []);
+      const next = api.rrGetReadAloudState();
+      // Bail out when nothing changed. rrGetReadAloudState builds a fresh object
+      // on every call, so handing it straight to setState re-rendered the whole
+      // reader every 400ms for as long as the sheet was open - React compares by
+      // reference, and a new object is never equal to the last one. On a phone
+      // that is enough to make the app feel hung.
+      setState((prev) => (prev
+        && prev.playing === next.playing
+        && prev.paused === next.paused
+        && prev.rate === next.rate
+        && prev.sleepMinutes === next.sleepMinutes
+        && prev.canPrevious === next.canPrevious
+        && prev.canNext === next.canNext ? prev : next));
+
+      const nextVoices = typeof api.rrGetVoices === "function" ? api.rrGetVoices() : [];
+      // Same problem, and worse: this array is rebuilt from the <select> options
+      // each time. Compare by content before replacing.
+      setVoices((prev) => (prev.length === nextVoices.length
+        && prev.every((v, i) => v.value === nextVoices[i].value
+          && v.label === nextVoices[i].label
+          && v.current === nextVoices[i].current) ? prev : nextVoices));
     } catch {
       // A throwing override should degrade to "no TTS", not break the sheet.
       setState(null);
@@ -83,24 +102,28 @@ export function useReadAloud(active: boolean): ReadAloudApi | undefined {
     };
   }, [active, read]);
 
-  if (!state) return undefined;
-
-  return {
-    playing: state.playing,
-    paused: state.paused,
-    rate: state.rate,
-    sleepMinutes: state.sleepMinutes,
-    canPrevious: state.canPrevious,
-    canNext: state.canNext,
-    voices,
-    // Each action reads its function fresh rather than closing over it: the
-    // override may finish loading after the first render.
-    toggle: () => { globals().rrToggleReadAloud?.(); read(); },
-    stop: () => { globals().rrStopReadAloud?.(); read(); },
-    skip: () => { globals().rrSkipSentence?.(1); read(); },
-    previous: () => { globals().rrSkipSentence?.(-1); read(); },
-    adjustSleep: (minutes: number) => { globals().rrAdjustSleepTime?.(minutes); read(); },
-    setRate: (rate: number) => { globals().rrSetReadingRate?.(rate); read(); },
-    setVoice: (value: string) => { globals().rrSetVoice?.(value); read(); },
-  } satisfies ReadAloudApi & Record<string, unknown> as ReadAloudApi;
+  // Memoised on the state it actually depends on. Without this the hook returned a
+  // brand-new object on every render, so any consumer comparing props by identity
+  // saw a change each time - which defeats the bail-outs above.
+  return useMemo(() => {
+    if (!state) return undefined;
+    return {
+      playing: state.playing,
+      paused: state.paused,
+      rate: state.rate,
+      sleepMinutes: state.sleepMinutes,
+      canPrevious: state.canPrevious,
+      canNext: state.canNext,
+      voices,
+      // Each action reads its function fresh rather than closing over it: the
+      // override may finish loading after the first render.
+      toggle: () => { globals().rrToggleReadAloud?.(); read(); },
+      stop: () => { globals().rrStopReadAloud?.(); read(); },
+      skip: () => { globals().rrSkipSentence?.(1); read(); },
+      previous: () => { globals().rrSkipSentence?.(-1); read(); },
+      adjustSleep: (minutes: number) => { globals().rrAdjustSleepTime?.(minutes); read(); },
+      setRate: (rate: number) => { globals().rrSetReadingRate?.(rate); read(); },
+      setVoice: (value: string) => { globals().rrSetVoice?.(value); read(); },
+    } satisfies ReadAloudApi & Record<string, unknown> as ReadAloudApi;
+  }, [state, voices, read]);
 }
