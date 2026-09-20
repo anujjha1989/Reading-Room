@@ -149,7 +149,17 @@ function page(title, body, back){
     + `<h1>${esc(title)}</h1>`
     + `<button class="set-close" id="close" aria-label="Close settings">×</button></header>${body}`;
   scrollTo(0,0);
-  $('#close').onclick = () => { location.href = '/'; };
+  $('#close').onclick = () => {
+    const embedded = new URLSearchParams(location.search).get('embedded') === '1';
+    if (embedded && window.parent !== window) {
+      // Let the library keep this document intact while the parent runs the
+      // matching spring exit. Navigating the iframe to `/` first painted a
+      // second Home page mid-animation and made the dismissal visibly skip.
+      window.parent.postMessage({ type: 'rr-close-settings' }, location.origin);
+    } else {
+      location.href = '/';
+    }
+  };
   if (back) $('#back').onclick = back;
 }
 

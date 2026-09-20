@@ -185,6 +185,12 @@ t(/@keyframes rr-filter-sheet-in[\s\S]*?translateY\(0\)/.test(overrideCss)
 t(/data-rr-theme="light"\] #rr-sort-menu\s*\{[^}]*background:[^}]*255, 255, 255/s.test(overrideCss)
   && /data-rr-theme="dark"\] #rr-sort-menu\s*\{[^}]*background:[^}]*36, 36, 38/s.test(overrideCss),
   "library ellipsis menu follows explicit light and dark themes");
+t(/data-rr-theme="light"\] body > \.rr-card-menu\s*\{[^}]*background:[^}]*255, 255, 255/s.test(overrideCss)
+  && /data-rr-theme="dark"\][^}]*\.rr-card-menu\s*\{[^}]*background:/s.test(overrideCss),
+  "book options menu follows explicit light and dark themes");
+t(/rr-close-settings/.test(readFileSync("overrides/settings.template.html", "utf8"))
+  && /e\.data\.type === "rr-close-settings"/.test(fullscreen),
+  "embedded Settings asks its parent to run the exit animation");
 t(/@keyframes rr-settings-from-right[\s\S]*?translateX\(100%\)[\s\S]*?translateX\(0\)/.test(overrideCss)
   && /#rr-settings-overlay\s*\{[^}]*rr-settings-from-right \.52s/s.test(overrideCss),
   "settings page enters smoothly from the right");

@@ -3362,6 +3362,20 @@ body > .rr-card-menu {
   animation: rr-spring-menu-in var(--rr-spring-time) var(--rr-spring) both !important;
   transform-origin: top right;
 }
+/* The portalled card menu is app chrome, not book paper. Match the Library's
+   white surface in light mode instead of inheriting the old cream --white. */
+html[data-rr-theme="light"] body > .rr-card-menu {
+  background: rgba(255, 255, 255, .97) !important;
+  color: #1c1c1e !important;
+  border-color: #d8d8dc !important;
+}
+@media (prefers-color-scheme: light) {
+  html:not([data-rr-theme="dark"]) body > .rr-card-menu {
+    background: rgba(255, 255, 255, .97) !important;
+    color: #1c1c1e !important;
+    border-color: #d8d8dc !important;
+  }
+}
 @keyframes rr-spring-menu-in {
   from { opacity: 0; transform: translate(12px, -10px) scale(.9); }
   to { opacity: 1; transform: translate(0, 0) scale(1); }

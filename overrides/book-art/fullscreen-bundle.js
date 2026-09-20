@@ -794,6 +794,7 @@
   // what the injected Refresh Library button used to do.
   window.addEventListener("message", function (e) {
     if (e.origin !== location.origin || !e.data) return;
+    if (e.data.type === "rr-close-settings") { closeOverlay(); return; }
     if (e.data.type === "rr-refresh-library") { closeOverlay(); location.reload(); return; }
     if (e.data.type === "rr-theme") {
       // Apply the theme to the library immediately. Both the overlay and this
