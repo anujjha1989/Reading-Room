@@ -38,6 +38,9 @@ async function evaluate(expression) {
 }
 
 await send("Runtime.enable");
+await send("Emulation.setEmulatedMedia", {
+  features: [{ name: "prefers-reduced-motion", value: "no-preference" }],
+});
 await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
 if (process.argv.includes("--seed-legacy")) {
   await evaluate(`localStorage.setItem('rr-react-sheet', 'legacy')`);
@@ -181,6 +184,14 @@ if (process.argv.includes("--exercise-menu")) {
     };
     const centerTap = document.querySelector('button[aria-label="Show or hide reading controls"]');
     if (centerTap) {
+      if (document.documentElement.classList.contains('rr-hide-chrome')) {
+        centerTap.click();
+        await wait(160);
+      }
+      // The host running this audit may not have a usable speech voice. The
+      // chrome behavior is independent of audio startup, so expose the tray as
+      // narration would before exercising the real center-tap control.
+      document.querySelector('.rr-read-transport')?.classList.add('rr-visible');
       centerTap.click();
       await wait(160);
       const tray = document.querySelector('.rr-read-transport');

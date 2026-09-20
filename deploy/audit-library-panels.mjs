@@ -66,7 +66,11 @@ const result = await evaluate(`(async () => {
     await wait(380);
     const panel = document.querySelector('.catalog .filters');
     const rect = panel.getBoundingClientRect();
-    const filter = { left: rect.left, right: rect.right, width: rect.width, viewport: innerWidth };
+    const filter = {
+      left: rect.left, right: rect.right, width: rect.width, viewport: innerWidth,
+      rootOpen: root.classList.contains('rr-filters-open'),
+      display: getComputedStyle(panel).display,
+    };
     document.querySelector('#rr-filter-btn').click();
     return { sort, filter };
   };
