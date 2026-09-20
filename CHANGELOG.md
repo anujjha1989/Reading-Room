@@ -4,6 +4,17 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+### Changed
+
+- Gave the drawn covers real variety. There were six palettes, but all of them
+  sat in the same narrow band of darkness, so at thumbnail size they read as one
+  colour. There are now twelve spanning near-black to parchment.
+
+### Fixed
+
+- The title on a drawn cover now takes its colour from the cover, instead of
+  always being white — which was illegible on the two light grounds.
+
 ### Added
 
 - Completed the rebuilt reading menu as a proper React component. It now includes

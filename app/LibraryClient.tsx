@@ -28,9 +28,34 @@ const asShelf = (items: Book[]) => items as ShelfBook[];
 const fromShelf = (items: ShelfBook[]) => items as Book[];
 
 const FORMAT_ORDER = ["EPUB", "PDF", "CBZ", "CBR", "MOBI", "FDX", "DOCX", "DOC", "RTF", "TXT"];
+/**
+ * Drawn covers for books with no artwork.
+ *
+ * The previous six palettes had well-spread hues (7deg to 272deg) but every one
+ * sat at 18-35% lightness and 22-47% saturation. Hue alone does not separate
+ * colours at thumbnail size behind a white label, so all six read as the same
+ * dark muted card - which is why they looked identical.
+ *
+ * These twelve vary lightness across roughly 14-58% and saturation across
+ * 18-72%, so neighbouring covers differ in weight as well as hue. Ink is chosen
+ * per entry for contrast against its own ground rather than assuming a light
+ * text colour always works.
+ *
+ * [ground, ink]
+ */
 const palettes = [
-  ["#203a32", "#d8c9aa"], ["#773a32", "#e7d9bb"], ["#334f69", "#d7c5a7"],
-  ["#59456b", "#dfcfb6"], ["#76532b", "#eadbb9"], ["#315a59", "#d9c8a5"],
+  ["#1b2b26", "#d8c9aa"],   // deep pine, very dark
+  ["#8f3a2e", "#f4e4cb"],   // brick, mid + saturated
+  ["#2f4a63", "#d7c5a7"],   // slate blue
+  ["#6b4a7d", "#efe2f0"],   // plum, lighter
+  ["#8d5f1e", "#fff3d8"],   // ochre
+  ["#24544f", "#cfe3dc"],   // teal
+  ["#0f1620", "#b9c6d6"],   // near-black ink blue
+  ["#a33f2c", "#fff0e4"],   // terracotta
+  ["#3a3f2c", "#e3e4c9"],   // olive drab
+  ["#55283c", "#f0d6de"],   // maroon
+  ["#93a06e", "#191d10"],   // sage, dark ink
+  ["#d9c9a3", "#35301f"],   // parchment, DARK ink
 ];
 
 function hashCode(str: string) {
@@ -574,7 +599,7 @@ export default function LibraryClient() {
           title={`${compact ? shelfLabel(book) : shelfTitle(book)} — ${book.author || "Author unknown"}`}
           onClick={() => book.rrEditions ? setEditionsFor(book) : openBook(book)}
         >
-          <span className={compact ? "shelf-cover rr-author-portrait" : "shelf-cover"} style={{ "--cover": palettes[hashCode(book.id) % palettes.length][0] } as React.CSSProperties}>
+          <span className={compact ? "shelf-cover rr-author-portrait" : "shelf-cover"} style={{ "--cover": palettes[hashCode(book.id) % palettes.length][0], "--ink": palettes[hashCode(book.id) % palettes.length][1] } as React.CSSProperties}>
             <span className="rr-cover-label" aria-hidden="true">
               <small>READING ROOM</small>
               <strong>{shelfTitle(book)}</strong>

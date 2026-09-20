@@ -306,7 +306,10 @@ html .shelf-strip::-webkit-scrollbar,html .series-strip::-webkit-scrollbar { dis
 html .shelf-cover { border-radius:3px 6px 6px 3px; box-shadow:2px 4px 12px #0003; }
 html .shelf-cover img { position:absolute; inset:0; z-index:2; }
 html .shelf-cover img[hidden] { display:none; }
-html .rr-cover-label { display:flex; flex-direction:column; justify-content:space-between; position:absolute; inset:0; padding:12% 10%; color:#fff; border:1px solid #ffffff38; margin:5%; text-align:center; overflow:hidden; }
+/* color follows the palette rather than being hardcoded white. Two of the
+   drawn-cover grounds are light (sage, parchment), where white text measured
+   2.8:1 and 1.6:1 - illegible. --ink is supplied per card alongside --cover. */
+html .rr-cover-label { display:flex; flex-direction:column; justify-content:space-between; position:absolute; inset:0; padding:12% 10%; color:var(--ink,#fff); border:1px solid currentColor; border-color:color-mix(in srgb, currentColor 22%, transparent); margin:5%; text-align:center; overflow:hidden; }
 html .rr-cover-label small { font:600 7px/1.2 system-ui; letter-spacing:.13em; opacity:.75; }
 html .rr-cover-label strong { font:600 15px/1.25 Georgia,serif; overflow-wrap:normal; hyphens:auto; display:block; }
 html .rr-cover-label em { font:10px/1.25 system-ui; opacity:.8; }
