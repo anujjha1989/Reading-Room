@@ -3,6 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type FocusEvent } from "react";
 import { createPortal } from "react-dom";
 import BookReader, { type ReaderBookmark, type ReaderFile, type ReaderLocation } from "./BookReader";
+import LibraryChrome, { type LibraryChromeView } from "./LibraryChrome";
 import { driveDownloadUrl } from "./drive";
 import { cardTitle, completeLabel, continueProgress, coverOptions, groupShelf, homeShelves, recentlyOpened, reviewBooks, type ShelfBook } from "./homeShelves";
 
@@ -291,6 +292,7 @@ export default function LibraryClient() {
   const [readableOnly, setReadableOnly] = useState(false);
   const [sort, setSort] = useState<SortMode>("title");
   const [view, setView] = useState<LibraryView>("library");
+  const [chromeView, setChromeView] = useState<LibraryChromeView>("home");
   const [savedStates, setSavedStates] = useState<Record<string, SavedState>>({});
   const deferredSavedStates = useDeferredValue(savedStates);
   const savedStatesRef = useRef<Record<string, SavedState>>({});
@@ -554,6 +556,7 @@ export default function LibraryClient() {
     clearFilters();
     setQuery("");
     setView("library");
+    setChromeView("library");
     setDisplayMode("list");
     setShelfFilter({ title, ids: new Set(items.flatMap((book) => (book.rrEditions || [book]).map((edition) => edition.id))) });
     setSort(title === "Recently added" ? "added" : title === "Recently Opened" || title === "Continue" ? "opened" : "title");
@@ -572,6 +575,14 @@ export default function LibraryClient() {
   const currentReaderBook = reader ? books.find((book) => book.id === reader.bookId) : undefined;
   const readerSeries = currentReaderBook?.series ? seriesGroups.get(currentReaderBook.series) || [] : [];
   const readerSeriesIndex = currentReaderBook ? readerSeries.findIndex((book) => book.id === currentReaderBook.id) : -1;
+
+  const chooseChromeView = (next: LibraryChromeView) => {
+    setQuery("");
+    clearFilters();
+    setChromeView(next);
+    setView(next === "favorites" ? "favorites" : "library");
+    window.scrollTo({ top: 0, behavior: "auto" });
+  };
 
   // One home-page shelf. Cards are grouped for display only — editions keep
   // their own ids — and a card standing for several editions opens a chooser
@@ -655,7 +666,7 @@ export default function LibraryClient() {
     </section></div>}
 
     <header className="topbar">
-      <button className="brand" onClick={() => { setQuery(""); setView("library"); clearFilters(); }} aria-label="The Reading Room home"><span className="brand-mark">R</span><span><strong>The Reading Room</strong><small>PRIVATE DIGITAL LIBRARY</small></span></button>
+      <button className="brand" onClick={() => chooseChromeView("home")} aria-label="The Reading Room home"><span className="brand-mark">R</span><span><strong>The Reading Room</strong><small>PRIVATE DIGITAL LIBRARY</small></span></button>
       <nav aria-label="Library views">
         <button className={view === "library" ? "active" : ""} onClick={() => { setView("library"); setShelfFilter(null); }}><span aria-hidden="true">⌂</span>Library</button>
         <button className={view === "continue" ? "active" : ""} onClick={() => { setView("continue"); setSort("opened"); setShelfFilter(null); }}><span aria-hidden="true">▶</span>Continue</button>
@@ -665,7 +676,7 @@ export default function LibraryClient() {
     </header>
 
     <section className="hero compact-hero">
-      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{view === "favorites" ? "Your favorites" : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Find your next book."}</h1></div>
+      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{chromeView === "home" ? "Home" : chromeView === "favorites" ? "Favorites" : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Library"}</h1></div>
       <label className="search"><span>⌕</span><input value={query} onChange={(event) => { setQuery(event.target.value); setVisible(20); }} placeholder="Search title, author, series or collection…" /><kbd>{shortcutKey}</kbd></label>
       <div className="category-chips">
         <button aria-pressed={category === "Fiction"} onClick={() => { setCategory(category === "Fiction" ? "All categories" : "Fiction"); setVisible(20); }}>Fiction</button>
@@ -723,6 +734,7 @@ export default function LibraryClient() {
     {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)} role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="book-title" onMouseDown={(event) => event.stopPropagation()}><button autoFocus className="close" onClick={() => setSelected(null)} aria-label="Close">×</button><p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p><h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}{selected.series ? ` · ${selected.series}` : ""}</p><div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format) && <button onClick={() => openCopy(selected, copy)}>Read here</button>}<a href={["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? driveDownloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? "Download" : "Drive"} ↗</a></div></div>)}</div><p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p></section></div>}
 
     {reader && <BookReader title={reader.title} file={reader.file} initialPosition={reader.initialPosition} bookmarks={savedStates[reader.bookId]?.bookmarks || []} onBookmarksChange={handleBookmarksChange} onLocationChange={handleReaderLocation} seriesNavigation={{ previous: readerSeriesIndex > 0 ? readerSeries[readerSeriesIndex - 1]?.title : undefined, next: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? readerSeries[readerSeriesIndex + 1]?.title : undefined, onPrevious: readerSeriesIndex > 0 ? () => openBook(readerSeries[readerSeriesIndex - 1]) : undefined, onNext: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? () => openBook(readerSeries[readerSeriesIndex + 1]) : undefined }} onClose={() => setReader(null)} />}
+    <LibraryChrome view={chromeView} displayMode={displayMode} sort={sort} filtersOpen={filtersOpen} hidden={Boolean(reader || selected || seriesFocus || editionsFor)} onViewChange={chooseChromeView} onDisplayModeChange={chooseDisplayMode} onSortChange={setSort} onFiltersOpenChange={setFiltersOpen} />
     <footer><span>The Reading Room</span><p>One clean catalogue for your digital shelves. Covers enriched by <a href="https://openlibrary.org" target="_blank" rel="noreferrer">Open Library</a>.</p></footer>
   </main>;
 }

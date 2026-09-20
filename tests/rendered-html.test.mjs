@@ -16,7 +16,8 @@ test("server-renders the ebook library", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /<title>The Reading Room<\/title>/i);
-  assert.match(html, /Find your next book\./);
+  assert.match(html, /<h1>Home<\/h1>/);
+  assert.match(html, /name="rr-react-library-chrome" content="1"/);
   assert.match(html, /Continue/);
   assert.match(html, /All collections/);
   assert.match(html, /Thumbnails/);

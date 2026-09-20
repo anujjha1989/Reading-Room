@@ -4,6 +4,15 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+### Changed
+
+- Moved the Home/Library/Favorites dock, library filter and sort controls, and
+  the Settings overlay lifecycle into typed React components. These controls
+  now update the catalogue state directly instead of injecting buttons into the
+  page and remotely clicking hidden controls.
+- Added a deployment gate that fails if library chrome ownership drifts back to
+  the override layer or the static first render no longer matches hydration.
+
 ## v127 — 20 September 2026
 
 ### Changed

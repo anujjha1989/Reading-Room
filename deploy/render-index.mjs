@@ -41,6 +41,14 @@ const values = {
 
 let html = await readFile(join(root, "overrides/index.template.html"), "utf8");
 
+// Library navigation, filter/sort controls, and Settings are now React-owned.
+// The committed index predates that head marker, so reconcile it just as we do
+// the serialized layout below. The old override code uses this marker only as
+// a migration guard and is removed after the live parity pass.
+if (!html.includes('name="rr-react-library-chrome"')) {
+  html = html.replace("<head>", '<head><meta name="rr-react-library-chrome" content="1"/>');
+}
+
 // The committed HTML also carries vinext's serialized root-layout payload.
 // Theme boot intentionally adds data-rr-theme to <html> before hydration, so
 // the payload must retain the matching suppressHydrationWarning from
@@ -70,6 +78,7 @@ html = html.replaceAll(defaultStatusBar, translucentStatusBar);
 // template and fail loudly if its shape changes again instead of shipping a
 // recoverable-but-noisy client redraw.
 const initialMarkup = [
+  ["<h1>Find your next book.</h1>", "<h1>Home</h1>"],
   ["<kbd>⌘ K</kbd>", "<kbd>Ctrl K</kbd>"],
   [
     '<div class="category-chips"><button>Fiction</button><button>Non-Fiction</button><button>Graphic Novels</button><button>Scripts</button><button>Readable here</button></div>',

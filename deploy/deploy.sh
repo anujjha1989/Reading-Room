@@ -80,6 +80,7 @@ node deploy/check-sheet-parity.mjs
 node deploy/check-popover-motion.mjs
 node deploy/check-read-aloud-follow.mjs
 node deploy/check-panel-return.mjs
+node deploy/check-library-chrome.mjs
 
 echo "==> staging"
 rm -rf dist/stage && mkdir -p dist/stage/assets

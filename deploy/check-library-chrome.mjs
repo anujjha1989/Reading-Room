@@ -1,0 +1,25 @@
+import { readFileSync } from "node:fs";
+
+const component = readFileSync("app/LibraryChrome.tsx", "utf8");
+const client = readFileSync("app/LibraryClient.tsx", "utf8");
+const layout = readFileSync("app/layout.tsx", "utf8");
+const renderer = readFileSync("deploy/render-index.mjs", "utf8");
+const legacy = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8");
+
+let failed = false;
+const check = (condition, message) => {
+  console.log(`${condition ? "PASS" : "FAIL"}  ${message}`);
+  if (!condition) failed = true;
+};
+
+for (const id of ["rr-filter-btn", "rr-sort-btn", "rr-settings-link", "rr-sort-menu", "rr-settings-overlay"]) {
+  check(component.includes(`id=\"${id}\"`), `React owns #${id}`);
+}
+check(component.includes('className="rr-library-dock"'), "React owns the library navigation dock");
+check(client.includes("<LibraryChrome"), "LibraryClient renders the typed chrome component");
+check(layout.includes('name="rr-react-library-chrome"'), "new renders declare React chrome ownership");
+check(renderer.includes('name="rr-react-library-chrome"'), "the committed prerender is reconciled to React ownership");
+check(renderer.includes('["<h1>Find your next book.</h1>", "<h1>Home</h1>"]'), "the prerendered heading matches hydration");
+check((legacy.match(/rr-react-library-chrome/g) || []).length === 3, "all three legacy chrome injectors are disabled by the ownership marker");
+
+process.exit(failed ? 1 : 0);

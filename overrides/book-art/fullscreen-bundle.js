@@ -598,6 +598,7 @@
 // No catalogue data, progress, or reader settings are changed by this layer.
 (function () {
   "use strict";
+  if (document.querySelector('meta[name="rr-react-library-chrome"]')) return;
   var dock, selected = "Home", pending = false;
   var icons = {
     Home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
@@ -711,6 +712,7 @@
 // view being active. A single button should not have five ways to disappear.
 (function () {
   "use strict";
+  if (document.querySelector('meta[name="rr-react-library-chrome"]')) return;
   var ID = "rr-settings-link";
   var GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"'
     + ' stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"'
@@ -1029,6 +1031,7 @@
 // grid rendering works. CSS hides the originals; these are remote controls.
 (function () {
   "use strict";
+  if (document.querySelector('meta[name="rr-react-library-chrome"]')) return;
   var FILTER_ID = "rr-filter-btn", SORT_ID = "rr-sort-btn";
   var MENU_ID = "rr-sort-menu", SCRIM_ID = "rr-popover-scrim";
   var root = document.documentElement;
