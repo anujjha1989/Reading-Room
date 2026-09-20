@@ -1890,26 +1890,36 @@ body > .rr-card-scrim {
 /* Card ⋯ menu: out of the button's corner. */
 body > .rr-card-menu {
   transform-origin: top right;
-  animation: rr-pop .17s cubic-bezier(.22, 1, .36, 1) both;
+  animation: rr-pop var(--rr-spring-time, .46s) var(--rr-spring, cubic-bezier(.16, 1, .3, 1)) both;
 }
 /* Sort and filter popovers hang from the icon rail. */
+/* These four all opened on their own short easings - .17s to .22s - which is why
+   they felt snappier than the reading sheet and settings overlay. They now use
+   the shared spring tokens.
+
+   Note these are `animation`, not `transition`: an animation on the open state
+   beats any transition declared on the base rule, so editing the base rule alone
+   has no visible effect. That is what made the filters panel look unchanged
+   earlier - the transition was corrected but this animation still won. */
 #rr-sort-menu { transform-origin: top right; }
-html.rr-sort-open #rr-sort-menu { animation: rr-pop .17s cubic-bezier(.22, 1, .36, 1) both; }
+html.rr-sort-open #rr-sort-menu {
+  animation: rr-pop var(--rr-spring-time, .46s) var(--rr-spring, cubic-bezier(.16, 1, .3, 1)) both;
+}
 html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
-  animation: rr-rise .2s cubic-bezier(.22, 1, .36, 1) both;
+  animation: rr-rise var(--rr-spring-time, .46s) var(--rr-spring, cubic-bezier(.16, 1, .3, 1)) both;
 }
 /* The reading sheet slides up from the ≡ that opened it. */
 html.rr-sheet-open .rr-books-menu {
-  animation: rr-rise .22s cubic-bezier(.22, 1, .36, 1) both;
+  animation: rr-rise var(--rr-spring-time, .46s) var(--rr-spring, cubic-bezier(.16, 1, .3, 1)) both;
 }
 /* Settings overlay and the metadata sheet. */
 /* Superseded by rr-overlay-up in v103: the overlay now rises rather than
    fading, and two animation declarations on one element is a trap. */
 #rr-settings-overlay { animation: none; }
-#rr-metafix .rr-mf-sheet { animation: rr-rise .22s cubic-bezier(.22, 1, .36, 1) both; }
+#rr-metafix .rr-mf-sheet { animation: rr-rise var(--rr-spring-time, .46s) var(--rr-spring, cubic-bezier(.16, 1, .3, 1)) both; }
 #rr-metafix { animation: rr-fade .16s ease both; }
 /* Editions picker. */
-.rr-editions { animation: rr-pop .2s cubic-bezier(.22, 1, .36, 1) both; }
+.rr-editions { animation: rr-pop var(--rr-spring-time, .46s) var(--rr-spring, cubic-bezier(.16, 1, .3, 1)) both; }
 
 /* Tap feedback on the chrome buttons, so a press is visibly acknowledged. */
 html .rr-card-more,
