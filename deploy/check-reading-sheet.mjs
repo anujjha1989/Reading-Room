@@ -168,6 +168,8 @@ t(/\.rr-read-transport\{[^}]*flex-direction:column/.test(aloud),
   "collapsed read-aloud controls form a vertical rail");
 t(/\.rr-read-transport\{[^}]*bottom:calc\(78px/.test(aloud),
   "collapsed read-aloud controls sit close to the settings trigger");
+t(/html\.rr-hide-chrome \.rr-read-transport\{[^}]*opacity:0[^}]*pointer-events:none[^}]*translateX\(26vw\)/.test(aloud),
+  "collapsed read-aloud controls leave with the rest of the reader chrome");
 t(/#rr-settings-link svg\s*\{\s*width:26px[^}]*height:26px/.test(overrideCss),
   "library gear glyph is optically balanced inside its halo");
 
@@ -190,8 +192,9 @@ t(/library"\] \.catalog \.filters\s*\{[^}]*left: 14px[^}]*right: 14px[^}]*margin
     overrideCss.replace(/\/\*[\s\S]*?\*\//g, "")),
   "filter sheet keeps safe viewport insets");
 t(/data-rr-theme="light"\] #rr-sort-menu\s*\{[^}]*background:[^}]*255, 255, 255/s.test(overrideCss)
+  && /prefers-color-scheme: light[\s\S]*?not\(\[data-rr-theme="dark"\]\) #rr-sort-menu\s*\{[^}]*background:[^}]*255, 255, 255/s.test(overrideCss)
   && /data-rr-theme="dark"\] #rr-sort-menu\s*\{[^}]*background:[^}]*36, 36, 38/s.test(overrideCss),
-  "library ellipsis menu follows explicit light and dark themes");
+  "library ellipsis menu follows explicit and system light/dark themes");
 t(/data-rr-theme="light"\] body > \.rr-card-menu\s*\{[^}]*background:[^}]*255, 255, 255/s.test(overrideCss)
   && /data-rr-theme="dark"\][^}]*\.rr-card-menu\s*\{[^}]*background:/s.test(overrideCss),
   "book options menu follows explicit light and dark themes");
@@ -204,8 +207,8 @@ t(/@keyframes rr-settings-spring-in[\s\S]*?translateX\(0\)/.test(overrideCss)
   && /#rr-settings-overlay\s*\{[^}]*rr-settings-spring-in[^}]*var\(--rr-spring\)/s.test(overrideCss),
   "settings page enters from the right on the shared spring");
 
-// 20c. Motion is paired and damped; read-aloud can explicitly recover the
-//      highlighted sentence after a reader scrolls away from it.
+// 20c. Motion is paired and damped; narration follows automatically, so the
+//      redundant manual follow control must not return.
 t(/--rr-spring:\s*cubic-bezier\(\.16, 1, \.3, 1\)/.test(overrideCss)
   && /@supports \(animation-timing-function: linear\(0, 1\)\)/.test(overrideCss),
   "motion system has a monotonic spring and an older-Safari fallback");
@@ -216,14 +219,11 @@ t(/rr-settings-closing/.test(fullscreen)
 t(/data-motion-state=\{open \? "open" : "closed"\}/.test(tsx)
   && /@keyframes deal-out/.test(css),
   "React reading drawer remains mounted for its matching spring exit");
-t(/className = "rr-read-follow"/.test(aloud)
-  && /Return to the sentence being read/.test(aloud)
-  && /snapToSpokenSentence/.test(aloud)
+t(!/rr-read-follow|Return to the sentence being read|snapToSpokenSentence/.test(aloud),
+  "redundant narration follow button is absent");
+t(/state\.mode === "scroll" && state\.reveal/.test(aloud)
   && /state\.reveal\(item\.range\)/.test(aloud),
-  "scroll-mode read aloud exposes a direct current-sentence follow control");
-t(/rr-read-follow\{[^}]*backdrop-filter:blur\(22px\)/.test(aloud)
-  && /playing && readingMode\(\) === "scroll"/.test(aloud),
-  "follow control is blurred and restricted to active scroll-mode narration");
+  "scroll-mode narration continues to follow highlighted sentences automatically");
 
 // 21. First-sentence warming should happen immediately after the reader is
 //     stable, not nearly half a second later.

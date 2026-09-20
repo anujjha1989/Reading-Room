@@ -55,7 +55,6 @@
   var queue = [];                  // [{ text, range }] for the current document
   var cursor = 0;
   var queueDoc = null;
-  var activeRange = null;          // the sentence that is actually highlighted now
   var keepAlive = null;
   var sweeper = null;
   var btn = null;
@@ -63,7 +62,6 @@
   var floatBtn = null;
   var floatPrev = null;
   var floatNext = null;
-  var followBtn = null;
   var rateBtn = null;
   var voiceSel = null;
   var timerBtn = null;
@@ -73,21 +71,6 @@
 
   function markManualScroll() {
     if (playing && readingMode() === "scroll") manualScrollUntil = Date.now() + 5000;
-  }
-
-  function snapToSpokenSentence() {
-    if (!playing || !queue.length) return;
-    var state = reader();
-    var item = queue[Math.min(cursor, queue.length - 1)];
-    var range = activeRange || (item && item.range);
-    if (!state || !range || state.mode !== "scroll" || !state.reveal) return;
-    manualScrollUntil = 0;
-    // Only one call now. reveal() already re-measures on the next frame and
-    // corrects itself, so the second call this used to make would run while that
-    // correction was still pending and re-issue a scroll from a stale rect -
-    // the two fought each other. Repeating a reveal is only idempotent if it is
-    // a plain scroll; it no longer is.
-    try { state.reveal(range); } catch (e) { /* nothing more to try */ }
   }
 
   var synth = function () { return window.speechSynthesis; };
@@ -481,11 +464,10 @@
         if (sel && sel.rangeCount) sel.removeAllRanges();
       } catch (e) { /* document torn down */ }
     }
-    if (!except) { hlObject = null; hlWindow = null; activeRange = null; }
+    if (!except) { hlObject = null; hlWindow = null; }
   }
 
   function highlight(doc, range) {
-    activeRange = range;
     clearHighlights(doc);                       // wipe every other document
     try {
       var win = doc.defaultView;
@@ -1204,18 +1186,16 @@
       ".rr-timer{min-width:44px;font-variant-numeric:tabular-nums;white-space:nowrap;transition:color .2s}" +
       ".rr-timer.rr-timer-active{color:var(--rr-timer-ink,#5a7c62)}" +
       ".rr-theme-dark .rr-timer.rr-timer-active{color:var(--rr-timer-ink-dark,#85b892)}" +
-      ".rr-read-transport{position:fixed;right:15px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:124;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px;border:1px solid rgba(70,70,67,.16);border-radius:25px;background:rgba(245,244,239,.88);color:#202321;box-shadow:0 4px 18px rgba(0,0,0,.13);-webkit-backdrop-filter:blur(20px) saturate(1.25);backdrop-filter:blur(20px) saturate(1.25);opacity:0;pointer-events:none;transform:translateY(18px) scale(.88);transform-origin:bottom center;transition:opacity .28s linear,transform .46s cubic-bezier(.16,1,.3,1);transition-timing-function:linear,linear(0,.03,.11,.23,.37,.52,.66,.78,.87,.93,.97,.99,1)}" +
-      ".rr-read-transport.rr-visible{opacity:1;pointer-events:auto;transform:translateY(0) scale(1)}" +
+      ".rr-read-transport{position:fixed;right:15px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:124;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px;border:1px solid rgba(70,70,67,.16);border-radius:25px;background:rgba(245,244,239,.88);color:#202321;box-shadow:0 4px 18px rgba(0,0,0,.13);-webkit-backdrop-filter:blur(20px) saturate(1.25);backdrop-filter:blur(20px) saturate(1.25);opacity:0;pointer-events:none;transform:translateX(26vw) rotate(9deg) scale(.82);transform-origin:right center;transition:opacity .28s linear,transform .46s cubic-bezier(.16,1,.3,1);transition-timing-function:linear,linear(0,.03,.11,.23,.37,.52,.66,.78,.87,.93,.97,.99,1)}" +
+      ".rr-read-transport.rr-visible{opacity:1;pointer-events:auto;transform:translateX(0) rotate(0deg) scale(1)}" +
+      "html.rr-hide-chrome .rr-read-transport{opacity:0;pointer-events:none;transform:translateX(26vw) rotate(9deg) scale(.82)}" +
       ".rr-read-transport button{width:40px;height:40px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;display:grid;place-items:center;font:600 16px/1 -apple-system,BlinkMacSystemFont,sans-serif;-webkit-tap-highlight-color:transparent}" +
       ".rr-read-transport button:active{background:rgba(90,90,90,.14);transform:scale(.94)}" +
       ".rr-read-transport button:disabled{opacity:.28}" +
       ".rr-read-transport .rr-read-toggle{width:44px;height:44px;background:rgba(255,255,255,.72);box-shadow:0 1px 5px rgba(0,0,0,.09)}" +
       ".rr-theme-dark .rr-read-transport,html.rr-reader-dark .rr-read-transport{background:rgba(42,42,40,.88);color:#f7f5ef;border-color:rgba(255,255,255,.16)}" +
       ".rr-theme-dark .rr-read-transport .rr-read-toggle,html.rr-reader-dark .rr-read-transport .rr-read-toggle{background:rgba(255,255,255,.10)}" +
-      ".rr-read-follow{position:fixed;right:70px;bottom:calc(92px + env(safe-area-inset-bottom));z-index:124;width:46px;height:46px;border:1px solid rgba(70,70,67,.16);border-radius:50%;display:grid;place-items:center;background:rgba(245,244,239,.72);color:#202321;box-shadow:0 5px 20px rgba(0,0,0,.13);-webkit-backdrop-filter:blur(22px) saturate(1.35);backdrop-filter:blur(22px) saturate(1.35);opacity:0;pointer-events:none;transform:translateX(16px) scale(.82);transform-origin:right center;transition:opacity .28s linear,transform .46s cubic-bezier(.16,1,.3,1);transition-timing-function:linear,linear(0,.03,.11,.23,.37,.52,.66,.78,.87,.93,.97,.99,1)}" +
-      ".rr-read-follow.rr-visible{opacity:1;pointer-events:auto;transform:translateX(0) scale(1)}" +
-      ".rr-theme-dark .rr-read-follow,html.rr-reader-dark .rr-read-follow{background:rgba(42,42,40,.76);color:#f7f5ef;border-color:rgba(255,255,255,.16)}" +
-      "@media(prefers-reduced-motion:reduce){.rr-read-transport,.rr-read-follow{transition:opacity .12s linear;transform:none!important}}";
+      "@media(prefers-reduced-motion:reduce){.rr-read-transport{transition:opacity .12s linear;transform:none!important}}";
     document.head.appendChild(s);
   })();
 
@@ -1244,11 +1224,6 @@
     }
     if (floatPrev) floatPrev.disabled = !playing || cursor <= 0;
     if (floatNext) floatNext.disabled = !playing || !queue.length;
-    if (followBtn) {
-      var canFollow = playing && readingMode() === "scroll" && queue.length > 0;
-      followBtn.classList.toggle("rr-visible", canFollow);
-      followBtn.setAttribute("aria-hidden", canFollow ? "false" : "true");
-    }
     if (voiceSel) {
       // Voices arrive asynchronously in some browsers, so keep trying to fill
       // the menu; show it whenever the reader is open, not only while playing.
@@ -1265,7 +1240,6 @@
     if (!shell) {
       if (playing) stop();
       if (floatTray) { floatTray.remove(); floatTray = null; }
-      if (followBtn) { followBtn.remove(); followBtn = null; }
       floatBtn = null; floatPrev = null; floatNext = null;
       btn = null; rateBtn = null;
       return;
@@ -1320,18 +1294,6 @@
       floatTray.append(floatPrev, floatBtn, floatNext);
       document.body.appendChild(floatTray);
 
-      followBtn = document.createElement("button");
-      followBtn.type = "button";
-      followBtn.className = "rr-read-follow";
-      followBtn.setAttribute("aria-label", "Return to the sentence being read");
-      followBtn.setAttribute("aria-hidden", "true");
-      followBtn.innerHTML = transportIcon('<path d="M12 4v14"/><path d="m6.5 12.5 5.5 5.5 5.5-5.5"/>');
-      followBtn.addEventListener("click", function (event) {
-        event.preventDefault(); event.stopPropagation();
-        window.__rrControlTapAt = Date.now();
-        snapToSpokenSentence();
-      });
-      document.body.appendChild(followBtn);
     }
 
     rateBtn = document.createElement("button");

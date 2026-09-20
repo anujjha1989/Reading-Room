@@ -3248,6 +3248,13 @@ html[data-rr-theme="light"] #rr-sort-menu {
   color: #1c1c1e !important;
   border-color: #d8d8dc !important;
 }
+@media (prefers-color-scheme: light) {
+  html:not([data-rr-theme="dark"]) #rr-sort-menu {
+    background: rgba(255, 255, 255, .97) !important;
+    color: #1c1c1e !important;
+    border-color: #d8d8dc !important;
+  }
+}
 html[data-rr-theme="dark"] #rr-sort-menu {
   background: rgba(36, 36, 38, .97) !important;
   color: #f5f5f7 !important;

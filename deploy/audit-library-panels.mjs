@@ -34,7 +34,10 @@ await send("Page.enable");
 // Exercise the full motion path even when the host Mac is configured to reduce
 // motion. The reduced-motion fallback is covered by the static motion gate.
 await send("Emulation.setEmulatedMedia", {
-  features: [{ name: "prefers-reduced-motion", value: "no-preference" }],
+  features: [
+    { name: "prefers-reduced-motion", value: "no-preference" },
+    { name: "prefers-color-scheme", value: "light" },
+  ],
 });
 // Use the LAN endpoint for browser geometry. Public-path version and MIME
 // checks belong to deploy.sh; Chrome for Testing can reject the private
@@ -51,7 +54,8 @@ const result = await evaluate(`(async () => {
   }
   if (!document.querySelector('#rr-filter-btn')) throw new Error('Library controls did not appear');
   const sample = async (theme) => {
-    root.dataset.rrTheme = theme;
+    if (theme === 'system') delete root.dataset.rrTheme;
+    else root.dataset.rrTheme = theme;
     document.querySelector('#rr-sort-btn').click();
     await wait(80);
     const menu = document.querySelector('#rr-sort-menu');
@@ -87,10 +91,10 @@ const result = await evaluate(`(async () => {
   await wait(500);
   settings.removedAfterExit = !document.querySelector('#rr-settings-overlay');
 
-  return { light: await sample('light'), dark: await sample('dark'), settings };
+  return { light: await sample('light'), systemLight: await sample('system'), dark: await sample('dark'), settings };
 })()`);
 
-for (const theme of ["light", "dark"]) {
+for (const theme of ["light", "systemLight", "dark"]) {
   const entry = result[theme];
   const bounded = entry.filter.left >= 13 && entry.filter.right <= entry.filter.viewport - 13;
   console.log(`${theme}: sort ${entry.sort.background} / ${entry.sort.color}`);
@@ -98,7 +102,9 @@ for (const theme of ["light", "dark"]) {
   if (!bounded) process.exitCode = 1;
 }
 const lightMenuMatches = result.light.sort.background === 'rgba(255, 255, 255, 0.97)'
-  && result.light.sort.color === 'rgb(28, 28, 30)';
+  && result.light.sort.color === 'rgb(28, 28, 30)'
+  && result.systemLight.sort.background === 'rgba(255, 255, 255, 0.97)'
+  && result.systemLight.sort.color === 'rgb(28, 28, 30)';
 console.log(`light menu palette: ${lightMenuMatches ? "PASS" : "FAIL"}`);
 if (!lightMenuMatches) process.exitCode = 1;
 

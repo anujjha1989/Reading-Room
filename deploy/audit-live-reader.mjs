@@ -177,79 +177,23 @@ if (process.argv.includes("--exercise-menu")) {
       next: !!sheet().querySelector('button[aria-label="Next sentence"]'),
       sleepMinus: !!sheet().querySelector('button[aria-label="Subtract 30 minutes"]'),
       sleepPlus: !!sheet().querySelector('button[aria-label="Add 30 minutes"]'),
-      follow: (() => {
-        const button = document.querySelector('.rr-read-follow');
-        if (!button) return null;
-        const style = getComputedStyle(button);
-        return {
-          label: button.getAttribute('aria-label'),
-          visible: style.opacity === '1' && style.pointerEvents !== 'none',
-          backdrop: style.backdropFilter || style.webkitBackdropFilter,
-        };
-      })(),
+      followButtonAbsent: !document.querySelector('.rr-read-follow'),
     };
-    const highlightedContext = () => {
-      const frames = [...document.querySelectorAll('.epub-viewer iframe')];
-      for (const frame of frames) {
-        try {
-          const registry = frame.contentWindow?.CSS?.highlights;
-          const highlight = registry?.get('rr-reading');
-          const range = highlight && [...highlight][0];
-          if (range) {
-            let host = frame.parentElement;
-            while (host) {
-              const style = getComputedStyle(host);
-              if (/(auto|scroll)/.test(style.overflowY) && host.scrollHeight > host.clientHeight + 4) break;
-              host = host.parentElement;
-            }
-            host ||= document.scrollingElement;
-            const frameTop = frame.getBoundingClientRect().top;
-            const rangeTop = range.getBoundingClientRect().top;
-            return {
-              top: frameTop + rangeTop,
-              frameTop,
-              rangeTop,
-              hostTop: host === document.scrollingElement ? 0 : host.getBoundingClientRect().top,
-              hostScrollTop: host.scrollTop,
-              hostScrollHeight: host.scrollHeight,
-              hostClientHeight: host.clientHeight,
-              host,
-              hostName: host === document.scrollingElement ? 'document' : host.tagName + '.' + host.className,
-            };
-          }
-        } catch (error) {}
-      }
-      return null;
-    };
-    const follow = document.querySelector('.rr-read-follow');
-    const initialContext = highlightedContext();
-    if (follow && initialContext) {
-      const initialHighlightTop = initialContext.top;
-      const scroller = initialContext.host;
-      const room = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
-      const displacement = Math.min(600, Math.max(180, room));
-      scroller.scrollTop += displacement;
-      await wait(80);
-      const displacedTop = highlightedContext()?.top ?? null;
-      const displacedContext = highlightedContext();
-      follow.click();
-      await wait(220);
-      const restoredTop = highlightedContext()?.top ?? null;
-      const restoredContext = highlightedContext();
-      result.followAction = {
-        initialHighlightTop,
-        scrollHost: initialContext.hostName,
-        displacement,
-        displacedTop,
-        restoredTop,
-        displacedContext,
-        restoredContext,
-        movedTowardTop: displacedTop != null && restoredTop != null
-          && Math.abs(restoredTop - 20) < Math.abs(displacedTop - 20),
+    const centerTap = document.querySelector('button[aria-label="Show or hide reading controls"]');
+    if (centerTap) {
+      centerTap.click();
+      await wait(160);
+      const tray = document.querySelector('.rr-read-transport');
+      const hiddenStyle = tray && getComputedStyle(tray);
+      result.centerTapTransport = {
+        rootHidden: document.documentElement.classList.contains('rr-hide-chrome'),
+        opacity: hiddenStyle?.opacity ?? null,
+        pointerEvents: hiddenStyle?.pointerEvents ?? null,
+        transform: hiddenStyle?.transform ?? null,
       };
+      centerTap.click();
+      await wait(160);
     }
-    [...sheet().querySelectorAll('button')]
-      .find((button) => button.textContent.includes('Stop reading'))?.click();
     return result;
   })()`);
   await evaluate(`window.__rrAuditResult = ${JSON.stringify(audit)}`);

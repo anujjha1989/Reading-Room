@@ -1,9 +1,6 @@
-// The scroll-mode "return to the spoken sentence" button.
-//
-// It was visible and inert. Every guard in snapToSpokenSentence was satisfied -
-// the button's own visibility condition proves playing, scroll mode and a
-// non-empty queue - so reveal() was running and doing nothing. The cause was in
-// how it called foliate:
+// Automatic scroll-mode narration following. The old down-arrow button was
+// removed once automatic following became reliable; these checks preserve the
+// measured scrolling behavior without reintroducing that redundant control.
 //
 //   * scrollToAnchor is async, wrapped in a synchronous try/catch, so a rejection
 //     escaped rather than being handled;
@@ -39,8 +36,8 @@ t(/scrollContainerBy/.test(reveal), "has a fallback that scrolls when foliate di
 t(/shadowRoot\s*&&\s*[\w.]*shadowRoot\.getElementById\("container"\)/.test(code),
   "reaches foliate's scroll container defensively");
 t(/window\.scrollBy/.test(code), "falls back again to the host window");
-t(/activeRange\s*\|\|/.test(code),
-  "follows the sentence that is actually highlighted, not a cursor that may already have advanced");
+t(!/rr-read-follow|snapToSpokenSentence|Return to the sentence being read/.test(code),
+  "manual follow button is fully removed");
 
 const frameReveal = code.slice(code.indexOf("function revealInFrame"), code.indexOf("function scrollableAncestor"));
 t(/scrollTop\s*=\s*[^;]*scrollTop\s*\+/.test(frameReveal),
@@ -50,12 +47,9 @@ t((frameReveal.match(/requestAnimationFrame/g) || []).length >= 2,
 t(frameReveal.indexOf("hostScrolls") < frameReveal.indexOf("!hostScrolls && scroller"),
   "prefers epub.js's visible outer scroll container over its inert iframe scroller");
 
-// snapToSpokenSentence must not double-call reveal: reveal now self-corrects on
-// the next frame, so a second call fires mid-correction from a stale rect.
-const snap = code.slice(code.indexOf("function snapToSpokenSentence"));
-const snapBody = snap.slice(0, snap.indexOf("\n  }"));
-t((snapBody.match(/state\.reveal\(/g) || []).length === 1,
-  "calls reveal exactly once, so the self-correction is not fought");
+t(/state\.mode\s*===\s*"scroll"\s*&&\s*state\.reveal/.test(code)
+  && /state\.reveal\(item\.range\)/.test(code),
+  "automatic scroll-mode playback reveals each spoken sentence");
 
-console.log(`\n${fail ? `${fail} FAILED` : "follow button wired to a measured scroll"}`);
+console.log(`\n${fail ? `${fail} FAILED` : "automatic narration following is measured and button-free"}`);
 process.exit(fail ? 1 : 0);
