@@ -3361,6 +3361,29 @@ html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
   transform: translateY(0) scale(1) !important;
 }
 
+/* THE reason this drawer opened instantly while the sort menu sprang.
+ *
+ * app/globals.css hides it with `.expanded-filters{display:none}` inside
+ * @media(max-width:780px), and reveals it with `.expanded-filters.open{display:grid}`.
+ * `display` is not an animatable property, so a transition from display:none has
+ * nothing to interpolate - the browser jumps straight to the end state and the
+ * spring never runs. Every duration I set here was correct and never applied.
+ *
+ * The sort menu never had this problem because it hides with opacity alone and
+ * stays laid out. Same mechanism here: keep the grid at all widths in library
+ * view and let opacity, transform and pointer-events do the hiding, exactly as
+ * the closed rule above already specifies. Safe because the panel is
+ * position:fixed in this view, so it is out of document flow and an always-laid-out
+ * grid costs no space.
+ *
+ * Deliberately not using @starting-style or transition-behavior:allow-discrete -
+ * both would work, but Safari support is recent and this reuses a mechanism
+ * already proven in this file. */
+html[data-rr-library-view="library"] .catalog .filters.expanded-filters,
+html[data-rr-library-view="library"] .catalog .filters.expanded-filters:not(.open) {
+  display: grid !important;
+}
+
 /* Settings is a page to the right. Its closing class runs the exact reverse. */
 #rr-settings-overlay {
   animation: rr-settings-spring-in .5s var(--rr-spring) both !important;

@@ -92,7 +92,20 @@ const kf = css.slice(css.indexOf("@keyframes rr-spring-menu-in"), css.indexOf("@
 t(/5\d%\s+\{\s*opacity:\s*1/.test(kf), "card menu keyframe finishes its fade early, matching .24s linear");
 t(/translate\(12px,\s*-10px\)/.test(kf), "card menu keyframe starts from the trigger corner");
 
-// 6. Reduced motion must still neutralise all three.
+// 6. A transition cannot animate an element out of display:none. app/globals.css
+//    hides .expanded-filters that way at mobile widths, which silently defeated
+//    every duration set on the filter drawer - the spring was correct and simply
+//    never ran. The override must force it back to a laid-out box, and the panel
+//    must be position:fixed so that costs no document space.
+const globalsCss = readFileSync("app/globals.css", "utf8");
+if (/\.expanded-filters\{display:none/.test(globalsCss)) {
+  t(/\.filters\.expanded-filters[^{]*\{[^}]*display: grid !important/s.test(css),
+    "filter drawer stays laid out when closed, so its transition can run");
+  t(/library"\]\s\.catalog\s\.filters\s*\{[^}]*position: fixed/s.test(css),
+    "filter drawer is position:fixed, so an always-laid-out grid costs no space");
+}
+
+// 7. Reduced motion must still neutralise all three.
 const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion"));
 for (const nameSel of ["rr-card-menu", "rr-sort-menu", ".filters"]) {
   t(reduced.includes(nameSel), `${nameSel} is named in a reduced-motion block`);
