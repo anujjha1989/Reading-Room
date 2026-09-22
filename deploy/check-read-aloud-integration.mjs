@@ -45,8 +45,10 @@ check(/const inFlight = new Map\(\)/.test(ttsServer)
   "playback joins an in-progress prefetch instead of synthesising the clip twice");
 check(/function warmAhead\(start, count\)/.test(engine)
   && /warmAhead\(cursor \+ 1, 6\)/.test(engine)
-  && /warmAhead\(at \+ 1, 6\)/.test(engine),
-  "opening a book warms the first clip and six following clips before playback");
+  && /warmAhead\(at \+ 1, 6\)/.test(engine)
+  && /lane\(start\)/.test(engine) && /lane\(start \+ 1\)/.test(engine)
+  && /lane\(index \+ 2\)/.test(engine),
+  "six-clip warm-ahead uses two ordered Piper lanes instead of a request burst");
 check(/playbackState\s*=\s*["']paused["']/.test(engine)
   && /setActionHandler\(["']play["']/.test(engine), "iOS media resume retains an actionable paused session");
 check(/rr-read-transport/.test(transport) && /ReadAloudTransport/.test(reader),

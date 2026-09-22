@@ -847,17 +847,32 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     return a;
   }
 
+  function warmUrl(url) {
+    if (rrPrefetch[url]) return rrPrefetch[url];
+    try {
+      rrPrefetch[url] = fetch(url, { cache: "force-cache" }).catch(function () {});
+    } catch (e) {
+      rrPrefetch[url] = Promise.resolve();
+    }
+    return rrPrefetch[url];
+  }
+
   // Warm the next sentence while the current one plays. Synthesis runs at
   // several times real time, so by the time it is needed it is on disk.
   function warmAhead(start, count) {
-    for (var n = 0; n < count; n += 1) {
-      var next = queue[start + n];
-      if (!next || !next.text) continue;
+    var end = start + count;
+    function lane(index) {
+      if (index >= end) return Promise.resolve();
+      var next = queue[index];
+      if (!next || !next.text) return lane(index + 2);
       var url = ttsUrl(next.text);
-      if (rrPrefetch[url]) continue;
-      rrPrefetch[url] = true;
-      try { fetch(url, { cache: "force-cache" }).catch(function () {}); } catch (e) { /* ignore */ }
+      return warmUrl(url).then(function () { return lane(index + 2); });
     }
+    // Piper has two worker slots. Two ordered lanes keep both busy while
+    // guaranteeing that sentence 1/2 are submitted before 3/4 and 5/6; a
+    // six-request burst let distant prefetches win the scheduler race.
+    lane(start);
+    lane(start + 1);
   }
 
   function prefetch(mine) {
@@ -888,13 +903,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     item = queue[at];
     if (!item || !item.text) return;
     var url = ttsUrl(item.text);
-    if (rrPrefetch[url]) return;
-    rrPrefetch[url] = true;
-    try {
-      fetch(url, { cache: "force-cache" })
-        .then(function (response) { if (response.ok) warmAhead(at + 1, 6); })
-        .catch(function () {});
-    } catch (e) { /* ignore */ }
+    warmUrl(url).then(function () { warmAhead(at + 1, 6); });
   }
 
   function scheduleWarmFirstSentence(delay) {

@@ -131,7 +131,8 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
       const scroll = [...sheet.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Scroll');
       if (!scroll) throw new Error('William Trevor title did not open as a reflowable book');
       pages?.click(); await wait(700);
-      [...document.querySelectorAll('section[role="dialog"][data-book-theme] button')]
+      const currentSheet = [...document.querySelectorAll('section[role="dialog"][data-book-theme]')].at(-1);
+      [...(currentSheet?.querySelectorAll('button') || [])]
         .find((button) => button.textContent.trim() === 'Scroll')?.click();
       await wait(1200);
       const mode = localStorage.getItem('reading-room-reader-mode');
@@ -152,11 +153,14 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
         [...button.querySelectorAll('span')].some((span) => span.textContent.trim() === label));
       const panels = {};
       for (const [label, aria, key] of [['Search', 'Search inside book', 'search'], ['Marks', 'Bookmarks', 'bookmarks']]) {
-        tile(label)?.click(); await wait(120);
-        const panel = document.querySelector('aside[aria-label="' + aria + '"]');
+        tile(label)?.click();
+        let panel = null;
+        for (let n = 0; n < 20 && !panel; n += 1) { await wait(50); panel = document.querySelector('aside[aria-label="' + aria + '"]'); }
         const back = panel?.querySelector('button[aria-label="Back to reading menu"]');
         panels[key] = !!panel && !!back;
-        back?.click(); await wait(120);
+        back?.click();
+        for (let n = 0; n < 20 && !document.documentElement.classList.contains('rr-react-sheet-open'); n += 1) await wait(50);
+        await wait(380);
         panels[key + 'Returned'] = document.documentElement.classList.contains('rr-react-sheet-open');
       }
       tile('Aloud')?.click(); await wait(120);
