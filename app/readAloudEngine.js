@@ -22,6 +22,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   var PAGE_TURN_SETTLE = 520;      // one animated turn must finish before another can begin
   var STALL_TIMEOUT = 9000;
   var MAX_CHARS = 220;             // short enough for reliable iOS Web Speech callbacks
+  var STARTUP_CHARS = 80;          // quick first sound while the longer queue warms behind it
 
   // Anything matching these is furniture, not the novel. Checked in JS rather
   // than with a CSS selector because epub.js parses the document as HTML (where
@@ -384,10 +385,33 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
         var p = pieces[j];
         if (!p.text.trim()) continue;
         var range = rangeFor(doc, b, p.at, p.end);
-        if (range) out.push({ text: p.text, range: range });
+        if (range) out.push({ text: p.text, range: range, block: b, at: p.at, end: p.end });
       }
     }
     return out;
+  }
+
+  // Piper returns a complete audio file, not a stream. A normal 200-character
+  // clip can therefore leave a new book silent while the whole sentence is
+  // synthesised. Split only the first clip of a newly started position; the
+  // rest retain the longer cadence-friendly size and are prefetched while
+  // this short lead-in plays.
+  function prepareStartupClip(doc, index) {
+    var item = queue[index];
+    if (!item || item.startupReady || item.text.length <= STARTUP_CHARS || !item.block) return;
+    var min = Math.min(44, STARTUP_CHARS - 1);
+    var cut = -1;
+    for (var i = STARTUP_CHARS; i >= min; i -= 1) {
+      if (/\s/.test(item.text.charAt(i))) { cut = i + 1; break; }
+    }
+    if (cut <= 0 || cut >= item.text.length) return;
+    var middle = item.at + cut;
+    var firstRange = rangeFor(doc, item.block, item.at, middle);
+    var restRange = rangeFor(doc, item.block, middle, item.end);
+    if (!firstRange || !restRange) return;
+    queue.splice(index, 1,
+      { text: item.text.slice(0, cut), range: firstRange, block: item.block, at: item.at, end: middle, startupReady: true },
+      { text: item.text.slice(cut), range: restRange, block: item.block, at: middle, end: item.end, startupReady: true });
   }
 
   function rangeFor(doc, block, start, end) {
@@ -679,6 +703,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
       var visibleItems = [];
       for (var i = 0; i < queue.length; i += 1) if (isVisible(state, queue[i].range)) visibleItems.push(i);
       if (visibleItems.length) cursor = visibleItems[0];
+      prepareStartupClip(state.doc, cursor);
     }
 
     if (cursor >= queue.length) { await advanceSection(state, mine); return; }
@@ -855,6 +880,8 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
       if (isVisible(state, queue[i].range)) { at = i; break; }
     }
     var item = queue[at];
+    prepareStartupClip(state.doc, at);
+    item = queue[at];
     if (!item || !item.text) return;
     var url = ttsUrl(item.text);
     if (rrPrefetch[url]) return;

@@ -33,6 +33,11 @@ check(/function highlight\(doc, range\)\s*{[\s\S]{0,500}?clearHighlights\(\);/.t
   "each sentence replaces every previous narration highlight");
 check(/STALL_TIMEOUT/.test(engine) && /armStallWatchdog/.test(engine) && /stallRetries <= 2/.test(engine),
   "stalled clips have bounded automatic recovery");
+check(/STARTUP_CHARS\s*=\s*80/.test(engine)
+  && /function prepareStartupClip\(doc, index\)/.test(engine)
+  && /prepareStartupClip\(state\.doc, cursor\)/.test(engine)
+  && /prepareStartupClip\(state\.doc, at\)/.test(engine),
+  "new reading positions use a short first clip before normal narration chunks");
 check(/playbackState\s*=\s*["']paused["']/.test(engine)
   && /setActionHandler\(["']play["']/.test(engine), "iOS media resume retains an actionable paused session");
 check(/rr-read-transport/.test(transport) && /ReadAloudTransport/.test(reader),
