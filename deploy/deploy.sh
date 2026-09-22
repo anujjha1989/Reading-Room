@@ -30,6 +30,15 @@ if [ "${1:-}" = "--no-build" ]; then DEPLOY_MODE=no-build; else DEPLOY_MODE=full
 # so a new name is the only way a change reaches a phone that has been there.
 VERSION=$(( PREVIOUS_VERSION + 1 ))
 
+# Refuse to publish a client that expects new server behaviour through an old
+# helper that silently ignores the staged server modules. This preflight turns
+# the split-brain v135 failure into an explicit error before build/install.
+if ! "${SSH[@]}" "$PI" "grep -q 'SERVER_FILES=' /usr/local/sbin/reading-room-deploy"; then
+  echo "FAILED: the Pi deployment helper cannot install server modules." >&2
+  echo "        Install deploy/reading-room-deploy on the Pi first." >&2
+  exit 1
+fi
+
 if [ "${1:-}" != "--no-build" ]; then
   echo "==> building (version $VERSION)"
 
@@ -93,6 +102,7 @@ cp overrides/assets/* dist/stage/assets/
 cp dist/index.html dist/stage/index.html
 cp overrides/sw.js dist/stage/sw.js
 cp dist/settings.html dist/stage/settings.html
+cp server/standalone-server.mjs server/rr-settings.mjs server/rr-tts.mjs dist/stage/
 
 echo "==> uploading"
 "${SSH[@]}" "$PI" "rm -rf ~/rr-deploy/stage && mkdir -p ~/rr-deploy/stage"
@@ -119,16 +129,19 @@ COPYFILE_DISABLE=1 tar czf - -C overrides/book-art fullscreen-bundle.js fullscre
 
 echo "==> capturing rollback"
 # reading-room-deploy is additive for assets (filenames are content hashed), so
-# the only files a deploy destroys are the three HTML/JS documents it overwrites.
-# Capture them BEFORE the install: afterwards the previous ones are gone.
+# the only files a deploy destroys are the HTML/JS documents and three server
+# modules it overwrites. Capture them BEFORE the install: afterwards the
+# previous ones are gone.
 #
 # Backups live beside the existing before-v64/before-v65 ones, outside the repo:
 # they are deployment history, not source, and a repo-relative path would split
 # that history across two directories.
 ROLLBACK=/Volumes/Seagate/ReadingRoom/deployment-backups/$(date +%Y%m%d-%H%M%S)-before-v$VERSION
 mkdir -p "$ROLLBACK"
-"${SSH[@]}" "$PI" "cd /opt/reading-room/current/site && tar czf - index.html \
-  \$([ -f sw.js ] && echo sw.js) \$([ -f settings.html ] && echo settings.html)" \
+"${SSH[@]}" "$PI" "tar czf - -C /opt/reading-room/current \
+  standalone-server.mjs rr-settings.mjs rr-tts.mjs -C site index.html \
+  \$([ -f /opt/reading-room/current/site/sw.js ] && echo sw.js) \
+  \$([ -f /opt/reading-room/current/site/settings.html ] && echo settings.html)" \
   > "$ROLLBACK/site-html.tar.gz"
 # cat, not cp: cp on this SMB mount leaves an ._ AppleDouble sidecar behind.
 cat deploy/reading-room-deploy > "$ROLLBACK/reading-room-deploy"
@@ -145,12 +158,22 @@ rollback() {
   echo "==> rolled back; overrides for v$VERSION remain on disk but are unreferenced" >&2
 }
 
-echo "==> installing"
-"${SSH[@]}" "$PI" "sudo -n /usr/local/sbin/reading-room-deploy"
-
-# Everything past this point has already changed the live site, so a failure
-# must restore the previous documents rather than only abort.
+# Everything past this point can change the live server, so a failure must
+# restore the previous release files rather than only abort.
 fail() { echo "FAILED: $1" >&2; rollback; exit 1; }
+
+echo "==> installing"
+if ! "${SSH[@]}" "$PI" "sudo -n /usr/local/sbin/reading-room-deploy"; then
+  fail "installer failed"
+fi
+
+# Prove the restarted process received the server sources from this checkout.
+# Asset/version checks alone cannot catch a stale rr-tts.mjs or settings route.
+for server_file in standalone-server.mjs rr-settings.mjs rr-tts.mjs; do
+  local_hash=$(shasum -a 256 "server/$server_file" | awk '{print $1}')
+  remote_hash=$("${SSH[@]}" "$PI" "sha256sum /opt/reading-room/current/$server_file | awk '{print \\$1}'")
+  [ "$local_hash" = "$remote_hash" ] || fail "$server_file did not reach the live release"
+done
 
 echo "==> verifying"
 sleep 3

@@ -7,15 +7,17 @@
 # hashed, so copying is additive: pages already open keep working against the
 # files they loaded.
 #
-# It installs standalone-server.mjs when one is staged, and otherwise leaves it
-# alone. It deliberately does NOT touch catalog.json or anything under
-# /var/lib/reading-room.
+# The three server modules are installed only when all three are staged. This
+# prevents a mixed server revision and lets the same fixed-path helper restore
+# them during rollback. It deliberately does NOT touch catalog.json or anything
+# under /var/lib/reading-room.
 set -euo pipefail
 umask 022
 
 STAGE=/home/anujjha1989/rr-deploy/stage
 SITE=/opt/reading-room/current/site
 RELEASE=/opt/reading-room/current
+SERVER_FILES=(standalone-server.mjs rr-settings.mjs rr-tts.mjs)
 
 [ -d "$STAGE/assets" ] || { echo "reading-room-deploy: no staged assets" >&2; exit 1; }
 [ -f "$STAGE/index.html" ] || { echo "reading-room-deploy: no staged index.html" >&2; exit 1; }
@@ -41,10 +43,19 @@ fi
 
 # The server process itself, when staged. Optional so a stage without one still
 # installs, and so a rollback that only carries the HTML still works.
-if [ -f "$STAGE/standalone-server.mjs" ]; then
-  cp -f "$STAGE/standalone-server.mjs" "$RELEASE/standalone-server.mjs"
-  chown root:root "$RELEASE/standalone-server.mjs"
-  chmod 0644 "$RELEASE/standalone-server.mjs"
+server_count=0
+for name in "${SERVER_FILES[@]}"; do
+  [ -f "$STAGE/$name" ] && server_count=$((server_count + 1))
+done
+if [ "$server_count" -ne 0 ] && [ "$server_count" -ne "${#SERVER_FILES[@]}" ]; then
+  echo "reading-room-deploy: incomplete staged server module set" >&2
+  exit 1
+fi
+if [ "$server_count" -eq "${#SERVER_FILES[@]}" ]; then
+  for name in "${SERVER_FILES[@]}"; do
+    /usr/bin/node --check "$STAGE/$name" >/dev/null
+    install -o root -g reading-room -m 0644 "$STAGE/$name" "$RELEASE/$name"
+  done
 fi
 
 chown root:root "$SITE"/index.html
