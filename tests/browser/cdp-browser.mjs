@@ -32,6 +32,10 @@ export async function launchBrowser({ port = 9333, viewport = { width: 430, heig
     "--disable-default-apps",
     "--disable-extensions",
     "--disable-sync",
+    // CDP's element.click() is not a trusted user gesture. The production UI
+    // starts audio from a real tap, so let the test exercise the post-gesture
+    // narration state instead of failing at Chromium's autoplay boundary.
+    "--autoplay-policy=no-user-gesture-required",
     "--hide-scrollbars",
     "--no-first-run",
     "about:blank",

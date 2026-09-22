@@ -171,7 +171,7 @@ fi
 # Asset/version checks alone cannot catch a stale rr-tts.mjs or settings route.
 for server_file in standalone-server.mjs rr-settings.mjs rr-tts.mjs; do
   local_hash=$(shasum -a 256 "server/$server_file" | awk '{print $1}')
-  remote_hash=$("${SSH[@]}" "$PI" "sha256sum /opt/reading-room/current/$server_file | awk '{print \\$1}'")
+  remote_hash=$("${SSH[@]}" "$PI" "sha256sum /opt/reading-room/current/$server_file | cut -d' ' -f1")
   [ "$local_hash" = "$remote_hash" ] || fail "$server_file did not reach the live release"
 done
 
