@@ -27,6 +27,10 @@ check(/rr-reading-mode-change/.test(engine) && /rr-reading-mode-change/.test(rea
   "active narration is restored across mode changes");
 check(/rr-reading-highlight-overlay/.test(engine) && /lines\.forEach/.test(engine)
   && !/CSS\.highlights/.test(engine), "highlight rectangles are merged per visual line");
+check(/function highlight\(doc, range\)\s*{[\s\S]{0,500}?clearHighlights\(\);/.test(engine)
+  && /querySelectorAll\("\.rr-reading-highlight-overlay"\)/.test(engine)
+  && !/function highlight\(doc, range\)\s*{\s*clearHighlights\(doc\)/.test(engine),
+  "each sentence replaces every previous narration highlight");
 check(/STALL_TIMEOUT/.test(engine) && /armStallWatchdog/.test(engine) && /stallRetries <= 2/.test(engine),
   "stalled clips have bounded automatic recovery");
 check(/playbackState\s*=\s*["']paused["']/.test(engine)

@@ -449,8 +449,8 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
       var doc = docs[i];
       if (except && doc === except) continue;
       try {
-        var overlay = doc.querySelector && doc.querySelector(".rr-reading-highlight-overlay");
-        if (overlay) overlay.remove();
+        var overlays = doc.querySelectorAll && doc.querySelectorAll(".rr-reading-highlight-overlay");
+        for (var j = 0; overlays && j < overlays.length; j += 1) overlays[j].remove();
         var sel = doc.getSelection && doc.getSelection();
         if (sel && sel.rangeCount) sel.removeAllRanges();
       } catch (e) { /* document torn down */ }
@@ -458,7 +458,16 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   }
 
   function highlight(doc, range) {
-    clearHighlights(doc);                       // wipe every other document
+    // A sentence owns the only narration highlight. The previous version kept
+    // the current document out of cleanup, so every spoken sentence appended
+    // another overlay on top of all earlier sentences in the chapter.
+    clearHighlights();
+    // `allDocs()` can briefly miss a newly swapped iframe. Clean the target
+    // directly as well so the one-highlight invariant survives that handoff.
+    try {
+      var stale = doc.querySelectorAll && doc.querySelectorAll(".rr-reading-highlight-overlay");
+      for (var staleIndex = 0; stale && staleIndex < stale.length; staleIndex += 1) stale[staleIndex].remove();
+    } catch (e) { /* document torn down */ }
     try {
       var rects = Array.prototype.filter.call(range.getClientRects(), function (rect) {
         return rect.width > 0 && rect.height > 0;
@@ -1048,7 +1057,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     epoch += 1;
     var mine = epoch;
     haltCurrentAudio();
-    clearHighlights(state && state.doc);
+    clearHighlights();
     render();
     if (!paused) step(mine);
   }
