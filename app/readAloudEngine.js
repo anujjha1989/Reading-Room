@@ -849,19 +849,23 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
 
   // Warm the next sentence while the current one plays. Synthesis runs at
   // several times real time, so by the time it is needed it is on disk.
-  function prefetch(mine) {
-    // Six ahead, not two. Each /api/tts call is a synthesis round trip on the
-    // Pi; two sentences of lead does not cover it at reading speed, so
-    // playback stalled for several seconds every few sentences waiting for the
-    // next clip. The responses are cached, so the extra warming is cheap.
-    for (var n = 1; n <= 6; n += 1) {
-      var next = queue[cursor + n];
+  function warmAhead(start, count) {
+    for (var n = 0; n < count; n += 1) {
+      var next = queue[start + n];
       if (!next || !next.text) continue;
       var url = ttsUrl(next.text);
       if (rrPrefetch[url]) continue;
       rrPrefetch[url] = true;
       try { fetch(url, { cache: "force-cache" }).catch(function () {}); } catch (e) { /* ignore */ }
     }
+  }
+
+  function prefetch(mine) {
+    // Six ahead, not two. Each /api/tts call is a synthesis round trip on the
+    // Pi; two sentences of lead does not cover it at reading speed, so
+    // playback stalled for several seconds every few sentences waiting for the
+    // next clip. The responses are cached, so the extra warming is cheap.
+    warmAhead(cursor + 1, 6);
   }
 
   // Piper has to synthesise a clip the first time a sentence/voice pair is
@@ -886,7 +890,11 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     var url = ttsUrl(item.text);
     if (rrPrefetch[url]) return;
     rrPrefetch[url] = true;
-    try { fetch(url, { cache: "force-cache" }).catch(function () {}); } catch (e) { /* ignore */ }
+    try {
+      fetch(url, { cache: "force-cache" })
+        .then(function (response) { if (response.ok) warmAhead(at + 1, 6); })
+        .catch(function () {});
+    } catch (e) { /* ignore */ }
   }
 
   function scheduleWarmFirstSentence(delay) {

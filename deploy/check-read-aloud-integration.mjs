@@ -5,6 +5,7 @@ const controller = readFileSync("app/readAloudController.ts", "utf8");
 const hook = readFileSync("app/useReadAloud.ts", "utf8");
 const reader = readFileSync("app/BookReader.tsx", "utf8");
 const transport = readFileSync("app/ReadAloudTransport.tsx", "utf8");
+const ttsServer = readFileSync("server/rr-tts.mjs", "utf8");
 const template = readFileSync("overrides/index.template.html", "utf8");
 const deploy = readFileSync("deploy/deploy.sh", "utf8");
 
@@ -38,6 +39,14 @@ check(/STARTUP_CHARS\s*=\s*80/.test(engine)
   && /prepareStartupClip\(state\.doc, cursor\)/.test(engine)
   && /prepareStartupClip\(state\.doc, at\)/.test(engine),
   "new reading positions use a short first clip before normal narration chunks");
+check(/const inFlight = new Map\(\)/.test(ttsServer)
+  && /inFlight\.get\(key\)/.test(ttsServer)
+  && /await job/.test(ttsServer),
+  "playback joins an in-progress prefetch instead of synthesising the clip twice");
+check(/function warmAhead\(start, count\)/.test(engine)
+  && /warmAhead\(cursor \+ 1, 6\)/.test(engine)
+  && /warmAhead\(at \+ 1, 6\)/.test(engine),
+  "opening a book warms the first clip and six following clips before playback");
 check(/playbackState\s*=\s*["']paused["']/.test(engine)
   && /setActionHandler\(["']play["']/.test(engine), "iOS media resume retains an actionable paused session");
 check(/rr-read-transport/.test(transport) && /ReadAloudTransport/.test(reader),
