@@ -3,7 +3,7 @@
 /**
  * Typed adapter between the bundled Read Aloud engine and React.
  *
- * readAloudEngine.js is bundled with the app and owns
+ * readAloudEngine.ts is bundled with the app and owns
  * TTS entirely: the sentence queue, the audio element, the cancellation guards
  * tied to its epoch, the sleep timer. None of that should move into React — it
  * works, it is subtle, and rewriting it would risk the one part of this app that

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { driveDownloadUrl } from "./drive";
 import ReadingSheet, { type SheetTocItem } from "./ReadingSheet";
 import { useReadAloud } from "./useReadAloud";
-import "./readAloudEngine.js";
+import "./readAloudEngine";
 import ReadAloudTransport from "./ReadAloudTransport";
 import type { Book as EpubBook, Location, Rendition } from "epubjs";
 import type { RenditionOptions } from "epubjs/types/rendition";

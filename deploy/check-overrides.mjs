@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 
 const files = [
   "overrides/book-art/fullscreen-bundle.js",
-  "app/readAloudEngine.js",
+  "app/readAloudEngine.ts",
 ];
 
 // Pre-existing dead code, left in place deliberately: removing it is a separate
@@ -36,7 +36,7 @@ for (const file of files) {
   if (opens !== closes) fail(`${file}: ${opens} IIFE openings vs ${closes} closings`);
 }
 
-const readAloud = readFileSync("app/readAloudEngine.js", "utf8");
+const readAloud = readFileSync("app/readAloudEngine.ts", "utf8");
 const readingSheet = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8");
 const bookReader = readFileSync("app/BookReader.tsx", "utf8");
 const readAloudHook = readFileSync("app/useReadAloud.ts", "utf8");
@@ -46,7 +46,7 @@ const readAloudController = readFileSync("app/readAloudController.ts", "utf8");
 // page must be tied to the current epoch and pause state; otherwise a promise
 // from the previous sentence can keep turning pages after Pause or Skip.
 for (const required of [
-  "async function bringIntoView(state, item, mine)",
+  "async function bringIntoView(state: ReaderState, item: QueueItem, mine: number)",
   "while (playing && !paused && mine === epoch",
   "if (!playing || paused || mine !== epoch) return;",
   "if (playing && !paused && mine === epoch)",

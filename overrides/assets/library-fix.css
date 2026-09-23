@@ -50,8 +50,7 @@ main > footer     { order: 4; }
 .expanded-filters.open { display: grid; }
 
 /* --- 3. Rails that show they scroll --------------------------------------
- * `.rail-start` / `.rail-end` are set by library-fix.js when there is content
- * out of view on that side. */
+ * `.rail-start` / `.rail-end` are set by the React ShelfRail component. */
 .smart-shelf { position: relative; }
 .series-strip, .shelf-strip { scroll-behavior: smooth; }
 .rail-end   { mask-image: linear-gradient(to right, #000 calc(100% - 64px), transparent); }

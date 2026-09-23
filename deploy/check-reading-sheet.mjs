@@ -114,7 +114,7 @@ t(/useSyncExternalStore/.test(hook) && /registerReadAloudEngine/.test(controller
 t(!/window\.rr/.test(code(tsx)), "component still free of window.rr* access");
 
 // 17. The engine must expose voices as data, not a DOM node to clone.
-const aloud = readFileSync("app/readAloudEngine.js", "utf8");
+const aloud = readFileSync("app/readAloudEngine.ts", "utf8");
 t(/getVoices:\s*getVoices/.test(aloud), "read-aloud registers typed voice data");
 t(/setVoice:\s*setVoice/.test(aloud), "read-aloud registers typed voice selection");
 

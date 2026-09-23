@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState, type FocusEvent
 import { createPortal } from "react-dom";
 import BookReader, { type ReaderBookmark, type ReaderFile, type ReaderLocation } from "./BookReader";
 import LibraryChrome, { type LibraryChromeView } from "./LibraryChrome";
+import ShelfRail from "./ShelfRail";
 import { driveDownloadUrl } from "./drive";
 import { cardTitle, completeLabel, continueProgress, coverOptions, groupShelf, homeShelves, recentlyOpened, reviewBooks, type ShelfBook } from "./homeShelves";
 
@@ -185,7 +186,7 @@ function groupBooks(rows: RawBook[]): Book[] {
     } else {
       grouped.set(key, {
         ...row, ...metadata, category: isScript ? "Script" : metadata.category,
-        collections: rowCollections, copies: [copy], formats: [copy.format], searchText: "",
+        collections: rowCollections, copies: [copy], formats: [copy.format], searchText: "", normalizedTitle: titleKey,
       });
       if (!titleIndex.has(titleKey)) titleIndex.set(titleKey, key);
     }
@@ -326,6 +327,20 @@ export default function LibraryClient() {
   useEffect(() => {
     setShortcutKey(/Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || "") ? "⌘ K" : "Ctrl K");
   }, []);
+
+  // Match the server's first render, then restore the reader's saved choice.
+  // React owns this state, so hydration can no longer undo the default sort.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("reading-room-sort");
+      setSort(saved === "title" || saved === "author" || saved === "series" || saved === "added" || saved === "opened" ? saved : "added");
+    } catch { setSort("added"); }
+  }, []);
+
+  const chooseSort = (next: SortMode) => {
+    setSort(next);
+    try { localStorage.setItem("reading-room-sort", next); } catch { /* private mode */ }
+  };
 
   useEffect(() => {
     const local = stateFromLegacy();
@@ -604,7 +619,7 @@ export default function LibraryClient() {
           <button className="rr-shelf-chevron" onClick={() => openShelf(title, all)} aria-label={`See all ${title}`}>See all</button>
         </div>
       </div>
-      <div className="shelf-strip">
+      <ShelfRail>
         {grouped.slice(0, 8).map((book, index) => <div className="rr-shelf-cell" key={book.id}><button
           className="shelf-book"
           title={`${compact ? shelfLabel(book) : shelfTitle(book)} — ${book.author || "Author unknown"}`}
@@ -648,7 +663,7 @@ export default function LibraryClient() {
         <button className="rr-card-more" aria-label={`Options for ${shelfTitle(book)}`} aria-haspopup="menu" aria-expanded={menuFor?.id === book.id} onClick={(event) => { event.stopPropagation(); const r = event.currentTarget.getBoundingClientRect(); setMenuFor(menuFor?.id === book.id ? null : { id: book.id, x: r.right, y: r.bottom }); }}>⋯</button>
         {menuFor?.id === book.id && <BookMenu book={book} />}
         </div>)}
-      </div>
+      </ShelfRail>
     </section>;
   }
 
@@ -696,7 +711,7 @@ export default function LibraryClient() {
     </section>}
 
     <section className="catalog">
-      <div className="catalog-toolbar"><button className="mobile-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>Filters {activeFilters.length ? `(${activeFilters.length})` : ""}</button><label className="sort-control"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}><option value="title">Title</option><option value="author">Author</option><option value="series">Series</option><option value="added">Recently added</option><option value="opened">Recently opened</option></select></label></div>
+      <div className="catalog-toolbar"><button className="mobile-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>Filters {activeFilters.length ? `(${activeFilters.length})` : ""}</button><label className="sort-control"><span>Sort</span><select value={sort} onChange={(event) => chooseSort(event.target.value as SortMode)}><option value="title">Title</option><option value="author">Author</option><option value="series">Series</option><option value="added">Recently added</option><option value="opened">Recently opened</option></select></label></div>
       <div className={`filters expanded-filters ${filtersOpen ? "open" : ""}`}>
         <SearchableFilter label="Collection" value={collection} allLabel="All collections" choices={collectionChoices} onChange={(next) => { setCollection(next); setVisible(20); }} />
         <SearchableFilter label="Author" value={author} allLabel="All authors" choices={authorChoices} onChange={(next) => { setAuthor(next); setVisible(20); }} />
@@ -734,7 +749,7 @@ export default function LibraryClient() {
     {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)} role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="book-title" onMouseDown={(event) => event.stopPropagation()}><button autoFocus className="close" onClick={() => setSelected(null)} aria-label="Close">×</button><p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p><h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}{selected.series ? ` · ${selected.series}` : ""}</p><div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format) && <button onClick={() => openCopy(selected, copy)}>Read here</button>}<a href={["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? driveDownloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? "Download" : "Drive"} ↗</a></div></div>)}</div><p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p></section></div>}
 
     {reader && <BookReader title={reader.title} file={reader.file} initialPosition={reader.initialPosition} bookmarks={savedStates[reader.bookId]?.bookmarks || []} onBookmarksChange={handleBookmarksChange} onLocationChange={handleReaderLocation} seriesNavigation={{ previous: readerSeriesIndex > 0 ? readerSeries[readerSeriesIndex - 1]?.title : undefined, next: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? readerSeries[readerSeriesIndex + 1]?.title : undefined, onPrevious: readerSeriesIndex > 0 ? () => openBook(readerSeries[readerSeriesIndex - 1]) : undefined, onNext: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? () => openBook(readerSeries[readerSeriesIndex + 1]) : undefined }} onClose={() => setReader(null)} />}
-    <LibraryChrome view={chromeView} displayMode={displayMode} sort={sort} filtersOpen={filtersOpen} hidden={Boolean(reader || selected || seriesFocus || editionsFor)} onViewChange={chooseChromeView} onDisplayModeChange={chooseDisplayMode} onSortChange={setSort} onFiltersOpenChange={setFiltersOpen} />
+    <LibraryChrome view={chromeView} displayMode={displayMode} sort={sort} filtersOpen={filtersOpen} hidden={Boolean(reader || selected || seriesFocus || editionsFor)} onViewChange={chooseChromeView} onDisplayModeChange={chooseDisplayMode} onSortChange={chooseSort} onFiltersOpenChange={setFiltersOpen} />
     <footer><span>The Reading Room</span><p>One clean catalogue for your digital shelves. Covers enriched by <a href="https://openlibrary.org" target="_blank" rel="noreferrer">Open Library</a>.</p></footer>
   </main>;
 }

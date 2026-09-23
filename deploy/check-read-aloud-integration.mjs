@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-const engine = readFileSync("app/readAloudEngine.js", "utf8");
+const engine = readFileSync("app/readAloudEngine.ts", "utf8");
 const controller = readFileSync("app/readAloudController.ts", "utf8");
 const hook = readFileSync("app/useReadAloud.ts", "utf8");
 const reader = readFileSync("app/BookReader.tsx", "utf8");
@@ -15,7 +15,7 @@ const check = (condition, label) => {
   if (!condition) failures += 1;
 };
 
-check(/import "\.\/readAloudEngine\.js"/.test(reader), "narration engine is bundled by BookReader");
+check(/import "\.\/readAloudEngine"/.test(reader), "narration engine is bundled by BookReader");
 check(!/read-aloud-v|read-aloud\.js/.test(template + deploy), "no separately deployed narration script remains");
 check(/registerReadAloudEngine/.test(engine + controller) && /useSyncExternalStore/.test(hook),
   "React and the engine share a typed store");
@@ -28,14 +28,14 @@ check(/rr-reading-mode-change/.test(engine) && /rr-reading-mode-change/.test(rea
   "active narration is restored across mode changes");
 check(/rr-reading-highlight-overlay/.test(engine) && /lines\.forEach/.test(engine)
   && !/CSS\.highlights/.test(engine), "highlight rectangles are merged per visual line");
-check(/function highlight\(doc, range\)\s*{[\s\S]{0,500}?clearHighlights\(\);/.test(engine)
+check(/function highlight\(doc: NarrationDocument, range: Range\)\s*{[\s\S]{0,500}?clearHighlights\(\);/.test(engine)
   && /querySelectorAll\("\.rr-reading-highlight-overlay"\)/.test(engine)
-  && !/function highlight\(doc, range\)\s*{\s*clearHighlights\(doc\)/.test(engine),
+  && !/function highlight\([^)]*\)\s*{\s*clearHighlights\(doc\)/.test(engine),
   "each sentence replaces every previous narration highlight");
 check(/STALL_TIMEOUT/.test(engine) && /armStallWatchdog/.test(engine) && /stallRetries <= 2/.test(engine),
   "stalled clips have bounded automatic recovery");
 check(/STARTUP_CHARS\s*=\s*80/.test(engine)
-  && /function prepareStartupClip\(doc, index\)/.test(engine)
+  && /function prepareStartupClip\(doc: NarrationDocument, index: number\)/.test(engine)
   && /prepareStartupClip\(state\.doc, cursor\)/.test(engine)
   && /prepareStartupClip\(state\.doc, at\)/.test(engine),
   "new reading positions use a short first clip before normal narration chunks");
@@ -43,7 +43,7 @@ check(/const inFlight = new Map\(\)/.test(ttsServer)
   && /inFlight\.get\(key\)/.test(ttsServer)
   && /await job/.test(ttsServer),
   "playback joins an in-progress prefetch instead of synthesising the clip twice");
-check(/function warmAhead\(start, count\)/.test(engine)
+check(/function warmAhead\(start: number, count: number\)/.test(engine)
   && /warmAhead\(cursor \+ 1, 6\)/.test(engine)
   && /warmAhead\(at \+ 1, 6\)/.test(engine)
   && /lane\(start\)/.test(engine) && /lane\(start \+ 1\)/.test(engine)

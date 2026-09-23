@@ -1,5 +1,35 @@
 import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudController";
 
+type NarrationDocument = Document & {
+  __rrSteering?: boolean;
+  caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+};
+type FoliateRenderer = {
+  getContents: () => Array<{ doc: NarrationDocument }>;
+  scrollToAnchor: (range: Range, animate: boolean) => Promise<unknown> | void;
+  shadowRoot?: ShadowRoot;
+};
+type FoliateView = Element & { renderer?: FoliateRenderer; next: () => void | Promise<void> };
+type ReaderState = {
+  doc: NarrationDocument;
+  mode: "scroll" | "pages";
+  frame?: HTMLIFrameElement;
+  visible: (range: Range) => boolean;
+  turn: () => void | Promise<void>;
+  reveal: (range: Range) => void;
+};
+type Block = { block: Element; nodes: Array<{ node: Text; at: number }>; text: string };
+type QueueItem = { text: string; range: Range; block: Block; at: number; end: number; startupReady?: boolean };
+type PiperVoice = { id: string; label: string };
+type SpeechPiece = { text: string; at: number; end: number };
+type HighlightLine = { left: number; right: number; top: number; bottom: number };
+type TestWindow = Window & typeof globalThis & {
+  __rrControlTapAt?: number;
+  __RR_TTS_TEST_ONLY__?: boolean;
+  __RR_TTS_TEST_API__?: object;
+};
+
 // The Reading Room — read aloud.
 //
 // Works on both reading engines the app uses: epub.js (EPUB) and foliate
@@ -13,6 +43,9 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
 // and the book's text/layout remains untouched.
 (function () {
   "use strict";
+  // This client module is also imported while vinext renders HTML on the server.
+  if (typeof window === "undefined") return;
+  const testWindow = window as TestWindow;
 
   var RATES = [0.8, 1, 1.2, 1.5, 2];
   var RATE_KEY = "reading-room-tts-rate";
@@ -32,8 +65,8 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   var FURNITURE_TAGS = /^(header|footer|nav|script|style|noscript|svg|figcaption)$/;
   var FURNITURE_TYPES = /\b(pagebreak|page-list|pagelist|footnote|footnotes|endnote|endnotes|noteref|toc|landmarks|titlepage|colophon)\b/i;
 
-  function isFurniture(el) {
-    for (var n = el; n && n.nodeType === 1; n = n.parentElement) {
+  function isFurniture(el: Element) {
+    for (var n: Element | null = el; n && n.nodeType === 1; n = n.parentElement) {
       var tag = (n.localName || "").toLowerCase();
       if (FURNITURE_TAGS.test(tag)) return true;
       if (n.hasAttribute && (n.hasAttribute("hidden") || n.getAttribute("aria-hidden") === "true")) return true;
@@ -48,31 +81,31 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
 
   var rate = 1;
   try {
-    var savedRate = parseFloat(localStorage.getItem(RATE_KEY));
+    var savedRate = parseFloat(localStorage.getItem(RATE_KEY) || "");
     if (RATES.indexOf(savedRate) !== -1) rate = savedRate;
   } catch (e) { /* private mode */ }
 
   var playing = false;
   var paused = false;          // our own flag: speechSynthesis.pause() is unreliable, especially in Safari
   var epoch = 0;                   // invalidates callbacks from cancelled utterances
-  var queue = [];                  // [{ text, range }] for the current document
+  var queue: QueueItem[] = [];     // current rendered document
   var cursor = 0;
-  var queueDoc = null;
-  var keepAlive = null;
-  var sweeper = null;
-  var mountedShell = null;
-  var piperVoices = [];
+  var queueDoc: string | null = null;
+  var keepAlive: ReturnType<typeof setInterval> | null = null;
+  var sweeper: ReturnType<typeof setInterval> | null = null;
+  var mountedShell: Element | null = null;
+  var piperVoices: PiperVoice[] = [];
   var sleepMs = 0;    // remaining ms; 0 = no timer
-  var sleepRef = null;
+  var sleepRef: ReturnType<typeof setInterval> | null = null;
   var manualScrollUntil = 0;
 
   function markManualScroll() {
     if (playing && readingMode() === "scroll") manualScrollUntil = Date.now() + 5000;
   }
 
-  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var sleep = function (ms: number) { return new Promise<void>(function (r) { setTimeout(r, ms); }); };
 
-  function readingMode() {
+  function readingMode(): "scroll" | "pages" {
     var buttons = document.querySelectorAll(".reader-modes button");
     for (var i = 0; i < buttons.length; i += 1) {
       if (buttons[i].getAttribute("aria-pressed") === "true") {
@@ -87,12 +120,12 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     return /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
   }
 
-  function isControlTap(now) {
-    var at = Number(window.__rrControlTapAt || 0);
+  function isControlTap(now: number) {
+    var at = Number(testWindow.__rrControlTapAt || 0);
     return at > 0 && now - at >= 0 && now - at < 800;
   }
 
-  function ignoreSteeringClick(active, now) {
+  function ignoreSteeringClick(active: boolean, now: number) {
     // On iOS, the compatibility click generated after a reading-control tap
     // is indistinguishable from a deliberate sentence click. While speech is
     // active, controls take priority; sentence seeking remains available once
@@ -106,7 +139,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   // reaches it directly, which is a deliberate coupling to foliate's internals:
   // it is the fallback path when scrollToAnchor silently does nothing, and it
   // degrades to no movement rather than an exception if the internals change.
-  function scrollContainerBy(renderer, delta) {
+  function scrollContainerBy(renderer: FoliateRenderer, delta: number) {
     if (!renderer || !delta) return;
     var box = null;
     try { box = renderer.shadowRoot && renderer.shadowRoot.getElementById("container"); } catch (e) { box = null; }
@@ -118,8 +151,8 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   }
 
   // --- which engine is on screen -------------------------------------------
-  function reader() {
-    var v = document.querySelector("foliate-view");
+  function reader(): ReaderState | null {
+    var v = document.querySelector<FoliateView>("foliate-view");
     if (v && v.renderer && typeof v.renderer.getContents === "function") {
       var c = v.renderer.getContents()[0];
       if (c && c.doc && c.doc.body) {
@@ -128,9 +161,9 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
           mode: readingMode(),
           // foliate's iframe *is* the visible page in both flows, so its own
           // viewport is the right frame of reference.
-          visible: function (range) { return visibleInDoc(c.doc, range); },
-          turn: function () { return v.next(); },
-          reveal: function (range) {
+          visible: function (range: Range) { return visibleInDoc(c.doc, range); },
+          turn: function () { return v!.next(); },
+          reveal: function (range: Range) {
             // foliate owns its scroller, so asking it to bring the range into
             // view is the right first move - but scrollToAnchor cannot be
             // trusted on its own here, for three reasons found by reading
@@ -150,7 +183,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
             // So: attempt it, catch async failure properly, then measure whether
             // the sentence actually ended up under the header and fall back to
             // scrolling the container directly if it did not.
-            var renderer = v.renderer;
+            var renderer = v!.renderer!;
             try {
               var p = renderer.scrollToAnchor(range, false);
               if (p && typeof p.catch === "function") p.catch(function () {});
@@ -172,8 +205,8 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     }
     // epub.js keeps one iframe per rendered view and swaps them on a section
     // change; take the biggest one that actually has content on screen.
-    var frames = document.querySelectorAll(".epub-viewer iframe");
-    var best = null, bestFrame = null, bestArea = 0;
+    var frames = document.querySelectorAll<HTMLIFrameElement>(".epub-viewer iframe");
+    var best: NarrationDocument | null = null, bestFrame: HTMLIFrameElement | null = null, bestArea = 0;
     for (var i = 0; i < frames.length; i += 1) {
       var doc = null;
       try { doc = frames[i].contentDocument; } catch (e) { doc = null; }
@@ -186,13 +219,13 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
       return {
         doc: best,
         mode: readingMode(),
-        frame: bestFrame,
+        frame: bestFrame!,
         // In scrolled mode epub.js makes the iframe as tall as the entire
         // chapter, so everything looks "visible" from inside it. Judge against
         // the window instead, allowing for the sticky toolbar.
-        visible: function (range) { return visibleInHost(bestFrame, range); },
+        visible: function (range: Range) { return visibleInHost(bestFrame!, range); },
         turn: turnWithFooter,
-        reveal: function (range) { revealInFrame(best, bestFrame, range); },
+        reveal: function (range: Range) { revealInFrame(best!, bestFrame!, range); },
       };
     }
     return null;
@@ -200,7 +233,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
 
   // epub.js in scrolled mode puts the whole section in a tall iframe and lets
   // the host page scroll, so the range has to be mapped into host coordinates.
-  function revealInFrame(doc, frame, range) {
+  function revealInFrame(doc: NarrationDocument, frame: HTMLIFrameElement, range: Range) {
     var rect;
     try { rect = range.getBoundingClientRect(); } catch (e) { return; }
     if (!rect) return;
@@ -215,7 +248,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     // Mobile Safari exposes both methods on several EPUB wrapper elements but
     // can accept the call without moving them. Direct assignment is observable
     // and lets the next-frame correction below measure the actual result.
-    function moveScroller(scroller, delta) {
+    function moveScroller(scroller: Element | null, delta: number) {
       if (!scroller || !Number.isFinite(delta) || Math.abs(delta) < 2) return;
       try { scroller.scrollTop = scroller.scrollTop + delta; } catch (e) { /* try the host */ }
     }
@@ -236,7 +269,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
       });
       return;
     }
-    if (!frame || !hostScrolls) return;
+    if (!frame || !host || !hostScrolls) return;
     var frameBox = frame.getBoundingClientRect();
     var hostTop = host === document.scrollingElement ? 0 : host.getBoundingClientRect().top;
     var delta = (frameBox.top + rect.top) - (hostTop + topPad);
@@ -250,14 +283,14 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
       try {
         after = range.getBoundingClientRect();
         nextFrameBox = frame.getBoundingClientRect();
-        nextHostTop = host === document.scrollingElement ? 0 : host.getBoundingClientRect().top;
+        nextHostTop = host === document.scrollingElement ? 0 : host!.getBoundingClientRect().top;
       } catch (e) { return; }
       if (!after) return;
       moveScroller(host, (nextFrameBox.top + after.top) - (nextHostTop + topPad));
     });
   }
 
-  function scrollableAncestor(el) {
+  function scrollableAncestor(el: Element): Element {
     for (var n = el.parentElement; n; n = n.parentElement) {
       var st = getComputedStyle(n);
       if (/(auto|scroll)/.test(st.overflowY) && n.scrollHeight > n.clientHeight + 4) return n;
@@ -267,30 +300,30 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
 
   // Identity is unreliable across an iframe swap, so compare what is in the
   // document rather than which object it is.
-  function signature(doc) {
+  function signature(doc: NarrationDocument | null) {
     if (!doc || !doc.body) return "";
-    return (doc.title || "") + "|" + doc.body.textContent.replace(/\s+/g, " ").trim().slice(0, 120);
+    return (doc.title || "") + "|" + (doc.body.textContent || "").replace(/\s+/g, " ").trim().slice(0, 120);
   }
 
   function turnWithFooter() {
-    var buttons = document.querySelectorAll(".reader-footer button");
+    var buttons = document.querySelectorAll<HTMLButtonElement>(".reader-footer button");
     var next = buttons[buttons.length - 1];
     if (next && !next.disabled) next.click();
   }
 
   // --- collect the prose, in order -----------------------------------------
-  function speechChunks(text, lang, limit) {
-    var sentences = [], segmenter = null;
+  function speechChunks(text: string, lang: string, limit: number): SpeechPiece[] {
+    var sentences: Array<{ text: string; at: number }> = [], segmenter: Intl.Segmenter | null = null;
     try { segmenter = new Intl.Segmenter(lang || "en", { granularity: "sentence" }); } catch (e) { segmenter = null; }
     if (segmenter) {
       for (var seg of segmenter.segment(text)) sentences.push({ text: seg.segment, at: seg.index });
     } else {
-      var re = /[^.!?]+(?:[.!?]+[\s]*|$)/g, match;
+      var re = /[^.!?]+(?:[.!?]+[\s]*|$)/g, match: RegExpExecArray | null;
       while ((match = re.exec(text))) sentences.push({ text: match[0], at: match.index });
       if (!sentences.length && text) sentences.push({ text: text, at: 0 });
     }
 
-    var pieces = [];
+    var pieces: Array<{ text: string; at: number }> = [];
     for (var i = 0; i < sentences.length; i += 1) {
       var sentence = sentences[i], pos = 0;
       while (sentence.text.length - pos > limit) {
@@ -307,7 +340,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
 
     // Join adjacent short sentences from the same paragraph. This removes the
     // audible pause Safari inserts between one-utterance-per-sentence calls.
-    var out = [];
+    var out: SpeechPiece[] = [];
     for (var j = 0; j < pieces.length; j += 1) {
       var p = pieces[j];
       if (!p.text.trim()) continue;
@@ -325,7 +358,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   // Safari can expose a different voiceURI for the same installed voice after
   // the page (or Home Screen app) is relaunched. Keep the URI as the primary
   // identifier, but recover the user's choice by its stable name/language.
-  function resolveVoice(list, uri, name, lang) {
+  function resolveVoice(list: SpeechSynthesisVoice[], uri: string | null, name: string | null, lang: string | null) {
     var i;
     if (uri) {
       for (i = 0; i < list.length; i += 1) if (list[i].voiceURI === uri) return list[i];
@@ -341,22 +374,24 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     return null;
   }
 
-  if (window.__RR_TTS_TEST_ONLY__) {
-    window.__RR_TTS_TEST_API__ = { speechChunks: speechChunks, resolveVoice: resolveVoice, isAppleMobile: isAppleMobile, isControlTap: isControlTap, ignoreSteeringClick: ignoreSteeringClick, testWindow: window };
+  if (testWindow.__RR_TTS_TEST_ONLY__) {
+    testWindow.__RR_TTS_TEST_API__ = { speechChunks: speechChunks, resolveVoice: resolveVoice, isAppleMobile: isAppleMobile, isControlTap: isControlTap, ignoreSteeringClick: ignoreSteeringClick, testWindow: window };
     return;
   }
 
-  function collect(doc) {
-    var out = [];
+  function collect(doc: NarrationDocument): QueueItem[] {
+    var out: QueueItem[] = [];
     var lang = (doc.documentElement && doc.documentElement.lang) || "en";
 
     var walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
-      acceptNode: function (node) {
-        if (!node.data || !node.data.trim()) return NodeFilter.FILTER_REJECT;
+      acceptNode: function (node: Node) {
+        if (node.nodeType !== Node.TEXT_NODE) return NodeFilter.FILTER_REJECT;
+        const textNode = node as Text;
+        if (!textNode.data || !textNode.data.trim()) return NodeFilter.FILTER_REJECT;
         var el = node.parentElement;
         if (!el) return NodeFilter.FILTER_REJECT;
         if (isFurniture(el)) return NodeFilter.FILTER_REJECT;
-        var style = doc.defaultView.getComputedStyle(el);
+        var style = doc.defaultView?.getComputedStyle(el);
         if (style && (style.display === "none" || style.visibility === "hidden")) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       },
@@ -364,17 +399,19 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
 
     // Group text nodes by their nearest block ancestor so sentences don't run
     // across paragraph boundaries.
-    var blocks = [];
-    var current = null;
-    var node;
+    var blocks: Block[] = [];
+    var current: Block | null = null;
+    var node: Node | null;
     while ((node = walker.nextNode())) {
+      if (node.nodeType !== Node.TEXT_NODE || !node.parentElement) continue;
+      const textNode = node as Text;
       var block = node.parentElement.closest("p,h1,h2,h3,h4,h5,h6,li,blockquote,dd,dt,td,th,pre,section,div,body") || doc.body;
       if (!current || current.block !== block) {
         current = { block: block, nodes: [], text: "" };
         blocks.push(current);
       }
-      current.nodes.push({ node: node, at: current.text.length });
-      current.text += node.data;
+      current.nodes.push({ node: textNode, at: current.text.length });
+      current.text += textNode.data;
     }
 
     for (var i = 0; i < blocks.length; i += 1) {
@@ -396,7 +433,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   // synthesised. Split only the first clip of a newly started position; the
   // rest retain the longer cadence-friendly size and are prefetched while
   // this short lead-in plays.
-  function prepareStartupClip(doc, index) {
+  function prepareStartupClip(doc: NarrationDocument, index: number) {
     var item = queue[index];
     if (!item || item.startupReady || item.text.length <= STARTUP_CHARS || !item.block) return;
     var min = Math.min(44, STARTUP_CHARS - 1);
@@ -414,7 +451,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
       { text: item.text.slice(cut), range: restRange, block: item.block, at: middle, end: item.end, startupReady: true });
   }
 
-  function rangeFor(doc, block, start, end) {
+  function rangeFor(doc: NarrationDocument, block: Block, start: number, end: number): Range | null {
     var s = locate(block, start);
     var e = locate(block, end);
     if (!s || !e) return null;
@@ -426,7 +463,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     } catch (err) { return null; }
   }
 
-  function locate(block, index) {
+  function locate(block: Block, index: number): { node: Text; offset: number } | null {
     for (var i = 0; i < block.nodes.length; i += 1) {
       var entry = block.nodes[i];
       var len = entry.node.data.length;
@@ -436,7 +473,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     return last ? { node: last.node, offset: last.node.data.length } : null;
   }
 
-  function isProse(text) {
+  function isProse(text: string) {
     var t = text.replace(/\s+/g, " ").trim();
     if (t.length < 2) return false;
     if (!/[A-Za-zÀ-ɏЀ-ӿऀ-ॿ]/.test(t)) return false;   // no letters: page numbers, rules
@@ -451,23 +488,23 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   // before each sentence. Replacing a registry entry *should* be enough, but
   // it demonstrably is not in every browser, and a trail of stale highlights
   // is the most visible possible failure.
-  function allDocs() {
-    var out = [];
-    var view = document.querySelector("foliate-view");
+  function allDocs(): NarrationDocument[] {
+    var out: NarrationDocument[] = [];
+    var view = document.querySelector<FoliateView>("foliate-view");
     if (view && view.renderer && typeof view.renderer.getContents === "function") {
       try {
         var contents = view.renderer.getContents() || [];
         for (var i = 0; i < contents.length; i += 1) if (contents[i] && contents[i].doc) out.push(contents[i].doc);
       } catch (e) { /* not ready */ }
     }
-    var frames = document.querySelectorAll(".epub-viewer iframe");
+    var frames = document.querySelectorAll<HTMLIFrameElement>(".epub-viewer iframe");
     for (var j = 0; j < frames.length; j += 1) {
-      try { if (frames[j].contentDocument) out.push(frames[j].contentDocument); } catch (e) { /* ignore */ }
+      try { if (frames[j].contentDocument) out.push(frames[j].contentDocument as NarrationDocument); } catch (e) { /* ignore */ }
     }
     return out;
   }
 
-  function clearHighlights(except) {
+  function clearHighlights(except?: NarrationDocument) {
     var docs = allDocs();
     for (var i = 0; i < docs.length; i += 1) {
       var doc = docs[i];
@@ -481,7 +518,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     }
   }
 
-  function highlight(doc, range) {
+  function highlight(doc: NarrationDocument, range: Range) {
     // A sentence owns the only narration highlight. The previous version kept
     // the current document out of cleanup, so every spoken sentence appended
     // another overlay on top of all earlier sentences in the chapter.
@@ -493,11 +530,11 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
       for (var staleIndex = 0; stale && staleIndex < stale.length; staleIndex += 1) stale[staleIndex].remove();
     } catch (e) { /* document torn down */ }
     try {
-      var rects = Array.prototype.filter.call(range.getClientRects(), function (rect) {
+      var rects = Array.from(range.getClientRects()).filter(function (rect) {
         return rect.width > 0 && rect.height > 0;
       }).sort(function (a, b) { return a.top - b.top || a.left - b.left; });
       if (!rects.length) return;
-      var lines = [];
+      var lines: HighlightLine[] = [];
       rects.forEach(function (rect) {
         var line = lines[lines.length - 1];
         if (!line || Math.abs(line.top - rect.top) > Math.max(3, rect.height * 0.28)) {
@@ -535,7 +572,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     return r.bottom > 0 ? r.bottom : 0;
   }
 
-  function visibleInHost(frame, range) {
+  function visibleInHost(frame: HTMLIFrameElement, range: Range) {
     var r, f;
     try { r = range.getBoundingClientRect(); f = frame.getBoundingClientRect(); } catch (e) { return false; }
     if (!r || (!r.width && !r.height)) return false;
@@ -555,7 +592,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   // first version of this did - made almost everything look "comfortable",
   // no reveal ever fired, and playback fell through to page turns that loop
   // back to the top of the section.
-  function comfortablyVisible(state, range) {
+  function comfortablyVisible(state: ReaderState, range: Range) {
     if (!isVisible(state, range)) return false;
     var r;
     try { r = range.getBoundingClientRect(); } catch (e) { return false; }
@@ -578,7 +615,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     return r.top >= -2 && r.bottom <= h * 0.88;
   }
 
-  function visibleInDoc(doc, range) {
+  function visibleInDoc(doc: NarrationDocument, range: Range) {
     var r;
     try { r = range.getBoundingClientRect(); } catch (e) { return false; }
     if (!r || (!r.width && !r.height)) return false;
@@ -587,11 +624,11 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     return r.left > -4 && r.left < w - 1 && r.bottom > -4 && r.top < h + 4;
   }
 
-  function isVisible(state, range) {
+  function isVisible(state: ReaderState, range: Range) {
     return state.visible ? state.visible(range) : visibleInDoc(state.doc, range);
   }
 
-  async function waitUntilVisible(state, range, timeout, mine) {
+  async function waitUntilVisible(state: ReaderState, range: Range, timeout: number, mine: number) {
     for (var waited = 0; waited < timeout; waited += TURN_SETTLE) {
       if (!playing || paused || mine !== epoch) return false;
       if (isVisible(state, range)) return true;
@@ -610,7 +647,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     return typeof document !== "undefined" && document.hidden;
   }
 
-  async function bringIntoView(state, item, mine) {
+  async function bringIntoView(state: ReaderState, item: QueueItem, mine: number) {
     if (!playing || paused || mine !== epoch) return false;
     if (screenAsleep()) return true;
     // In scroll mode "visible" is not enough: a sentence sitting on the last
@@ -677,13 +714,13 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     return true;
   }
 
-  function rectKey(range) {
+  function rectKey(range: Range) {
     try { var r = range.getBoundingClientRect(); return Math.round(r.left) + ":" + Math.round(r.top); }
     catch (e) { return "?"; }
   }
 
   // --- the pump ------------------------------------------------------------
-  async function step(mine) {
+  async function step(mine: number) {
     if (!playing || paused || mine !== epoch) return;
 
     var state = reader();
@@ -700,7 +737,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
       ensureQueue(state.doc);
       if (!queue.length) { await advanceSection(state, mine); return; }
       // Start from whatever is on screen, not the top of the chapter.
-      var visibleItems = [];
+      var visibleItems: number[] = [];
       for (var i = 0; i < queue.length; i += 1) if (isVisible(state, queue[i].range)) visibleItems.push(i);
       if (visibleItems.length) cursor = visibleItems[0];
       prepareStartupClip(state.doc, cursor);
@@ -723,7 +760,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     speak(item.text, mine, state.doc);
   }
 
-  function ensureQueue(doc) {
+  function ensureQueue(doc: NarrationDocument) {
     var sig = signature(doc);
     if (sig === queueDoc && queue.length) return;
     queue = collect(doc);
@@ -733,7 +770,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   }
 
   // --- click any sentence to read from there --------------------------------
-  function attachSteering(doc) {
+  function attachSteering(doc: NarrationDocument) {
     if (!doc || doc.__rrSteering) return;
     doc.__rrSteering = true;
     doc.addEventListener("touchmove", markManualScroll, { passive: true });
@@ -742,7 +779,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
       if (!mountedShell) return;                          // reader not mounted
       if (ignoreSteeringClick(playing, Date.now())) return;
       var t = event.target;
-      if (t && t.closest && t.closest("a,button,input,select,textarea")) return;
+      if (t && (t as Element).closest?.("a,button,input,select,textarea")) return;
       var sel = doc.getSelection && doc.getSelection();
       if (sel && sel.rangeCount && !sel.isCollapsed) return;   // user is selecting text
       var here = reader();
@@ -760,8 +797,8 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     }, true);
   }
 
-  function indexAtPoint(doc, x, y) {
-    var caret = null;
+  function indexAtPoint(doc: NarrationDocument, x: number, y: number) {
+    var caret: Range | null = null;
     try {
       if (doc.caretRangeFromPoint) caret = doc.caretRangeFromPoint(x, y);
       else if (doc.caretPositionFromPoint) {
@@ -781,7 +818,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     return best >= 0 ? Math.min(best + 1, queue.length - 1) : -1;
   }
 
-  async function advanceSection(state, mine) {
+  async function advanceSection(state: ReaderState, mine: number) {
     var before = signature(state.doc);
     state.turn();
     // A new section means a new document, but the engines take their time
@@ -806,15 +843,17 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   // One <audio> element for the whole session: iOS only grants background
   // playback to an element it has seen the user start, so it is created once
   // and reused rather than per sentence.
-  var rrTtsAudio = null, rrPrefetch = Object.create(null), rrWarmTimer = null;
-  var stallTimer = null, stallRetries = 0, stallText = "";
+  var rrTtsAudio: HTMLAudioElement | null = null;
+  var rrPrefetch: Partial<Record<string, Promise<unknown>>> = Object.create(null);
+  var rrWarmTimer: ReturnType<typeof setTimeout> | null = null;
+  var stallTimer: ReturnType<typeof setTimeout> | null = null, stallRetries = 0, stallText = "";
 
   function clearStallWatchdog() {
     if (stallTimer) clearTimeout(stallTimer);
     stallTimer = null;
   }
 
-  function armStallWatchdog(text, mine) {
+  function armStallWatchdog(text: string, mine: number) {
     clearStallWatchdog();
     stallTimer = setTimeout(function () {
       stallTimer = null;
@@ -830,7 +869,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     try { return localStorage.getItem("reading-room-voice") || ""; } catch (e) { return ""; }
   }
 
-  function ttsUrl(text) {
+  function ttsUrl(text: string) {
     return "/api/tts?v=" + encodeURIComponent(ttsVoice()) + "&t=" + encodeURIComponent(text);
   }
 
@@ -847,7 +886,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     return a;
   }
 
-  function warmUrl(url) {
+  function warmUrl(url: string): Promise<unknown> {
     if (rrPrefetch[url]) return rrPrefetch[url];
     try {
       rrPrefetch[url] = fetch(url, { cache: "force-cache" }).catch(function () {});
@@ -859,9 +898,9 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
 
   // Warm the next sentence while the current one plays. Synthesis runs at
   // several times real time, so by the time it is needed it is on disk.
-  function warmAhead(start, count) {
+  function warmAhead(start: number, count: number) {
     var end = start + count;
-    function lane(index) {
+    function lane(index: number): Promise<unknown> {
       if (index >= end) return Promise.resolve();
       var next = queue[index];
       if (!next || !next.text) return lane(index + 2);
@@ -875,7 +914,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     lane(start + 1);
   }
 
-  function prefetch(mine) {
+  function prefetch(mine: number) {
     // Six ahead, not two. Each /api/tts call is a synthesis round trip on the
     // Pi; two sentences of lead does not cover it at reading speed, so
     // playback stalled for several seconds every few sentences waiting for the
@@ -906,15 +945,15 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     warmUrl(url).then(function () { warmAhead(at + 1, 6); });
   }
 
-  function scheduleWarmFirstSentence(delay) {
+  function scheduleWarmFirstSentence(delay?: number) {
     if (rrWarmTimer) clearTimeout(rrWarmTimer);
     rrWarmTimer = setTimeout(warmFirstSentence, delay == null ? 80 : delay);
   }
 
-  function mediaSession(doc) {
+  function mediaSession(doc: NarrationDocument) {
     if (!("mediaSession" in navigator)) return;
     try {
-      var title = (document.querySelector(".reader-shell h1, .reader-title") || {}).textContent
+      var title = document.querySelector<HTMLElement>(".reader-shell h1, .reader-title")?.textContent
         || document.title || "The Reading Room";
       navigator.mediaSession.metadata = new MediaMetadata({
         title: String(title).trim().slice(0, 120),
@@ -932,7 +971,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     } catch (e) { /* older browsers */ }
   }
 
-  function speak(text, mine, doc) {
+  function speak(text: string, mine: number, doc: NarrationDocument) {
     var a = audioEl();
     // playbackRate has to be re-applied after each load. Assigning it before
     // src looks right but iOS resets the rate when new media loads, so every
@@ -983,7 +1022,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     render();
   }
 
-  function adjustSleepTime(minutes) {
+  function adjustSleepTime(minutes: number) {
     var delta = Number(minutes);
     if (!isFinite(delta) || !delta) return;
     sleepMs = Math.max(0, sleepMs + delta * 60 * 1000);
@@ -993,7 +1032,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
           if (!playing || paused) return; // pause countdown while paused
           sleepMs = Math.max(0, sleepMs - 1000);
           renderTimer();
-          if (!sleepMs) { clearInterval(sleepRef); sleepRef = null; stop(); }
+          if (!sleepMs) { if (sleepRef) clearInterval(sleepRef); sleepRef = null; stop(); }
         }, 1000);
       }
     } else if (!sleepMs) {
@@ -1092,7 +1131,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   // the Lock Screen controls. Invalidating the current clip before moving the
   // cursor is important: otherwise its delayed `ended` callback advances a
   // second time and makes a single Next tap skip two sentences.
-  function skipSentence(delta) {
+  function skipSentence(delta: -1 | 1) {
     if (!playing || !delta) return;
     var state = reader();
     if (state) ensureQueue(state.doc);
@@ -1127,7 +1166,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
       return { label: voice.label, value: voice.id, current: voice.id === selected };
     });
   }
-  function setVoice(value) {
+  function setVoice(value: string) {
     try { localStorage.setItem("reading-room-voice", value || ""); } catch (e) {}
     scheduleWarmFirstSentence(40);
     render();
@@ -1135,7 +1174,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   }
 
   window.addEventListener("rr-reading-mode-change", function (event) {
-    var requested = event.detail && event.detail.mode;
+    var requested = (event as CustomEvent<{ mode?: string }>).detail?.mode;
     if (requested !== "pages" && requested !== "scroll") return;
     var before = reader();
     if (before) ensureQueue(before.doc);
@@ -1151,7 +1190,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
     if (!wasPlaying || !anchorText) { render(); return; }
 
     (async function restoreAfterModeChange() {
-      var state = null;
+      var state: ReaderState | null = null;
       for (var attempt = 0; attempt < 50; attempt += 1) {
         await sleep(100);
         if (mine !== epoch) return;
@@ -1160,13 +1199,14 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
       }
       if (!state || mine !== epoch) return;
       ensureQueue(state.doc);
+      const settledState = state;
       var normalized = anchorText.replace(/\s+/g, " ").trim();
       var found = queue.findIndex(function (item) {
         return item.text.replace(/\s+/g, " ").trim() === normalized;
       });
       if (found >= 0) cursor = found;
       else {
-        var visible = queue.findIndex(function (item) { return isVisible(state, item.range); });
+        var visible = queue.findIndex(function (item) { return isVisible(settledState, item.range); });
         cursor = visible >= 0 ? visible : 0;
       }
       playing = true;
@@ -1182,7 +1222,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   // Exposed so the reading menu can offer a slider instead of a cycle button.
   // Restarting the sentence is what makes a change audible immediately; without
   // it the new rate only applied from the next sentence.
-  function setRate(next) {
+  function setRate(next: number) {
     var v = Number(next);
     if (!isFinite(v)) return;
     rate = Math.min(2, Math.max(0.5, v));
@@ -1195,7 +1235,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
   // --- Piper voices ---------------------------------------------------------
   function fillVoices() {
     if (piperVoices.length) return;
-    fetch("/api/tts/voices").then(function (r) { return r.json(); }).then(function (d) {
+    fetch("/api/tts/voices").then(function (r) { return r.json(); }).then(function (d: { voices?: Array<{ id: string; label: string }> }) {
       piperVoices = (d.voices || []).map(function (voice) {
         return { id: String(voice.id || ""), label: String(voice.label || voice.id || "") };
       });
@@ -1227,7 +1267,7 @@ import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudContr
 
   document.addEventListener("keydown", function (e) {
     if (!document.querySelector(".reader-shell")) return;
-    if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || "")) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target as Element | null)?.tagName || "")) return;
     if (e.key === "l" || e.key === "L") { e.preventDefault(); toggle(); }
   });
   registerReadAloudEngine({

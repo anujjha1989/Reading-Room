@@ -12,7 +12,7 @@
 // "call the API"; it has to measure the outcome. These checks assert that.
 import { readFileSync } from "node:fs";
 
-const js = readFileSync("app/readAloudEngine.js", "utf8");
+const js = readFileSync("app/readAloudEngine.ts", "utf8");
 const strip = (s) => s.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
 const code = strip(js);
 let fail = 0;
