@@ -154,7 +154,7 @@ t((reader.match(/createPortal\(<aside className="reader-panel rr-reader-panel-po
   "Search and Bookmarks escape the page-turn stacking context too");
 t(/\.rr-reader-panel-portal\s*\{[^}]*position:\s*fixed;[^}]*z-index:\s*170/.test(globalCss),
   "reader subviews sit above the transparent page-turn layer");
-const fullscreen = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8");
+const fullscreen = readFileSync("app/readerChromeBridge.js", "utf8");
 const libraryChrome = readFileSync("app/LibraryChrome.tsx", "utf8");
 t(!/rr-toggle-reading-sheet|reactSheetTouchAt/.test(fullscreen),
   "override no longer owns the menu touch bridge");
@@ -170,7 +170,7 @@ t(!/#007aff|rgba\(0,\s*122,\s*255/.test(globalCss),
   "production menu trigger contains no developer-blue styling");
 
 // 20. The collapsed playback rail and library control geometry remain coherent.
-const overrideCss = readFileSync("overrides/book-art/fullscreen-bundle.css", "utf8");
+const overrideCss = readFileSync("app/reader-chrome.css", "utf8");
 const transport = readFileSync("app/ReadAloudTransport.tsx", "utf8");
 t(/\.rr-read-transport\s*\{[^}]*flex-direction:column/s.test(globalCss)
   && /className="rr-read-transport rr-visible"/.test(transport),

@@ -29,6 +29,12 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
     assert.ok(identity.heading);
     assert.ok(identity.books > 0, "the catalogue should render book cards");
     assert.equal(identity.overlay, false, "no framework error overlay should be present");
+    const assets = await browser.evaluate(`({
+      version: document.querySelector('meta[name="rr-app-version"]')?.content,
+      retired: !!document.querySelector('script[src*="fullscreen-bundle"], script[src*="reader-fix"], link[href*="fullscreen-bundle"], link[href*="reader-fix"]'),
+    })`);
+    assert.match(assets.version || "", /^\d+$/);
+    assert.equal(assets.retired, false, "reader assets should be bundled by the app");
 
     const menus = await browser.evaluate(`(async () => {
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -127,8 +133,7 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
       const version = [...panel().querySelectorAll('.rr-settings-row')]
         .find((item) => item.querySelector('strong')?.textContent === 'Version')
         ?.querySelector('.rr-settings-value')?.textContent;
-      const activeVersion = /fullscreen-bundle-v([0-9]+)[.]/.exec(
-        document.querySelector('link[href*="fullscreen-bundle-v"]')?.href || "")?.[1];
+      const activeVersion = document.querySelector('meta[name="rr-app-version"]')?.content;
       const legacyFrame = !!panel().querySelector('iframe');
       return { headings, dark, light, version, activeVersion, legacyFrame };
     })()`);
@@ -275,6 +280,25 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
     })()`);
     assert.equal(movement.supported, true, "the opened title should expose a reader scroller");
     assert.ok(movement.after > movement.before, "the visible reader viewport should scroll");
+  });
+
+  await suite.test("native reader tap surface toggles chrome once", async () => {
+    const result = await browser.evaluate(`(async () => {
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const trigger = document.querySelector('.rr-react-sheet-trigger');
+      if (trigger?.getAttribute('aria-expanded') === 'true') { trigger.click(); await wait(150); }
+      const tap = document.querySelector('[aria-label="Show or hide reading controls"]');
+      if (!tap) return { available: false };
+      const before = document.documentElement.classList.contains('rr-hide-chrome');
+      tap.click(); await wait(400);
+      const after = document.documentElement.classList.contains('rr-hide-chrome');
+      tap.click(); await wait(400);
+      const restored = document.documentElement.classList.contains('rr-hide-chrome') === before;
+      return { available: true, before, after, restored };
+    })()`);
+    assert.equal(result.available, true, "touch reader should expose its centre-tap surface");
+    assert.notEqual(result.after, result.before, "centre tap should toggle chrome");
+    assert.equal(result.restored, true, "a second tap should restore the original state");
   });
 
   await suite.test("floating close returns to the library", async () => {

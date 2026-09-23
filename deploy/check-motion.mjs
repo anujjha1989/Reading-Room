@@ -17,7 +17,7 @@
 // classes, using real CSS cascade order (later wins at equal specificity, and
 // !important beats non-important).
 import { readFileSync } from "node:fs";
-let css = readFileSync("overrides/book-art/fullscreen-bundle.css","utf8");
+let css = readFileSync("app/reader-chrome.css","utf8");
 // Remove @media blocks: this resolver models the default context. Their contents
 // are correct but conditional, and counting them produced false readings.
 css = css.replace(/@media[^{]*\{(?:[^{}]*\{[^}]*\}\s*)*\}/g, "");
@@ -111,7 +111,7 @@ for (const [label, state] of perms) {
 // with 18px of pure translate, which reads as a twitch however long the spring
 // lasts - the duration was never the thing that was wrong.
 {
-  const raw = readFileSync("overrides/book-art/fullscreen-bundle.css", "utf8")
+  const raw = readFileSync("app/reader-chrome.css", "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, "");
   const kf = raw.slice(raw.indexOf("@keyframes rr-page-next"));
   const block = kf.slice(0, kf.indexOf("}", kf.indexOf("to")) + 1);

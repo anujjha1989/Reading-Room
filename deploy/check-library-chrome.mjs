@@ -5,7 +5,7 @@ const settings = readFileSync("app/SettingsPanel.tsx", "utf8");
 const client = readFileSync("app/LibraryClient.tsx", "utf8");
 const layout = readFileSync("app/layout.tsx", "utf8");
 const renderer = readFileSync("deploy/render-index.mjs", "utf8");
-const legacy = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8");
+const legacy = readFileSync("app/readerChromeBridge.js", "utf8");
 
 let failed = false;
 const check = (condition, message) => {

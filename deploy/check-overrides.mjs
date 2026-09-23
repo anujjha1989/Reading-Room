@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 
 const files = [
-  "overrides/book-art/fullscreen-bundle.js",
+  "app/readerChromeBridge.js",
   "app/readAloudEngine.ts",
 ];
 
@@ -37,7 +37,7 @@ for (const file of files) {
 }
 
 const readAloud = readFileSync("app/readAloudEngine.ts", "utf8");
-const readingSheet = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8");
+const readingSheet = readFileSync("app/readerChromeBridge.js", "utf8");
 const bookReader = readFileSync("app/BookReader.tsx", "utf8");
 const readAloudHook = readFileSync("app/useReadAloud.ts", "utf8");
 const readAloudController = readFileSync("app/readAloudController.ts", "utf8");

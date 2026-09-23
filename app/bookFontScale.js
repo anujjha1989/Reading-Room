@@ -16,6 +16,7 @@
 // using the same 16px base the browser started from — so at 100% the page
 // looks exactly as before, and every step of A− / A+ now scales it.
 (function () {
+  if (typeof document === "undefined") return;
   "use strict";
 
   var BASE_PX = 16;

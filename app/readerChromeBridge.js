@@ -12,6 +12,7 @@
 // manage, so a re-render can never trip over it.
 (function () {
   "use strict";
+  if (typeof document === "undefined") return;
 
   var root = document.documentElement;
   var HIDE_KEY = "reading-room-hide-chrome";
@@ -563,6 +564,7 @@
 // app's own state and cannot be swept away when a view re-renders.
 (function () {
   "use strict";
+  if (typeof document === "undefined") return;
 
 
   function bookFromNode(node) {

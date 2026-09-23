@@ -41,6 +41,20 @@ const values = {
 
 let html = await readFile(join(root, "overrides/index.template.html"), "utf8");
 
+// The old document predates app-owned reader assets. Drop only these exact
+// historical tags, then expose a stable deployment marker for About.
+const retiredReaderTags = [
+  '<link rel="stylesheet" href="/assets/reader-fix.css?v={{V}}"/>',
+  '<link rel="stylesheet" href="/assets/book-art/images/fullscreen-bundle-v{{V}}.css?v={{V}}"/>',
+  '<script src="/assets/reader-fix.js?v={{V}}" defer></script>',
+  '<script src="/assets/book-art/images/fullscreen-bundle-v{{V}}.js?v={{V}}" defer></script>',
+];
+for (const tag of retiredReaderTags) {
+  if (!html.includes(tag)) throw new Error(`retired reader tag missing from template: ${tag}`);
+  html = html.replace(tag, "");
+}
+html = html.replace("<head>", '<head><meta name="rr-app-version" content="{{V}}"/>');
+
 // Library navigation, filter/sort controls, and Settings are now React-owned.
 // The committed index predates that ownership marker, so reconcile it just as
 // we do the serialized layout below.

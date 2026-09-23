@@ -11,7 +11,7 @@
 // winning declaration for each element and asserts the three agree.
 import { readFileSync } from "node:fs";
 
-const css = readFileSync("overrides/book-art/fullscreen-bundle.css", "utf8");
+const css = readFileSync("app/reader-chrome.css", "utf8");
 let fail = 0;
 const t = (ok, label, detail = "") => {
   console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? `\n        ${detail}` : ""}`);

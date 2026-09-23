@@ -11,7 +11,7 @@
 // of them is still missing from the React one.
 import { readFileSync, existsSync } from "node:fs";
 
-const legacy = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8");
+const legacy = readFileSync("app/readerChromeBridge.js", "utf8");
 const sheet = existsSync("app/ReadingSheet.tsx") ? readFileSync("app/ReadingSheet.tsx", "utf8") : "";
 const reader = readFileSync("app/BookReader.tsx", "utf8");
 const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");

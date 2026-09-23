@@ -39,8 +39,10 @@ const assetFiles = [
   [join(root, "dist/index.html"), "index"],
   [join(root, "overrides/sw.js"), "service-worker"],
   [join(root, "dist/client/assets", libraryAsset), "react-client"],
-  [join(root, "overrides/book-art/fullscreen-bundle.js"), "reader-controls"],
-  [join(root, "overrides/book-art/fullscreen-bundle.css"), "reader-styles"],
+  [join(root, "app/readerChromeBridge.js"), "reader-interactions-source"],
+  [join(root, "app/bookFontScale.js"), "book-font-scale-source"],
+  [join(root, "app/reader-chrome.css"), "reader-chrome-source"],
+  [join(root, "app/reader-layout.css"), "reader-layout-source"],
   [join(root, "app/readAloudEngine.ts"), "read-aloud-source"],
 ];
 
@@ -61,7 +63,7 @@ const record = {
   verification: {
     lan: required("lan-result"),
     tailscale: required("tailscale-result"),
-    liveReference: `fullscreen-bundle-v${version}`,
+    liveReference: `rr-app-version:${version}`,
   },
   rollback: {
     directory: required("rollback"),

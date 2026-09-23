@@ -82,7 +82,7 @@ export default function LibraryChrome(props: Props) {
 
   useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); document.documentElement.classList.remove("rr-settings-open"); }, []);
 
-  const version = typeof document === "undefined" ? "" : (/fullscreen-bundle-v(\d+)\./.exec(document.querySelector<HTMLLinkElement>('link[href*="fullscreen-bundle-v"]')?.href || "")?.[1] || "");
+  const version = typeof document === "undefined" ? "" : (document.querySelector<HTMLMetaElement>('meta[name="rr-app-version"]')?.content || "");
 
   if (!hydrated) return null;
 

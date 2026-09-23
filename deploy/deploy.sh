@@ -11,7 +11,6 @@ cd "$(dirname "$0")/.."
 
 PI=anujjha1989@anujrpi.local
 SSH=(ssh -i "$HOME/.ssh/id_ed25519_anujrpi_codex" -o BatchMode=yes -o IdentitiesOnly=yes)
-BOOK_ART=/mnt/seagate/ReadingRoom/book-art
 DEPLOY_HISTORY_DIR=${READING_ROOM_DEPLOY_HISTORY:-/Volumes/Seagate/ReadingRoom/deployment-history}
 
 # Capture source identity before the deployment counter changes. VERSION is a
@@ -94,11 +93,12 @@ node deploy/check-read-aloud-follow.mjs
 node deploy/check-read-aloud-integration.mjs
 node deploy/check-panel-return.mjs
 node deploy/check-library-chrome.mjs
+node deploy/check-reader-consolidation.mjs
 
 echo "==> staging"
 rm -rf dist/stage && mkdir -p dist/stage/assets
 cp dist/client/assets/*.js dist/client/assets/*.css dist/stage/assets/
-cp overrides/assets/* dist/stage/assets/
+cp overrides/assets/library-fix.css dist/stage/assets/
 cp dist/index.html dist/stage/index.html
 cp overrides/sw.js dist/stage/sw.js
 cp server/standalone-server.mjs server/rr-settings.mjs server/rr-tts.mjs dist/stage/
@@ -109,22 +109,6 @@ COPYFILE_DISABLE=1 tar czf - -C dist/stage . | "${SSH[@]}" "$PI" "tar xzf - -C ~
 # macOS tar can still emit AppleDouble sidecars, and ._foo.js matches the
 # installer's *.js glob. Belt and braces: never let one reach the site tree.
 "${SSH[@]}" "$PI" "find ~/rr-deploy/stage -name '._*' -delete"
-
-# The override bundle lives on the Seagate, which is symlinked into the site as
-# /assets/book-art/images and is the one place there we can write unprivileged.
-#
-# chmod 0644 explicitly: the repo sits on an SMB mount that reports every file
-# as 0700, and tar preserves modes, so without this the files arrive unreadable
-# by the service user and the server falls back to index.html for them - a JS
-# request answered with HTML, which is exactly the failure this looks like.
-COPYFILE_DISABLE=1 tar czf - -C overrides/book-art fullscreen-bundle.js fullscreen-bundle.css \
-  | "${SSH[@]}" "$PI" "set -e
-      tmp=\$(mktemp -d) && tar xzf - -C \$tmp
-      mv \$tmp/fullscreen-bundle.js  $BOOK_ART/fullscreen-bundle-v$VERSION.js
-      mv \$tmp/fullscreen-bundle.css $BOOK_ART/fullscreen-bundle-v$VERSION.css
-      chmod 0644 $BOOK_ART/fullscreen-bundle-v$VERSION.js \
-                 $BOOK_ART/fullscreen-bundle-v$VERSION.css
-      rm -rf \$tmp"
 
 echo "==> capturing rollback"
 # reading-room-deploy is additive for assets (filenames are content hashed), so
@@ -201,9 +185,7 @@ verify_origin() {
   }
 
   for asset_path in / \
-    /assets/$library_asset \
-    /assets/book-art/images/fullscreen-bundle-v$VERSION.js \
-    /assets/book-art/images/fullscreen-bundle-v$VERSION.css; do
+    /assets/$library_asset; do
     headers=$(curl -fsSI --max-time 15 "$origin$asset_path") || {
       check "$origin$asset_path could not be fetched"
       break
@@ -235,13 +217,13 @@ verify_origin() {
   fi
 
   if [ -z "$problem" ]; then
-    # The index the browser gets must ask for this version's overrides.
+    # The index the browser gets must identify this exact deployed version.
     local referenced
-    referenced=$(curl -fsS --max-time 15 "$origin/" | grep -o 'fullscreen-bundle-v[0-9]*' | head -1) || true
-    if [ "$referenced" = "fullscreen-bundle-v$VERSION" ]; then
+    referenced=$(curl -fsS --max-time 15 "$origin/" | grep -o 'name="rr-app-version" content="[0-9]*"' | head -1) || true
+    if [ "$referenced" = "name=\"rr-app-version\" content=\"$VERSION\"" ]; then
       printf '    %-56s %s\n' "index.html references" "$referenced"
     else
-      check "$origin serves HTML referencing ${referenced:-nothing}, expected fullscreen-bundle-v$VERSION"
+      check "$origin serves HTML referencing ${referenced:-nothing}, expected version $VERSION"
     fi
   fi
 
@@ -272,9 +254,9 @@ LAN_RESULT=$VERIFY_RESULT
 verify_origin "https://anujrpi.tail549492.ts.net" advisory
 TAILSCALE_RESULT=$VERIFY_RESULT
 
-served=$("${SSH[@]}" "$PI" "grep -o 'fullscreen-bundle-v[0-9]*' /opt/reading-room/current/site/index.html | head -1")
-[ "$served" = "fullscreen-bundle-v$VERSION" ] \
-  || fail "live HTML references $served, expected fullscreen-bundle-v$VERSION"
+served=$("${SSH[@]}" "$PI" "grep -o 'name=\"rr-app-version\" content=\"[0-9]*\"' /opt/reading-room/current/site/index.html | head -1")
+[ "$served" = "name=\"rr-app-version\" content=\"$VERSION\"" ] \
+  || fail "live HTML references $served, expected version $VERSION"
 
 if [ "$TAILSCALE_RESULT" = "passed" ]; then
   echo "==> live on LAN and Tailscale: $served"
