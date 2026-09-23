@@ -219,8 +219,9 @@ t(/@keyframes rr-settings-spring-in[\s\S]*?translateX\(0\)/.test(overrideCss)
 
 // 20c. Motion is paired and damped; narration follows automatically, so the
 //      redundant manual follow control must not return.
-t(/--rr-spring:\s*cubic-bezier\(\.16, 1, \.3, 1\)/.test(overrideCss)
-  && /@supports \(animation-timing-function: linear\(0, 1\)\)/.test(overrideCss),
+const designTokens = readFileSync("app/globals.css", "utf8");
+t(/--rr-spring:\s*cubic-bezier\(\.16,\s*1,\s*\.3,\s*1\)/.test(designTokens)
+  && /@supports \(animation-timing-function: linear\(0,\s*1\)\)/.test(designTokens),
   "motion system has a monotonic spring and an older-Safari fallback");
 t(/rr-settings-closing/.test(readFileSync("app/SettingsPanel.tsx", "utf8"))
   && /rr-settings-spring-in/.test(overrideCss)
