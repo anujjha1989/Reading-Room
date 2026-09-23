@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState, type FocusEvent
 import { createPortal } from "react-dom";
 import BookReader, { type ReaderBookmark, type ReaderFile, type ReaderLocation } from "./BookReader";
 import LibraryChrome, { type LibraryChromeView } from "./LibraryChrome";
+import BookDetailsEditor from "./BookDetailsEditor";
 import ShelfRail from "./ShelfRail";
 import { driveDownloadUrl } from "./drive";
 import { cardTitle, completeLabel, continueProgress, coverOptions, groupShelf, homeShelves, recentlyOpened, reviewBooks, type ShelfBook } from "./homeShelves";
@@ -314,6 +315,7 @@ export default function LibraryClient() {
   // than absolute: the shelf strips are horizontal scroll containers, so an
   // absolutely-positioned menu was clipped by its own card.
   const [menuFor, setMenuFor] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [detailsFor, setDetailsFor] = useState<{ book: Book; focusDelete: boolean } | null>(null);
 
   // Any change to the query, the filters or the view starts the list again.
   useEffect(() => { setVisible(20); }, [query, collection, author, category, series, format, readingStatus, readableOnly, sort, view, shelfFilter]);
@@ -530,10 +532,10 @@ export default function LibraryClient() {
         View series
       </button>}
       <hr />
-      <button role="menuitem" onClick={act(() => window.dispatchEvent(new CustomEvent("rr-edit-book", { detail: { id: book.id } })))}>
+      <button role="menuitem" onClick={act(() => setDetailsFor({ book, focusDelete: false }))}>
         Update Metadata…
       </button>
-      <button role="menuitem" className="danger" onClick={act(() => window.dispatchEvent(new CustomEvent("rr-edit-book", { detail: { id: book.id, focus: "delete" } })))}>
+      <button role="menuitem" className="danger" onClick={act(() => setDetailsFor({ book, focusDelete: true }))}>
         Delete…
       </button>
     </div></>, document.body);
@@ -668,6 +670,13 @@ export default function LibraryClient() {
   }
 
   return <main>
+    {detailsFor && createPortal(<BookDetailsEditor
+      book={detailsFor.book}
+      focusDelete={detailsFor.focusDelete}
+      onClose={() => setDetailsFor(null)}
+      onSaved={(updated) => setCatalogRows((rows) => rows.map((row) => row.id === updated.id ? { ...row, title: updated.title, author: updated.author } : row))}
+      onDeleted={(id) => setCatalogRows((rows) => rows.filter((row) => row.id !== id))}
+    />, document.body)}
     {editionsFor && <div className="modal-backdrop"><section className="modal rr-editions" role="dialog" aria-modal="true" aria-label={shelfTitle(editionsFor)}>
       <button className="rr-editions-close" autoFocus aria-label="Close editions" onClick={() => setEditionsFor(null)}>×</button>
       <h2>{shelfTitle(editionsFor)}</h2>

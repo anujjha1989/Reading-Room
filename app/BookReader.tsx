@@ -6,7 +6,7 @@ import { driveDownloadUrl } from "./drive";
 import ReadingSheet, { type SheetTocItem } from "./ReadingSheet";
 import { useReadAloud } from "./useReadAloud";
 import "./readAloudEngine";
-import "./readerChromeBridge.js";
+import { mountReaderInteractions } from "./readerChromeBridge.js";
 import "./bookFontScale.js";
 import ReadAloudTransport from "./ReadAloudTransport";
 import type { Book as EpubBook, Location, Rendition } from "epubjs";
@@ -290,6 +290,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   seriesNavigation?: { previous?: string; next?: string; onPrevious?: () => void; onNext?: () => void };
   onClose: () => void;
 }) {
+  useEffect(mountReaderInteractions, []);
   const format = file.format.toUpperCase();
   const isEpub = format === "EPUB";
   const isMobi = ["MOBI", "AZW", "AZW3", "KF8"].includes(format);

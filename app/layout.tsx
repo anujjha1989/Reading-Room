@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./reader-layout.css";
 import "./reader-chrome.css";
+import "./library-layout.css";
 
 export const metadata: Metadata = {
   title: "The Reading Room",

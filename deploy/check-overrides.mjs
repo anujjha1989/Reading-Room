@@ -12,7 +12,7 @@ const files = [
 
 // Pre-existing dead code, left in place deliberately: removing it is a separate
 // change with its own risk. The check exists to stop NEW dead code shipping.
-const KNOWN_DEAD = new Set(["mkDown", "mkUp", "scrollToPart", "bookFromNode"]);
+const KNOWN_DEAD = new Set(["scrollToPart"]);
 
 let failed = false;
 const fail = (msg) => { console.error("FAILED: " + msg); failed = true; };

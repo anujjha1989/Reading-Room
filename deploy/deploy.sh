@@ -98,7 +98,6 @@ node deploy/check-reader-consolidation.mjs
 echo "==> staging"
 rm -rf dist/stage && mkdir -p dist/stage/assets
 cp dist/client/assets/*.js dist/client/assets/*.css dist/stage/assets/
-cp overrides/assets/library-fix.css dist/stage/assets/
 cp dist/index.html dist/stage/index.html
 cp overrides/sw.js dist/stage/sw.js
 cp server/standalone-server.mjs server/rr-settings.mjs server/rr-tts.mjs dist/stage/
