@@ -1,5 +1,12 @@
 # Collapsing the override layer into React
 
+> Historical planning note. By v145 the runtime UI overrides described below
+> had been removed. Reader controls, library chrome, Settings, metadata editing,
+> Read Aloud and their styles now ship with `app/`. The remaining `overrides/`
+> files are the deployment template, service worker and version counter. The
+> EPUB iframe gesture bridge is app-owned compatibility code, not a separately
+> deployed override. This document preserves the original rationale and plan.
+
 ## Why
 
 The override layer is 6,538 lines styling and re-wiring a 2,611-line React app —

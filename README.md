@@ -12,12 +12,12 @@ and runtime state are backed up separately.
 
 - `app/` — React UI, library, readers and reading controls.
 - `server/` — standalone Pi server and APIs.
-- `overrides/` — service worker and legacy compatibility layers still loaded by
-  the deployed app.
+- `overrides/` — deployment HTML template, service worker and version counter;
+  no runtime UI override scripts or stylesheets are loaded.
 - `deploy/` — build, validation, deployment, rollback and live-audit tooling.
 - `ops/pi/` — sanitized snapshot of the current Pi services and maintenance
   programs, with their installed paths documented in `ops/pi/README.md`.
-- `docs/` — deployment history and migration notes.
+- `docs/` — deployment history and historical migration notes.
 - `tests/` — regression coverage.
 
 The historical hand-maintained Pi repository through v53 is preserved in the
@@ -44,9 +44,10 @@ system temporary directory, not committed to the repository.
 ## Deployment
 
 The Mac builds the app and deploys to the Pi using `deploy/deploy.sh`. The
-script increments `overrides/VERSION`, validates the reader bundles, captures a
-rollback, installs through the restricted Pi helper and verifies both LAN and
-Tailscale endpoints.
+script increments `overrides/VERSION`, validates the built app, captures a
+rollback, and installs through the restricted Pi helper. LAN verification is
+required; the Tailscale endpoint is checked when reachable from the deploying
+machine.
 
 ```bash
 ./deploy/deploy.sh
