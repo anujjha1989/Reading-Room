@@ -73,7 +73,7 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
       filterButton.click();
 
       gear.click();
-      for (let n = 0; n < 50 && !document.querySelector('#rr-settings-overlay #close'); n += 1) await wait(100);
+      for (let n = 0; n < 50 && ![...document.querySelectorAll('#rr-settings-overlay strong')].some((item) => item.textContent === 'About'); n += 1) await wait(100);
       const frame = document.querySelector('#rr-settings-overlay');
       const settings = {
         visible: !!frame?.querySelector('#close'),
@@ -102,33 +102,32 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
       const panel = () => document.querySelector('#rr-settings-overlay');
       const row = (label) => [...(panel()?.querySelectorAll('button.rr-settings-row') || [])]
         .find((button) => button.querySelector('strong')?.textContent === label);
-      const back = () => panel()?.querySelector('button[aria-label="Back"]')?.click();
+      const back = async () => { panel()?.querySelector('button[aria-label="Back"]')?.click(); await wait(50); };
+      const clickRow = async (label) => { const button = row(label); if (!button) throw new Error('Missing Settings row: ' + label); button.click(); await wait(50); };
       document.querySelector('#rr-settings-link').click();
       for (let n = 0; n < 50 && !row('About'); n += 1) await wait(100);
       if (!row('About')) throw new Error('Settings did not load');
       const headings = [];
-      row('Library sources').click(); headings.push(panel()?.querySelector('h1')?.textContent);
+      await clickRow('Library sources'); headings.push(panel()?.querySelector('h1')?.textContent);
       const firstSource = panel()?.querySelector('button.rr-settings-row');
-      firstSource?.click(); headings.push(panel()?.querySelector('h1')?.textContent);
-      back(); back();
-      row('Library maintenance').click(); headings.push(panel()?.querySelector('h1')?.textContent);
-      back(); row('Metadata & artwork').click(); headings.push(panel()?.querySelector('h1')?.textContent);
-      back(); row('Appearance').click(); headings.push(panel()?.querySelector('h1')?.textContent);
-      row('Dark').click(); await wait(100);
+      firstSource?.click(); await wait(50); headings.push(panel()?.querySelector('h1')?.textContent);
+      await back(); await back();
+      await clickRow('Library maintenance'); headings.push(panel()?.querySelector('h1')?.textContent);
+      await back(); await clickRow('Metadata & artwork'); headings.push(panel()?.querySelector('h1')?.textContent);
+      await back(); await clickRow('Appearance'); headings.push(panel()?.querySelector('h1')?.textContent);
+      await clickRow('Dark'); await wait(100);
       const dark = { theme: document.documentElement.dataset.rrTheme,
         background: getComputedStyle(panel()).backgroundColor,
         text: getComputedStyle(panel()).color };
-      row('Light').click(); await wait(100);
+      await clickRow('Light'); await wait(100);
       const light = { theme: document.documentElement.dataset.rrTheme,
         background: getComputedStyle(panel()).backgroundColor,
         text: getComputedStyle(panel()).color };
-      back(); row('About').click(); headings.push(panel()?.querySelector('h1')?.textContent);
+      await back(); await clickRow('About'); headings.push(panel()?.querySelector('h1')?.textContent);
       const version = [...panel().querySelectorAll('.rr-settings-row')]
         .find((item) => item.querySelector('strong')?.textContent === 'Version')
         ?.querySelector('.rr-settings-value')?.textContent;
-      back(); panel()?.querySelector('#close')?.click();
-      await wait(520);
-      return { headings, dark, light, version, closed: !panel() };
+      return { headings, dark, light, version };
     })()`);
     assert.deepEqual(result.headings.slice(0, 1), ["Library sources"]);
     assert.ok(result.headings.includes("Library maintenance"));
@@ -138,8 +137,13 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
     assert.deepEqual(result.dark, { theme: "dark", background: "rgb(0, 0, 0)", text: "rgb(245, 245, 247)" });
     assert.deepEqual(result.light, { theme: "light", background: "rgb(255, 255, 255)", text: "rgb(28, 28, 30)" });
     assert.match(result.version || "", /^\d+$/);
-    assert.equal(result.closed, true);
     await browser.screenshot("01b-settings-parity.png");
+    const closed = await browser.evaluate(`(async () => {
+      document.querySelector('#rr-settings-overlay #close')?.click();
+      await new Promise((resolve) => setTimeout(resolve, 520));
+      return !document.querySelector('#rr-settings-overlay');
+    })()`);
+    assert.equal(closed, true);
   });
 
   await suite.test("a readable book opens and reader settings persist", async () => {
@@ -182,8 +186,9 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
         .find((button) => button.textContent.trim() === 'Scroll')?.click();
       await wait(1200);
       const mode = localStorage.getItem('reading-room-reader-mode');
-      sheet.querySelector('button[aria-label="Back to reading menu"]')?.click(); await wait(120);
-      return { darkApplied, mode, menuOpen: document.documentElement.classList.contains('rr-react-sheet-open') };
+      document.querySelector('section[role="dialog"][data-book-theme] button[aria-label="Back to reading menu"]')?.click();
+      for (let n = 0; n < 20 && document.querySelector('section[role="dialog"][data-book-theme]')?.getAttribute('data-view') !== 'menu'; n += 1) await wait(50);
+      return { darkApplied, mode, menuOpen: document.querySelector('section[role="dialog"][data-book-theme]')?.getAttribute('data-view') === 'menu' };
     })()`);
     assert.equal(result.darkApplied, true, "dark reading theme should affect the reader");
     assert.equal(result.mode, "scroll", "scroll mode should persist");
