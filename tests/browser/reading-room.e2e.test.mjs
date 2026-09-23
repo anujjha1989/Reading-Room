@@ -73,13 +73,13 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
       filterButton.click();
 
       gear.click();
-      for (let n = 0; n < 50 && !document.querySelector('#rr-settings-overlay')?.contentDocument?.querySelector('#close'); n += 1) await wait(100);
+      for (let n = 0; n < 50 && !document.querySelector('#rr-settings-overlay #close'); n += 1) await wait(100);
       const frame = document.querySelector('#rr-settings-overlay');
       const settings = {
-        visible: !!frame?.contentDocument?.querySelector('#close'),
-        hasAbout: frame?.contentDocument?.body.textContent.includes('About') || false,
+        visible: !!frame?.querySelector('#close'),
+        hasAbout: frame?.textContent.includes('About') || false,
       };
-      frame?.contentDocument?.querySelector('#close')?.click();
+      frame?.querySelector('#close')?.click();
       await wait(520);
       settings.closed = !document.querySelector('#rr-settings-overlay');
       return { sort, filters, settings, iconColours };
@@ -94,6 +94,52 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
       dark: { filter: "rgb(245, 245, 247)", sort: "rgb(245, 245, 247)", settings: "rgb(245, 245, 247)" },
     });
     await browser.screenshot("01-library-menus.png");
+  });
+
+  await suite.test("Settings navigation, version and themes remain usable", async () => {
+    const result = await browser.evaluate(`(async () => {
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const panel = () => document.querySelector('#rr-settings-overlay');
+      const row = (label) => [...(panel()?.querySelectorAll('button.rr-settings-row') || [])]
+        .find((button) => button.querySelector('strong')?.textContent === label);
+      const back = () => panel()?.querySelector('button[aria-label="Back"]')?.click();
+      document.querySelector('#rr-settings-link').click();
+      for (let n = 0; n < 50 && !row('About'); n += 1) await wait(100);
+      if (!row('About')) throw new Error('Settings did not load');
+      const headings = [];
+      row('Library sources').click(); headings.push(panel()?.querySelector('h1')?.textContent);
+      const firstSource = panel()?.querySelector('button.rr-settings-row');
+      firstSource?.click(); headings.push(panel()?.querySelector('h1')?.textContent);
+      back(); back();
+      row('Library maintenance').click(); headings.push(panel()?.querySelector('h1')?.textContent);
+      back(); row('Metadata & artwork').click(); headings.push(panel()?.querySelector('h1')?.textContent);
+      back(); row('Appearance').click(); headings.push(panel()?.querySelector('h1')?.textContent);
+      row('Dark').click(); await wait(100);
+      const dark = { theme: document.documentElement.dataset.rrTheme,
+        background: getComputedStyle(panel()).backgroundColor,
+        text: getComputedStyle(panel()).color };
+      row('Light').click(); await wait(100);
+      const light = { theme: document.documentElement.dataset.rrTheme,
+        background: getComputedStyle(panel()).backgroundColor,
+        text: getComputedStyle(panel()).color };
+      back(); row('About').click(); headings.push(panel()?.querySelector('h1')?.textContent);
+      const version = [...panel().querySelectorAll('.rr-settings-row')]
+        .find((item) => item.querySelector('strong')?.textContent === 'Version')
+        ?.querySelector('.rr-settings-value')?.textContent;
+      back(); panel()?.querySelector('#close')?.click();
+      await wait(520);
+      return { headings, dark, light, version, closed: !panel() };
+    })()`);
+    assert.deepEqual(result.headings.slice(0, 1), ["Library sources"]);
+    assert.ok(result.headings.includes("Library maintenance"));
+    assert.ok(result.headings.includes("Metadata & artwork"));
+    assert.ok(result.headings.includes("Appearance"));
+    assert.ok(result.headings.includes("About"));
+    assert.deepEqual(result.dark, { theme: "dark", background: "rgb(0, 0, 0)", text: "rgb(245, 245, 247)" });
+    assert.deepEqual(result.light, { theme: "light", background: "rgb(255, 255, 255)", text: "rgb(28, 28, 30)" });
+    assert.match(result.version || "", /^\d+$/);
+    assert.equal(result.closed, true);
+    await browser.screenshot("01b-settings-parity.png");
   });
 
   await suite.test("a readable book opens and reader settings persist", async () => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import SettingsPanel from "./SettingsPanel";
 
 export type LibraryChromeView = "home" | "library" | "favorites";
 export type LibraryDisplayMode = "thumbnails" | "list";
@@ -52,7 +53,7 @@ export default function LibraryChrome(props: Props) {
     if (!settingsMounted || settingsClosing) return;
     setSettingsClosing(true);
     document.documentElement.classList.remove("rr-settings-open");
-    closeTimer.current = setTimeout(() => { setSettingsMounted(false); setSettingsClosing(false); closeTimer.current = null; }, 430);
+    closeTimer.current = setTimeout(() => { setSettingsMounted(false); setSettingsClosing(false); closeTimer.current = null; document.getElementById("rr-settings-link")?.focus(); }, 430);
   }, [settingsClosing, settingsMounted]);
   const openSettings = () => {
     closePopovers(); setSettingsClosing(false); setSettingsMounted(true);
@@ -72,26 +73,16 @@ export default function LibraryChrome(props: Props) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (settingsMounted) closeSettings();
+      if (settingsMounted) return; // SettingsPanel owns nested Back/Escape.
       else closePopovers();
     };
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== location.origin || !event.data) return;
-      if (event.data.type === "rr-close-settings") closeSettings();
-      else if (event.data.type === "rr-refresh-library") { closeSettings(); location.reload(); }
-      else if (event.data.type === "rr-theme") {
-        if (event.data.value === "system") delete document.documentElement.dataset.rrTheme;
-        else document.documentElement.dataset.rrTheme = event.data.value;
-      }
-    };
-    window.addEventListener("keydown", onKey); window.addEventListener("message", onMessage);
-    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("message", onMessage); };
-  }, [closePopovers, closeSettings, settingsMounted]);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [closePopovers, settingsMounted]);
 
   useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); document.documentElement.classList.remove("rr-settings-open"); }, []);
 
   const version = typeof document === "undefined" ? "" : (/fullscreen-bundle-v(\d+)\./.exec(document.querySelector<HTMLLinkElement>('link[href*="fullscreen-bundle-v"]')?.href || "")?.[1] || "");
-  const settingsUrl = `/settings.html${version ? `?v=${encodeURIComponent(version)}&` : "?"}embedded=1`;
 
   if (!hydrated) return null;
 
@@ -108,13 +99,9 @@ export default function LibraryChrome(props: Props) {
     <nav className="rr-library-dock" aria-label="Reading Room navigation" hidden={props.hidden}>
       {(["home", "library", "favorites"] as const).map((item) => <button type="button" data-view={item[0].toUpperCase() + item.slice(1)} aria-label={item === "library" ? "Browse full library" : item[0].toUpperCase() + item.slice(1)} aria-current={props.view === item ? "page" : undefined} key={item} onClick={() => props.onViewChange(item)}><Icon name={item} /><span>{item[0].toUpperCase() + item.slice(1)}</span></button>)}
     </nav>
-    {settingsMounted && <iframe id="rr-settings-overlay" className={settingsClosing ? "rr-settings-closing" : undefined} src={settingsUrl} title="Library settings" onLoad={(event) => {
-      try {
-        const frame = event.currentTarget;
-        if (["/", "/index.html"].includes(frame.contentWindow?.location.pathname || "")) { closeSettings(); return; }
-        const theme = document.documentElement.dataset.rrTheme;
-        if (frame.contentDocument?.documentElement) { if (theme) frame.contentDocument.documentElement.dataset.rrTheme = theme; else delete frame.contentDocument.documentElement.dataset.rrTheme; }
-      } catch { /* A failed settings page remains closable with Escape. */ }
+    {settingsMounted && <SettingsPanel version={version} closing={settingsClosing} onClose={closeSettings} onRefresh={() => { closeSettings(); location.reload(); }} onThemeChange={(theme) => {
+      if (theme === "system") delete document.documentElement.dataset.rrTheme;
+      else document.documentElement.dataset.rrTheme = theme;
     }} />}
   </>;
 }

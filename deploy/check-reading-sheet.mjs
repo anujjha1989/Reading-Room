@@ -203,9 +203,10 @@ t(/data-rr-theme="light"\] #rr-sort-menu\s*\{[^}]*background:[^}]*255, 255, 255/
 t(/data-rr-theme="light"\] body > \.rr-card-menu\s*\{[^}]*background:[^}]*255, 255, 255/s.test(overrideCss)
   && /data-rr-theme="dark"\][^}]*\.rr-card-menu\s*\{[^}]*background:/s.test(overrideCss),
   "book options menu follows explicit light and dark themes");
-t(/rr-close-settings/.test(readFileSync("overrides/settings.template.html", "utf8"))
-  && /event\.data\.type === "rr-close-settings"/.test(libraryChrome),
-  "embedded Settings asks its parent to run the exit animation");
+t(/<SettingsPanel/.test(libraryChrome)
+  && /onClose=\{closeSettings\}/.test(libraryChrome)
+  && /rr-settings-closing/.test(readFileSync("app/SettingsPanel.tsx", "utf8")),
+  "React Settings requests the parent's spring exit animation");
 // rr-settings-from-right was likewise superseded, by rr-settings-spring-in, which
 // is the declaration the browser uses. Assert the live one.
 t(/@keyframes rr-settings-spring-in[\s\S]*?translateX\(0\)/.test(overrideCss)
@@ -217,7 +218,7 @@ t(/@keyframes rr-settings-spring-in[\s\S]*?translateX\(0\)/.test(overrideCss)
 t(/--rr-spring:\s*cubic-bezier\(\.16, 1, \.3, 1\)/.test(overrideCss)
   && /@supports \(animation-timing-function: linear\(0, 1\)\)/.test(overrideCss),
   "motion system has a monotonic spring and an older-Safari fallback");
-t(/rr-settings-closing/.test(libraryChrome)
+t(/rr-settings-closing/.test(readFileSync("app/SettingsPanel.tsx", "utf8"))
   && /rr-settings-spring-in/.test(overrideCss)
   && /rr-settings-spring-out/.test(overrideCss),
   "settings entry and exit use the same right-edge reference point");

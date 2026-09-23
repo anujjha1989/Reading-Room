@@ -76,12 +76,12 @@ const result = await evaluate(`(async () => {
   };
   root.dataset.rrTheme = 'light';
   document.querySelector('#rr-settings-link').click();
-  for (let attempt = 0; attempt < 40 && !document.querySelector('#rr-settings-overlay')?.contentDocument?.querySelector('#close'); attempt += 1) {
+  for (let attempt = 0; attempt < 40 && !document.querySelector('#rr-settings-overlay #close'); attempt += 1) {
     await wait(100);
   }
   const overlay = document.querySelector('#rr-settings-overlay');
-  if (!overlay?.contentDocument?.querySelector('#close')) throw new Error('Settings did not open');
-  overlay.contentDocument.querySelector('#close').click();
+  if (!overlay?.querySelector('#close')) throw new Error('Settings did not open');
+  overlay.querySelector('#close').click();
   const settings = {
     closingImmediately: overlay.classList.contains('rr-settings-closing'),
     presentImmediately: overlay.isConnected,
