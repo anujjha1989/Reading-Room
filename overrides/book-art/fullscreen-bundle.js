@@ -46,12 +46,7 @@
     document.head.appendChild(m);
   }
 
-  // --- The buttons ----------------------------------------------------------
-  // All on <body>: outside React's tree, and outside `.reader-actions`, whose
-  // transform would otherwise become their containing block and carry them
-  // off-screen whenever the sheet closes.
-  var closeBtn = null;
-
+  // Remaining bridge buttons live on <body>, outside React's tree.
   function make(className, label, text, onClick) {
     var b = document.createElement("button");
     b.type = "button";
@@ -65,23 +60,6 @@
     });
     document.body.appendChild(b);
     return b;
-  }
-
-  function ensureButtons() {
-    if (!closeBtn || !closeBtn.isConnected) {
-      // Forwards to the app's own close button rather than reimplementing it —
-      // a real click, which React's delegated handler picks up normally.
-      closeBtn = make("rr-close-btn", "Close book", "×", function () {
-        var real = document.querySelector(".reader-actions .reader-close");
-        if (real) real.click();
-      });
-    }
-    // Only claim the app's close button as a duplicate once ours is actually
-    // standing in for it; if this file never runs, the original stays visible.
-    root.classList.toggle(
-      "rr-has-close",
-      !!(closeBtn && closeBtn.isConnected && document.querySelector(".reader-actions .reader-close"))
-    );
   }
 
   // --- Centre tap -----------------------------------------------------------
@@ -524,7 +502,7 @@
       // v44: nothing to tear down when the reader was never open — do not
       // rewrite <html>'s class list on every mutation and every interval tick.
       if (!root.classList.contains("rr-strip")) { textMode = false; return; }
-      root.classList.remove("rr-strip", "rr-hide-chrome", "rr-sheet-open", "rr-theme-dark", "rr-has-close");
+      root.classList.remove("rr-strip", "rr-hide-chrome", "rr-sheet-open", "rr-theme-dark");
       textMode = false;
       if (panelCloseButton) panelCloseButton.style.display = "none";
       if (fontCloseButton) fontCloseButton.style.display = "none";
@@ -532,7 +510,6 @@
       return;
     }
     ensureStandaloneMeta();
-    ensureButtons();
     root.classList.add("rr-strip");
     root.classList.toggle("rr-hide-chrome", hidden);
     root.classList.toggle("rr-theme-dark", s.classList.contains("reader-theme-dark"));

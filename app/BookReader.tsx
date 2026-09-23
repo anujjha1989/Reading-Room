@@ -339,6 +339,15 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     return () => setReadingSheetHost(null);
   }, []);
 
+  // Hide the in-header fallback only while the body-owned floating close
+  // control actually exists. If the portal cannot mount, the original button
+  // remains available so a reader can always leave the book.
+  useEffect(() => {
+    if (!readingSheetHost) return;
+    document.documentElement.classList.add("rr-has-close");
+    return () => document.documentElement.classList.remove("rr-has-close");
+  }, [readingSheetHost]);
+
   // Standalone iOS can lose React's delegated touch event when the EPUB
   // surface has just handled the same gesture. Own this native capture handler
   // beside the button it controls, rather than forwarding through a script
@@ -1037,6 +1046,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
 
       {readingSheetHost ? createPortal(<>
+        <button type="button" className="rr-close-btn" aria-label="Close book" onClick={onClose}>×</button>
         <ReadAloudTransport api={readAloud} />
         <button type="button" className="rr-react-sheet-trigger"
           aria-label={reactSheetOpen ? "Close reading settings" : "Open reading settings"}

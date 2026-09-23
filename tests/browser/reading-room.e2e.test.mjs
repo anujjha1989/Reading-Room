@@ -277,5 +277,20 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
     assert.ok(movement.after > movement.before, "the visible reader viewport should scroll");
   });
 
+  await suite.test("floating close returns to the library", async () => {
+    const result = await browser.evaluate(`(async () => {
+      const close = document.querySelector('body > .rr-close-btn');
+      const original = document.querySelector('.reader-actions .reader-close');
+      const before = {
+        floating: !!close,
+        fallbackHidden: !!original && getComputedStyle(original).display === 'none',
+      };
+      close?.click();
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      return { ...before, readerClosed: !document.querySelector('.reader-shell') };
+    })()`);
+    assert.deepEqual(result, { floating: true, fallbackHidden: true, readerClosed: true });
+  });
+
   assert.deepEqual(consoleProblems, [], `browser errors: ${consoleProblems.join("\n")}`);
 });

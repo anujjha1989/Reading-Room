@@ -158,6 +158,10 @@ const fullscreen = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8
 const libraryChrome = readFileSync("app/LibraryChrome.tsx", "utf8");
 t(!/rr-toggle-reading-sheet|reactSheetTouchAt/.test(fullscreen),
   "override no longer owns the menu touch bridge");
+t(/className="rr-close-btn" aria-label="Close book" onClick=\{onClose\}/.test(reader)
+  && /classList\.add\("rr-has-close"\)/.test(reader)
+  && !/make\("rr-close-btn"/.test(fullscreen),
+  "React owns the floating close button and retains the header fallback");
 t(/!root\.classList\.contains\("rr-react-sheet-open"\)/.test(fullscreen),
   "transparent page-turn layer is disabled while the React sheet is open");
 t(/\.rr-react-sheet-trigger[\s\S]*?width:\s*46px[\s\S]*?height:\s*46px/.test(globalCss),
