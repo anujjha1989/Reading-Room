@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 const reader = readFileSync("app/BookReader.tsx", "utf8");
 const layout = readFileSync("app/layout.tsx", "utf8");
+const readerCss = readFileSync("app/reader-chrome.css", "utf8");
+const globalCss = readFileSync("app/globals.css", "utf8");
 const html = readFileSync("dist/index.html", "utf8");
 const assets = readdirSync("dist/client/assets");
 const css = assets.filter((name) => name.endsWith(".css"))
@@ -25,6 +27,11 @@ const checks = [
     && js.includes("__rrFontScaleFixed"), "built client contains reader, metadata and font code"],
   [css.includes("rr-spring-menu-in") && css.includes("rr-panel-close"),
     "built stylesheet contains reader chrome and motion"],
+  [!/\.(?:rr-books-(?:detail|dismiss|menu|pages|themes|toolbar|transport)|rr-rate-(?:bounds|header|value)|rr-sheet-entering)\b/.test(readerCss),
+    "retired sheet selectors do not accumulate in reader styles"],
+  [globalCss.includes("--rr-spring:") && globalCss.includes("--rr-spring-time:")
+    && !readerCss.includes("--rr-spring: cubic-bezier"),
+    "shared motion tokens have one global definition"],
 ];
 
 let failures = 0;
