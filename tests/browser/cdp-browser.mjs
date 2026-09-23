@@ -16,7 +16,7 @@ async function retry(task, { attempts = 80, interval = 100 } = {}) {
   throw failure;
 }
 
-export async function launchBrowser({ port = 9333, viewport = { width: 430, height: 932 } } = {}) {
+export async function launchBrowser({ port = 9000 + Math.floor(Math.random() * 10000), viewport = { width: 430, height: 932 } } = {}) {
   const executable = process.env.READING_ROOM_CHROME || DEFAULT_CHROME;
   const profile = await mkdtemp(path.join(tmpdir(), "reading-room-browser-"));
   const artifacts = process.env.READING_ROOM_E2E_ARTIFACTS
@@ -73,7 +73,16 @@ export async function launchBrowser({ port = 9333, viewport = { width: 430, heig
   const send = (method, params = {}) => {
     const id = ++nextId;
     socket.send(JSON.stringify({ id, method, params }));
-    return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`Chromium did not answer ${method} within 25 seconds`));
+      }, 25_000);
+      pending.set(id, {
+        resolve: (value) => { clearTimeout(timer); resolve(value); },
+        reject: (error) => { clearTimeout(timer); reject(error); },
+      });
+    });
   };
   const on = (method, listener) => {
     const listeners = events.get(method) || [];

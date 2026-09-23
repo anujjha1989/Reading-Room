@@ -127,7 +127,7 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
       const version = [...panel().querySelectorAll('.rr-settings-row')]
         .find((item) => item.querySelector('strong')?.textContent === 'Version')
         ?.querySelector('.rr-settings-value')?.textContent;
-      const activeVersion = /fullscreen-bundle-v(\d+)\./.exec(
+      const activeVersion = /fullscreen-bundle-v([0-9]+)[.]/.exec(
         document.querySelector('link[href*="fullscreen-bundle-v"]')?.href || "")?.[1];
       const legacyFrame = !!panel().querySelector('iframe');
       return { headings, dark, light, version, activeVersion, legacyFrame };
