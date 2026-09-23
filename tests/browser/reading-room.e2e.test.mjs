@@ -173,7 +173,13 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
       }
       if (!document.querySelector('.reader-shell')) throw new Error('reader did not open');
       const trigger = document.querySelector('.rr-react-sheet-trigger');
-      trigger?.click(); await wait(250);
+      if (!trigger) throw new Error('reading menu trigger did not render');
+      trigger.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+      await wait(50);
+      if (trigger.getAttribute('aria-expanded') !== 'true') throw new Error('native touch did not open the menu');
+      trigger.click(); await wait(50);
+      if (trigger.getAttribute('aria-expanded') !== 'true') throw new Error('compatibility click toggled the menu twice');
+      await wait(150);
       const sheet = document.querySelector('section[role="dialog"][data-book-theme]');
       if (!sheet) throw new Error('reading menu did not open');
       const tile = (label) => [...sheet.querySelectorAll('button')].find((button) =>

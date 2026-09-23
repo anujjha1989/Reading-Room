@@ -16,32 +16,6 @@
   var root = document.documentElement;
   var HIDE_KEY = "reading-room-hide-chrome";
 
-  // The EPUB renderer and React both install delegated touch handlers. On
-  // standalone iOS the renderer can consume the gesture before React sees it.
-  // Claim this control in native capture and hand its intent to BookReader.
-  var reactSheetTouchAt = 0;
-  function reactSheetTrigger(target) {
-    return target && target.closest ? target.closest(".rr-react-sheet-trigger") : null;
-  }
-  function requestReactSheet(event) {
-    if (!reactSheetTrigger(event.target)) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    window.dispatchEvent(new Event("rr-toggle-reading-sheet"));
-  }
-  document.addEventListener("touchend", function (event) {
-    if (!reactSheetTrigger(event.target)) return;
-    reactSheetTouchAt = Date.now();
-    requestReactSheet(event);
-  }, { capture: true, passive: false });
-  document.addEventListener("click", function (event) {
-    if (!reactSheetTrigger(event.target)) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    if (Date.now() - reactSheetTouchAt < 700) return;
-    window.dispatchEvent(new Event("rr-toggle-reading-sheet"));
-  }, true);
-
   var hidden = false;
   try { hidden = localStorage.getItem(HIDE_KEY) === "1"; } catch (e) { /* private mode */ }
 

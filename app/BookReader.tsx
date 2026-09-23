@@ -340,15 +340,22 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   }, []);
 
   // Standalone iOS can lose React's delegated touch event when the EPUB
-  // surface has just handled the same gesture. The fullscreen bridge listens
-  // in the native capture phase and sends this event directly to the reader.
+  // surface has just handled the same gesture. Own this native capture handler
+  // beside the button it controls, rather than forwarding through a script
+  // loaded outside React. The following click is ignored as the same tap.
   useEffect(() => {
-    const toggleReadingSheet = () => setReactSheetOpen((open) => !open);
+    const handleTouchEnd = (event: globalThis.TouchEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest(".rr-react-sheet-trigger")) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      menuTouchAtRef.current = Date.now();
+      setReactSheetOpen((open) => !open);
+    };
     const closeReadingSheet = () => setReactSheetOpen(false);
-    window.addEventListener("rr-toggle-reading-sheet", toggleReadingSheet);
+    document.addEventListener("touchend", handleTouchEnd, { capture: true, passive: false });
     window.addEventListener("rr-close-reading-menu", closeReadingSheet);
     return () => {
-      window.removeEventListener("rr-toggle-reading-sheet", toggleReadingSheet);
+      document.removeEventListener("touchend", handleTouchEnd, true);
       window.removeEventListener("rr-close-reading-menu", closeReadingSheet);
     };
   }, []);
@@ -1034,15 +1041,9 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         <button type="button" className="rr-react-sheet-trigger"
           aria-label={reactSheetOpen ? "Close reading settings" : "Open reading settings"}
           aria-expanded={reactSheetOpen}
-          onTouchEnd={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            menuTouchAtRef.current = Date.now();
-            setReactSheetOpen((open) => !open);
-          }}
           onClick={(event) => {
             event.stopPropagation();
-            if (Date.now() - menuTouchAtRef.current < 600) return;
+            if (Date.now() - menuTouchAtRef.current < 700) return;
             setReactSheetOpen((open) => !open);
           }}>≡</button>
         <ReadingSheet

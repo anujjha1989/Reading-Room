@@ -141,10 +141,12 @@ t(/adjustSleep/.test(controller) && /engine\?\.skip\(-1\)/.test(controller),
 //     path. v105 accidentally shipped the bright-blue comparison trigger and
 //     relied solely on a synthetic click, which was unreliable in standalone iOS.
 const globalCss = readFileSync("app/globals.css", "utf8");
-t(/onTouchEnd=/.test(reader) && /menuTouchAtRef/.test(reader),
+t(/document\.addEventListener\("touchend", handleTouchEnd, \{ capture: true, passive: false \}\)/.test(reader)
+  && /menuTouchAtRef/.test(reader),
   "menu trigger has an explicit, de-duplicated touch path");
-t(/rr-toggle-reading-sheet/.test(reader) && /setReactSheetOpen\(\(open\) => !open\)/.test(reader),
-  "BookReader accepts the native iOS menu bridge");
+t(/setReactSheetOpen\(\(open\) => !open\)/.test(reader)
+  && !/rr-toggle-reading-sheet/.test(reader),
+  "BookReader owns the native iOS menu bridge");
 t(/createPortal\(<[\s\S]*readingSheetHost\)/.test(reader)
   && /setReadingSheetHost\(document\.body\)/.test(reader),
   "trigger and sheet escape the reader stacking context through a body portal");
@@ -154,10 +156,8 @@ t(/\.rr-reader-panel-portal\s*\{[^}]*position:\s*fixed;[^}]*z-index:\s*170/.test
   "reader subviews sit above the transparent page-turn layer");
 const fullscreen = readFileSync("overrides/book-art/fullscreen-bundle.js", "utf8");
 const libraryChrome = readFileSync("app/LibraryChrome.tsx", "utf8");
-t(/\.rr-react-sheet-trigger/.test(fullscreen)
-  && /addEventListener\("touchend"[\s\S]*?capture: true, passive: false/.test(fullscreen)
-  && /rr-toggle-reading-sheet/.test(fullscreen),
-  "fullscreen bridge claims the menu control in native capture phase");
+t(!/rr-toggle-reading-sheet|reactSheetTouchAt/.test(fullscreen),
+  "override no longer owns the menu touch bridge");
 t(/!root\.classList\.contains\("rr-react-sheet-open"\)/.test(fullscreen),
   "transparent page-turn layer is disabled while the React sheet is open");
 t(/\.rr-react-sheet-trigger[\s\S]*?width:\s*46px[\s\S]*?height:\s*46px/.test(globalCss),
