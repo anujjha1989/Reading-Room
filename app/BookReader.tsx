@@ -534,6 +534,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         const book = ePub(data);
         bookRef.current = book;
         await book.ready;
+        if (disposed || !viewerRef.current) return;
         const mode = readingModeRef.current;
         const mobile = isMobileViewport();
         let manager: string | (new (...args: never[]) => unknown) = "default";
@@ -567,9 +568,11 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         try {
           await rendition.display(saved);
         } catch {
+          if (disposed) return;
           localStorage.removeItem(`reading-room-position-${file.id}`);
           await rendition.display();
         }
+        if (disposed) return;
         rendition.on("relocated", (location: Location) => {
           const page = location.start.displayed;
           const atEnd = (location as Location & { atEnd?: boolean }).atEnd ?? false;
@@ -596,10 +599,19 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     return () => {
       disposed = true;
       controller.abort();
-      renditionRef.current?.destroy();
-      bookRef.current?.destroy();
+      const rendition = renditionRef.current;
+      const book = bookRef.current;
       renditionRef.current = null;
       bookRef.current = null;
+      rendition?.destroy();
+      // epub.js resolves navigation asynchronously and reads `book.loading` in
+      // its own completion callback. Destroying the book before that callback
+      // runs clears `loading` and throws outside React's error boundary.
+      if (book) {
+        void Promise.resolve(book.loaded?.navigation)
+          .catch(() => undefined)
+          .then(() => book.destroy());
+      }
     };
   }, [epubRevision, file.format, file.id, initialPosition, isEpub, readerModeReady, reportLocation]);
 
