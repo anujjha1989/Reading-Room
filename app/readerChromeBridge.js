@@ -10,12 +10,16 @@
 // Nothing here moves a node the app rendered. The controls are relocated by
 // CSS; every element this adds is appended to <body>, which React does not
 // manage, so a re-render can never trip over it.
-(function () {
+export function mountReaderInteractions() {
   "use strict";
-  if (typeof document === "undefined") return;
+  if (typeof document === "undefined") return () => {};
 
   var root = document.documentElement;
   var HIDE_KEY = "reading-room-hide-chrome";
+  var controller = new AbortController();
+  var signal = controller.signal;
+  var boundTargets = new WeakSet();
+  var active = true;
 
   var hidden = false;
   try { hidden = localStorage.getItem(HIDE_KEY) === "1"; } catch (e) { /* private mode */ }
@@ -58,7 +62,7 @@
       event.preventDefault();
       event.stopPropagation();
       onClick();
-    });
+    }, { signal: signal });
     document.body.appendChild(b);
     return b;
   }
@@ -358,8 +362,8 @@
   var lastActed = 0;
 
   function bindTo(target, tag) {
-    if (!target || target.__rrTapBound) return 0;
-    target.__rrTapBound = 1;
+    if (!target || boundTargets.has(target)) return 0;
+    boundTargets.add(target);
     ["touch", "pointer", "mouse"].forEach(function (family) {
       var start = null;
       var suffix = family === "touch" ? ["start", "end", "cancel", "move"] : ["down", "up", "cancel", "move"];
@@ -369,34 +373,22 @@
         var p = point(event);
         start = { x: p.clientX, y: p.clientY, t: Date.now() };
         debug(family + " start " + tag);
-      }, {capture: true, passive: true});
+      }, {capture: true, passive: true, signal: signal});
       target.addEventListener(family + suffix[3], function (event) {
         if (!start) return;
         var p = point(event);
         if ((event.touches && event.touches.length !== 1) || Math.abs(p.clientX - start.x) > SLOP || Math.abs(p.clientY - start.y) > SLOP) start = null;
-      }, {capture: true, passive: true});
+      }, {capture: true, passive: true, signal: signal});
       target.addEventListener(family + suffix[1], function (event) {
         down = start;
         start = null;
         onUp(event, tag);
-      }, {capture: true, passive: true});
-      target.addEventListener(family + suffix[2], function () { start = null; debug(family + " cancelled"); }, {capture: true, passive: true});
+      }, {capture: true, passive: true, signal: signal});
+      target.addEventListener(family + suffix[2], function () { start = null; debug(family + " cancelled"); }, {capture: true, passive: true, signal: signal});
     });
-    target.addEventListener("keydown", volumeKey, true);
+    target.addEventListener("keydown", volumeKey, {capture: true, signal: signal});
     debug("Bound " + tag);
     return 1;
-  }
-
-  function mkDown(tag) {
-    return function (event) {
-      if (event.isPrimary === false || (event.button != null && event.button !== 0) || (event.touches && event.touches.length !== 1)) { down = null; return; }
-      var p = point(event);
-      down = { x: p.clientX, y: p.clientY, t: Date.now() };
-      };
-  }
-
-  function mkUp(tag) {
-    return function (event) { onUp(event, tag); };
   }
 
   // foliate attaches its shadow root with {mode: "closed"}, so the book's
@@ -438,8 +430,8 @@
     if (event.key !== "Escape") return;
     if (sheetOpen()) closeSheet();
     else if (hidden) setHidden(false);
-  });
-  document.addEventListener("keydown", volumeKey, true);
+  }, { signal: signal });
+  document.addEventListener("keydown", volumeKey, {capture: true, signal: signal});
 
   // --- Keep <html> in step with whatever the reader is doing ----------------
   var queued = false;
@@ -497,6 +489,7 @@
   }
   function apply() {
     queued = false;
+    if (!active) return;
     if (debugEnabled && !debugPanel) debug("Ready; open a book, then tap");
     var s = shell();
     if (!s) {
@@ -521,19 +514,20 @@
   }
 
   function schedule() {
-    if (queued) return;
+    if (!active || queued) return;
     queued = true;
     (window.requestAnimationFrame || setTimeout)(apply, 0);
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", apply);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", apply, { signal: signal });
   else apply();
   // Sections mount asynchronously and are swapped as you read, and the whole
   // shell comes and goes as books open and close — so keep looking.
-  new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
-  window.addEventListener("resize", schedule);
-  if (window.visualViewport) window.visualViewport.addEventListener("resize", schedule);
-  document.addEventListener("transitionend", schedule);
+  var observer = new MutationObserver(schedule);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  window.addEventListener("resize", schedule, { signal: signal });
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", schedule, { signal: signal });
+  document.addEventListener("transitionend", schedule, { signal: signal });
   // v44: capture-phase, so this fires for EVERY scroller on the page —
   // including each library carousel.  Only the reader shell needs
   // scroll-driven layout, and rr-strip is on <html> exactly while it is
@@ -541,202 +535,23 @@
   // full apply() per frame.
   document.addEventListener("scroll", function () {
     if (root.classList.contains("rr-strip")) schedule();
-  }, true);
-  document.addEventListener("toggle", schedule, true);
-  setInterval(apply, 1500);
-})();
+  }, {capture: true, signal: signal});
+  document.addEventListener("toggle", schedule, {capture: true, signal: signal});
+  var interval = setInterval(apply, 1500);
+  return function unmountReaderInteractions() {
+    active = false;
+    clearInterval(interval);
+    observer.disconnect();
+    controller.abort();
+    tapLayer?.remove();
+    scrollWrapper?.remove();
+    textModeButton?.remove();
+    panelCloseButton?.remove();
+    fontCloseButton?.remove();
+    debugPanel?.remove();
+    root.classList.remove("rr-strip", "rr-hide-chrome", "rr-sheet-open", "rr-theme-dark");
+  };
+}
 
-// Reading controls are owned by app/ReadingSheet.tsx. Keeping a second,
-// body-injected implementation here made every control change require two
-// edits and allowed the two paths to drift. The override now only supplies
-// the iOS gesture/chrome bridge used by the React reader.
-
-
-// --- rr-meta-fix: long-press a book to correct its title or author ----------
-//
-// Corrections used to mean asking someone to edit the catalogue by hand, which
-// a rescan would then throw away. The server keeps them as overrides outside
-// catalog.json and re-applies them on every load, so a fix made here survives
-// the weekly scan. This is just the way in.
-//
-// Deliberately independent of the React app: it reads the book id out of the
-// cover image URL already present in the card, so it needs no hook into the
-// app's own state and cannot be swept away when a view re-renders.
-(function () {
-  "use strict";
-  if (typeof document === "undefined") return;
-
-
-  function bookFromNode(node) {
-    var card = node && node.closest ? node.closest("li, article, a, div") : null;
-    for (var hops = 0; card && hops < 6; hops++) {
-      var img = card.querySelector && card.querySelector('img[src*="/api/cover"]');
-      if (img) {
-        var m = /[?&]id=([^&]+)/.exec(img.getAttribute("src") || "");
-        if (m) return { id: decodeURIComponent(m[1]), card: card, img: img };
-      }
-      card = card.parentElement;
-    }
-    return null;
-  }
-
-  // The card shows the title and author already; read them back rather than
-  // refetching the catalogue just to prefill two boxes.
-  function guessFields(card) {
-    var text = [];
-    card.querySelectorAll("*").forEach(function (el) {
-      if (el.children.length === 0) {
-        var t = (el.textContent || "").trim();
-        if (t && t.length < 220 && !/^(EPUB|MOBI|PDF|CBR|CBZ|AZW3?|TXT|DOC|DOCX|RTF)$/i.test(t)) text.push(t);
-      }
-    });
-    return { title: text[0] || "", author: text[1] || "" };
-  }
-
-  var overlay = null;
-
-  // Patches every book card in the current DOM that matches id, and stores the
-  // correction in localStorage so it is reapplied on the next page load before
-  // the server-side catalogue data arrives (helps with #8: changes not sticking).
-  function applyCorrection(id, title, author) {
-    try {
-      var stored = JSON.parse(localStorage.getItem("rr-meta-corrections") || "{}");
-      stored[id] = { title: title, author: author };
-      localStorage.setItem("rr-meta-corrections", JSON.stringify(stored));
-    } catch (e) {}
-    document.querySelectorAll('img[src*="/api/cover"]').forEach(function (img) {
-      var src = img.getAttribute("src") || "";
-      var m = /[?&]id=([^&]+)/.exec(src);
-      if (!m || decodeURIComponent(m[1]) !== id) return;
-      var card = img.parentElement;
-      for (var hops = 0; card && hops < 8; hops++) {
-        var leaves = [];
-        card.querySelectorAll("*").forEach(function (el) {
-          if (el.children.length === 0) {
-            var t = (el.textContent || "").trim();
-            if (t && t.length < 220 && !/^(EPUB|MOBI|PDF|CBR|CBZ|AZW3?|TXT|DOC|DOCX|RTF)$/i.test(t)) leaves.push(el);
-          }
-        });
-        if (leaves.length >= 2) {
-          if (title) leaves[0].textContent = title;
-          if (author) leaves[1].textContent = author;
-          break;
-        }
-        card = card.parentElement;
-      }
-    });
-  }
-
-  // Reapply any corrections stored from a previous session. Four attempts at
-  // increasing delays handle both fast and slow React hydration on the Pi.
-  (function reapplyStoredCorrections() {
-    var stored;
-    try { stored = JSON.parse(localStorage.getItem("rr-meta-corrections") || "{}"); } catch (e) { stored = {}; }
-    var ids = Object.keys(stored);
-    if (!ids.length) return;
-    function run() {
-      ids.forEach(function (id) { var c = stored[id]; applyCorrection(id, c.title, c.author); });
-    }
-    [100, 600, 1800, 5000].forEach(function (t) { setTimeout(run, t); });
-  })();
-
-  function close() {
-    if (overlay) { overlay.remove(); overlay = null; }
-    document.documentElement.classList.remove("rr-metafix-open");
-  }
-
-  function open(book) {
-    if (overlay) return;
-    var guess = guessFields(book.card);
-
-    overlay = document.createElement("div");
-    overlay.id = "rr-metafix";
-    overlay.innerHTML =
-      '<div class="rr-mf-sheet" role="dialog" aria-label="Edit book details">' +
-      '<h2>Edit details</h2>' +
-      '<label>Title<input id="rr-mf-title" type="text" autocomplete="off"></label>' +
-      '<label>Author<input id="rr-mf-author" type="text" autocomplete="off"></label>' +
-      '<p class="rr-mf-note">Saved as a correction, so a rescan will not undo it. ' +
-      'Clear a box to go back to the scanned value.</p>' +
-      '<div class="rr-mf-row">' +
-      '<button type="button" class="rr-mf-cancel">Cancel</button>' +
-      '<button type="button" class="rr-mf-quarantine">Delete</button>' +
-      '<button type="button" class="rr-mf-save">Save</button>' +
-      '</div><p class="rr-mf-status" role="status"></p></div>';
-
-    document.body.appendChild(overlay);
-    document.documentElement.classList.add("rr-metafix-open");
-
-    var titleEl = overlay.querySelector("#rr-mf-title");
-    var authorEl = overlay.querySelector("#rr-mf-author");
-    var status = overlay.querySelector(".rr-mf-status");
-    titleEl.value = guess.title;
-    authorEl.value = guess.author;
-    setTimeout(function () { titleEl.focus(); }, 40);
-
-    overlay.addEventListener("click", function (e) {
-      if (e.target === overlay) close();
-    });
-    overlay.querySelector(".rr-mf-cancel").addEventListener("click", close);
-
-    overlay.querySelector(".rr-mf-quarantine").addEventListener("click", function () {
-      // Labelled Delete, still a quarantine move: the file is set aside rather
-      // than destroyed, which is the behaviour we want to keep.
-      if (!confirm('Delete "' + (titleEl.value || book.id) + '" from the library?')) return;
-      status.textContent = "Deleting…";
-      fetch("/api/quarantine", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: book.id }),
-      }).then(function (r) {
-        if (!r.ok) throw new Error("quarantine failed (" + r.status + ")");
-        return r.json();
-      }).then(function () {
-        status.textContent = "Deleted.";
-        // Grey out the card so it is visually clear even before a reload.
-        if (book.card) book.card.style.opacity = "0.3";
-        setTimeout(close, 1200);
-      }).catch(function (err) {
-        status.textContent = err.message || "Could not delete";
-      });
-    });
-
-    overlay.querySelector(".rr-mf-save").addEventListener("click", function () {
-      status.textContent = "Saving…";
-      fetch("/api/meta-fix", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: book.id, title: titleEl.value, author: authorEl.value }),
-      }).then(function (r) {
-        if (!r.ok) throw new Error("save failed (" + r.status + ")");
-        return r.json();
-      }).then(function () {
-        status.textContent = "Saved.";
-        applyCorrection(book.id, titleEl.value, authorEl.value);
-        setTimeout(close, 900);
-      }).catch(function (err) {
-        status.textContent = err.message || "Could not save";
-      });
-    });
-  }
-
-  // Opened from the card's ⋯ menu, which replaced long-press: two hidden routes
-  // to the same sheet was worse than one visible one. The React side sends the
-  // book id; find its card so guessFields can still prefill from the DOM.
-  window.addEventListener("rr-edit-book", function (e) {
-    if (overlay || !e.detail || !e.detail.id) return;
-    var id = e.detail.id;
-    var img = document.querySelector('img[src*="id=' + id + '"]');
-    var card = img && img.closest ? img.closest("article, .rr-shelf-cell, li, div") : null;
-    if (!card) return;
-    open({ id: id, card: card, img: img });
-    if (e.detail.focus === "delete") {
-      var btn = overlay && overlay.querySelector(".rr-mf-quarantine");
-      if (btn) setTimeout(function () { btn.focus(); }, 60);
-    }
-  });
-
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") close();
-  });
-})();
+// The reader owns this adapter's lifetime. Its imperative surface is limited
+// to iframe tap handling and host controls that must sit outside React's tree.

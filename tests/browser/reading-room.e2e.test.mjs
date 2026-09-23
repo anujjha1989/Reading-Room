@@ -102,6 +102,25 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
     await browser.screenshot("01-library-menus.png");
   });
 
+  await suite.test("book details editor opens and dismisses without changing the library", async () => {
+    const result = await browser.evaluate(`(async () => {
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const options = document.querySelector('.book .rr-card-more');
+      if (!options) throw new Error('book options button is missing');
+      options.click(); await wait(80);
+      const update = [...document.querySelectorAll('.rr-card-menu [role="menuitem"]')]
+        .find((button) => button.textContent.includes('Update Metadata'));
+      if (!update) throw new Error('metadata action is missing');
+      update.click(); await wait(80);
+      const dialog = document.querySelector('[role="dialog"][aria-label="Edit book details"]');
+      const opened = !!dialog?.querySelector('input') &&
+        !!dialog?.querySelector('.rr-mf-save') && !!dialog?.querySelector('.rr-mf-quarantine');
+      dialog?.querySelector('.rr-mf-cancel')?.click(); await wait(80);
+      return { opened, closed: !document.querySelector('#rr-metafix') };
+    })()`);
+    assert.deepEqual(result, { opened: true, closed: true });
+  });
+
   await suite.test("Settings navigation, version and themes remain usable", async () => {
     const result = await browser.evaluate(`(async () => {
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

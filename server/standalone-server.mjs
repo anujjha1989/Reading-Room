@@ -1065,7 +1065,7 @@ const mimeTypes = {
 };
 const GZIP_TYPES = new Set([".css", ".html", ".js", ".json", ".map", ".svg", ".webmanifest", ".txt"]);
 const HASHED_ASSET = /-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/;
-const OVERLAY_ASSET = /(reader-fix|library-fix|read-aloud)\.(css|js)$/;
+const OVERLAY_ASSET = /(reader-fix|read-aloud)\.(css|js)$/;
 
 const staticCache = new Map();       // relative path -> entry
 

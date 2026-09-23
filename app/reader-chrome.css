@@ -131,7 +131,6 @@
  * live inside `.reader-actions`: that sheet is transformed, which would make it
  * their containing block and carry them off-screen when it closes.
  */
-.rr-sheet-btn,
 .rr-close-btn {
   display: none;
   position: fixed;
@@ -148,13 +147,10 @@
   cursor: pointer;
   transition: opacity .15s ease;
 }
-.rr-sheet-btn { right: calc(50px + env(safe-area-inset-right)); }
 .rr-close-btn { right: calc(9px + env(safe-area-inset-right)); font-size: 19px; }
 @media (width <= 1200px), (height <= 560px) {
-  html.rr-strip .rr-sheet-btn,
   html.rr-strip .rr-close-btn { display: grid; }
 }
-html.rr-theme-dark .rr-sheet-btn,
 html.rr-theme-dark .rr-close-btn {
   background: #252a28;
   border-color: #4a524e;
@@ -187,11 +183,6 @@ html.rr-hide-chrome .rr-close-btn {
 }
 /* The ≡ stays — faint, but present and tappable. Without it, a centre tap that
  * failed for any reason would leave no way back to the controls at all. */
-html.rr-hide-chrome .rr-sheet-btn {
-  opacity: .22;
-  background: transparent;
-  border-color: transparent;
-}
 
 /* --- "Hide toolbars": the dependable route to a full page ------------------
  * An ordinary button in the host document, so it works regardless of what the
@@ -199,24 +190,6 @@ html.rr-hide-chrome .rr-sheet-btn {
  * the top rather than floated above the sheet, whose height varies with the
  * controls in it.
  */
-.rr-hide-btn {
-  display: none;
-  position: fixed;
-  top: calc(48px + env(safe-area-inset-top));
-  /* left/right insets live with the rest of the geometry further down, on the
-     same base rule, so they apply open and closed alike. */
-  transform: translateX(-50%);
-  z-index: 121;
-  padding: 10px 18px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--ink, #1e2422);
-  color: var(--paper, #f3efe5);
-  font: 500 12px/1 Georgia, serif;
-  cursor: pointer;
-  box-shadow: 0 8px 24px #18211d40;
-}
-html.rr-sheet-open .rr-hide-btn { display: block; }
 
 /* Free the full grid track when chrome is hidden; no reserved toolbar rows. */
 html.rr-hide-chrome .reader-shell { grid-template-rows: 0 minmax(0, 1fr) 0 !important; }
@@ -465,15 +438,14 @@ html:not([data-rr-theme="light"]) .rr-library-dock button[data-view="Search"][ar
 
 /* Apple Books-inspired chrome. The reading engine and tap layer stay intact. */
 html.rr-books-controls .reader-actions{visibility:hidden!important;pointer-events:none!important}
-html.rr-books-controls .rr-panel-close,html.rr-books-controls .rr-hide-btn,html.rr-books-controls .rr-text-mode{display:none!important}
-html.rr-books-controls .rr-sheet-btn,html.rr-books-controls .rr-close-btn{
+html.rr-books-controls .rr-panel-close, html.rr-books-controls .rr-text-mode{display:none!important}
+html.rr-books-controls .rr-close-btn{
  width:46px!important;height:46px!important;border-radius:50%!important;
  border:1px solid #ffffff80!important;background:color-mix(in srgb,var(--rr-control-bg,#f3f2ee) 66%,transparent)!important;
  color:inherit;backdrop-filter:blur(22px) saturate(1.2);-webkit-backdrop-filter:blur(22px) saturate(1.2);font:32px/1 -apple-system,BlinkMacSystemFont,sans-serif!important;
  right:20px!important;box-shadow:0 3px 16px #00000014;
 }
 html.rr-books-controls .rr-close-btn{top:calc(env(safe-area-inset-top,0px) + 16px)!important}
-html.rr-books-controls .rr-sheet-btn{top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 20px)!important}
 /* The book title used to reserve a real grid row. Toggling chrome therefore
    changed the page viewport and repaginated the text. Controls now float over
    a permanently full-height reading stage, and the redundant title bar is
@@ -482,20 +454,6 @@ html.rr-books-controls .reader-header{visibility:hidden!important;opacity:0!impo
 html.rr-books-controls .reader-footer{background:transparent!important;border:0!important;min-height:70px;padding:14px 76px!important;justify-content:center!important;font:14px -apple-system,BlinkMacSystemFont,sans-serif}
 html.rr-books-pages .reader-footer>button{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden;clip-path:inset(50%)}
 html.rr-books-controls.rr-hide-chrome .reader-footer{min-height:0!important;padding:0!important}
-.rr-books-menu{position:fixed;z-index:150;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 78px);width:min(330px,calc(100vw - 32px));max-height:calc(100dvh - env(safe-area-inset-top,0px) - 120px);overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:6px;color:#242424;font:16px/1.35 -apple-system,BlinkMacSystemFont,sans-serif;scrollbar-width:thin}
-.rr-books-menu[hidden]{display:none!important}
-.rr-books-menu>button,.rr-books-menu>header,.rr-books-menu>label,.rr-books-actions>button{border:0;background:#eeeeeeed;backdrop-filter:blur(28px);color:inherit;border-radius:28px;min-height:50px;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;font:inherit;text-align:left;cursor:pointer}
-.rr-books-menu>header{padding:8px 12px 8px 20px}
-.rr-books-menu>header>button{border:0;background:#8882;border-radius:50%;width:36px;height:36px;color:inherit;font:26px/1 sans-serif;flex-shrink:0}
-.rr-books-menu>header>button>span:first-child{display:none}
-.rr-books-menu>button>span:last-child:not(:first-child){font-size:25px}
-.rr-books-actions{display:flex;gap:6px}
-.rr-books-actions>button{flex:1;justify-content:center;text-align:center;flex-direction:column;gap:2px;padding:10px 6px;font-size:12px;min-width:0}
-.rr-books-actions>button>span:last-child:not(:first-child){font-size:24px;order:-1}
-.rr-books-menu[data-view="Themes & Settings"],.rr-books-menu[data-view="Contents"],.rr-books-menu[data-view="Read Aloud"]{background:#f2f2f2f5;border-radius:28px;padding:12px;box-shadow:0 10px 45px #0003;backdrop-filter:blur(30px)}
-.rr-books-menu>label{flex-wrap:wrap;border-radius:16px;cursor:default}
-.rr-books-menu input[type=range]{width:100%;accent-color:#555;min-height:30px}
-.rr-books-menu select{max-width:100%;min-height:38px;font:inherit;color:inherit;background:transparent;border:0}
 .rr-books-themes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .rr-books-themes button{min-height:75px;border:2px solid transparent;border-radius:18px;font:16px Georgia,serif}
 .rr-books-themes button[data-theme=light]{background:#fff;color:#222}
@@ -507,11 +465,7 @@ html.rr-books-controls.rr-hide-chrome .reader-footer{min-height:0!important;padd
 .rr-books-themes button[data-theme=bold]{background:#fff;color:#111;font-family:-apple-system,sans-serif;font-weight:750}
 .rr-books-themes button[data-theme=calm]{background:#f0dfbd;color:#443526}
 .rr-books-themes button[data-theme=focus]{background:#fffdf5;color:#221f18;border:2px solid #222}
-.rr-books-menu [aria-pressed=true]{outline:2px solid #999;outline-offset:-3px}
-html.rr-theme-dark .rr-books-menu{color:#eee;--rr-control-bg:#34332b}
-html.rr-theme-dark .rr-books-menu>button,html.rr-theme-dark .rr-books-menu>header,html.rr-theme-dark .rr-books-menu>label,html.rr-theme-dark .rr-books-actions>button{background:#4b4a40ed}
-html.rr-theme-dark .rr-books-menu[data-view]:not([data-view=menu]){background:#35342ded}
-html.rr-theme-dark .rr-sheet-btn,html.rr-theme-dark .rr-close-btn{--rr-control-bg:#28271f;color:#ddd!important}
+html.rr-theme-dark .rr-close-btn{--rr-control-bg:#28271f;color:#ddd!important}
 
 /* No footer row: let the book reflow into the freed space in both modes.
    Keep native navigation buttons in the DOM for the existing tap handlers. */
@@ -535,35 +489,13 @@ html.rr-books-controls .reader-footer>button{display:none!important}
 html.rr-books-controls.rr-books-pages.rr-theme-dark .reader-footer{background:#292922df!important;color:#d8d8cf!important}
 
 /* Compact three-row menu, with secondary actions in a single icon strip. */
-.rr-books-menu[data-view=menu]{width:min(258px,calc(100vw - 32px));gap:5px;padding:6px;border:1px solid #ffffff80;border-radius:25px;background:#e8e8e1b8;box-shadow:0 12px 34px #0004;backdrop-filter:blur(32px) saturate(1.25);-webkit-backdrop-filter:blur(32px) saturate(1.25)}
-.rr-books-menu[data-view=menu]>button{min-height:42px;padding:8px 15px;font-size:15px;background:#f4f4efdc!important;color:#111!important;border-radius:21px}
-.rr-books-menu[data-view=menu]>button:first-child{background:#303029!important;color:#fff!important}
-.rr-books-menu[data-view=menu]>.rr-books-actions>button{min-height:42px;height:42px;padding:3px;background:#f4f4efdc!important;color:#111!important;border-radius:21px}
-.rr-books-menu[data-view=menu]>.rr-books-actions>button>span:first-child{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-.rr-books-menu[data-view=menu]>.rr-books-actions>button>span:last-child{font-size:25px}
 .rr-books-dismiss{position:fixed;z-index:140;top:0;bottom:0;left:30%;width:40%;border:0;padding:0;background:transparent;touch-action:pan-y;cursor:default}
 .rr-books-dismiss[hidden]{display:none!important}
 .rr-books-dismiss>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-.rr-books-menu>p{padding:10px 16px;margin:0;font-size:14px}
-.rr-books-menu[data-view=Contents]{width:min(420px,calc(100vw - 32px));max-height:65dvh;min-height:min(320px,50dvh)}
-.rr-books-menu[data-view=Contents]>header{position:sticky;top:0;z-index:1;flex-shrink:0}
-.rr-books-menu[data-view=Contents]>button{flex-shrink:0;border-radius:12px;min-height:44px}
-.rr-books-menu[data-view=Contents]>button[aria-current=location]{background:#303029!important;color:white!important}
-.rr-books-menu[data-view="Themes & Settings"],.rr-books-menu[data-view="Customise Theme"]{width:min(380px,calc(100vw - 24px));max-height:78dvh}
-.rr-books-menu[data-view=More]{width:min(258px,calc(100vw - 32px));background:#f2f2f2e8;border:1px solid #ffffff70;border-radius:25px;padding:8px;box-shadow:0 12px 34px #0004;backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px)}
-html.rr-theme-dark .rr-books-menu[data-view=menu],html.rr-theme-dark .rr-books-menu[data-view=More]{background:#2e2e2abf;border-color:#ffffff25;color:#f5f5f2}
-html.rr-theme-dark .rr-books-menu[data-view=menu]>button,html.rr-theme-dark .rr-books-menu[data-view=menu]>.rr-books-actions>button{background:#484843dc!important;color:#f7f7f4!important}
-html.rr-theme-dark .rr-books-menu[data-view=menu]>button:first-child{background:#171714e8!important}
-.rr-books-menu[data-view="Customise Theme"]>label{display:grid;grid-template-columns:1fr auto;gap:6px 12px}
-.rr-books-menu[data-view="Customise Theme"]>label>output{font-variant-numeric:tabular-nums;color:#777}
-.rr-books-menu[data-view="Customise Theme"]>label>input{grid-column:1/-1}
-.rr-books-menu[data-view="Customise Theme"]>button:last-child{color:#d33;justify-content:center}
 
 /* Centre tap is a single, reversible chrome toggle. The invisible reading tap
    layer stays active, so another centre tap restores every control. */
-html.rr-books-controls.rr-hide-chrome .rr-sheet-btn,
-html.rr-books-controls.rr-hide-chrome .rr-close-btn,
-html.rr-books-controls.rr-hide-chrome .reader-footer{
+html.rr-books-controls.rr-hide-chrome .rr-close-btn, html.rr-books-controls.rr-hide-chrome .reader-footer{
  visibility:hidden!important;opacity:0!important;pointer-events:none!important;
 }
 
@@ -1173,7 +1105,6 @@ html.rr-book-open #rr-popover-scrim { display: none !important; }
  * float over arbitrary content, so state a definite contrast rather than
  * inheriting the page's.
  * ---------------------------------------------------------------------- */
-.rr-sheet-btn,
 .rr-close-btn {
   background: rgba(120, 120, 128, .28) !important;
   border: 0 !important;
@@ -1183,12 +1114,10 @@ html.rr-book-open #rr-popover-scrim { display: none !important; }
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
   box-shadow: 0 1px 3px rgba(0, 0, 0, .18);
 }
-html.rr-theme-dark .rr-sheet-btn,
 html.rr-theme-dark .rr-close-btn {
   background: rgba(120, 120, 128, .40) !important;
   color: #f5f5f7 !important;
 }
-.rr-sheet-btn:active,
 .rr-close-btn:active { opacity: .6; }
 
 /* ==== v74: freeze the header on every library view ====================== *
@@ -1825,27 +1754,8 @@ body > .rr-card-scrim {
 /* ==== v80: reading-menu controls, and motion =============================== */
 
 /* --- voice row: icon, no label ------------------------------------------- */
-.rr-books-menu .rr-voice-row,
-.rr-books-menu .rr-rate-row {
-  display: flex; align-items: center; gap: 10px;
-}
-.rr-books-menu .rr-voice-icon {
-  flex: 0 0 auto; display: grid; place-items: center;
-  width: 22px; height: 22px; opacity: .7;
-}
-.rr-books-menu .rr-voice-icon svg { width: 20px; height: 20px; }
-.rr-books-menu .rr-voice-row select { flex: 1 1 auto; min-width: 0; }
 
 /* --- speed slider -------------------------------------------------------- */
-.rr-books-menu .rr-rate-row input[type="range"] {
-  flex: 1 1 auto; min-width: 0;
-  accent-color: currentColor;
-  height: 26px;
-}
-.rr-books-menu .rr-rate-value {
-  flex: 0 0 auto; min-width: 44px; text-align: right;
-  font-variant-numeric: tabular-nums; opacity: .8;
-}
 
 /* ==== motion =============================================================
  * Menus and sheets grow from where they were summoned rather than appearing.
@@ -1887,8 +1797,6 @@ html.rr-sort-open #rr-sort-menu {
 html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
 }
 /* The reading sheet slides up from the ≡ that opened it. */
-html.rr-sheet-open .rr-books-menu {
-}
 /* Settings overlay and the metadata sheet. */
 /* Superseded by rr-overlay-up in v103: the overlay now rises rather than
    fading, and two animation declarations on one element is a trap. */
@@ -1909,11 +1817,7 @@ html #rr-filter-btn:active, html #rr-sort-btn:active, html #rr-settings-link:act
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body > .rr-card-menu,
-  html.rr-sort-open #rr-sort-menu,
-  html[data-rr-library-view="library"].rr-filters-open .catalog .filters,
-  html.rr-sheet-open .rr-books-menu,
-  #rr-settings-overlay, #rr-metafix, #rr-metafix .rr-mf-sheet, .rr-editions {
+  body > .rr-card-menu, html.rr-sort-open #rr-sort-menu, html[data-rr-library-view="library"].rr-filters-open .catalog .filters, #rr-settings-overlay, #rr-metafix, #rr-metafix .rr-mf-sheet, .rr-editions {
     animation: none !important;
   }
   html .rr-card-more:active,
@@ -1929,54 +1833,12 @@ html #rr-filter-btn:active, html #rr-sort-btn:active, html #rr-settings-link:act
  * icons carrying the meaning and labels supporting them.
  * ---------------------------------------------------------------------- */
 
-.rr-books-menu {
-  width: min(310px, calc(100vw - 32px)) !important;
-  padding: 10px !important;
-  border-radius: 20px !important;
-  gap: 6px !important;
-  /* A real surface: opaque enough to read against text, with a border and a
-     shadow deep enough to separate it from the page. */
-  background: rgba(252, 252, 253, .92) !important;
-  border: 1px solid rgba(0, 0, 0, .10) !important;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .28), 0 2px 8px rgba(0, 0, 0, .10) !important;
-  -webkit-backdrop-filter: blur(30px) saturate(1.6) !important;
-  backdrop-filter: blur(30px) saturate(1.6) !important;
-}
-.rr-books-menu > header { padding: 4px 8px 8px !important; }
-.rr-books-menu > header strong {
-  font: 600 15px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
-  letter-spacing: -.01em;
-}
 
 /* Rows: compact, icon first, label second. */
-.rr-books-menu button,
-.rr-books-menu > label {
-  min-height: 42px !important;
-  padding: 0 10px !important;
-  border-radius: 12px !important;
-  font-size: 14.5px !important;
-  gap: 10px !important;
-  background: rgba(120, 120, 128, .10) !important;
-}
-.rr-books-menu button:active { background: rgba(120, 120, 128, .22) !important; }
 /* The trailing glyph column is the icon; give it a fixed width so labels line
    up down the sheet instead of each row centring its own text. */
-.rr-books-menu button > span:last-child:not(:only-child) {
-  flex: 0 0 24px; text-align: center; font-size: 16px; opacity: .8;
-}
 
 /* The action grid at the top of the root view: icon above label, Books-style. */
-.rr-books-actions { gap: 6px !important; }
-.rr-books-actions button {
-  flex-direction: column !important;
-  gap: 4px !important;
-  min-height: 62px !important;
-  padding: 8px 4px !important;
-  font-size: 11.5px !important;
-}
-.rr-books-actions button > span:last-child:not(:only-child) {
-  order: -1; flex: 0 0 auto; font-size: 19px; opacity: .9;
-}
 
 /* Theme swatches: smaller, so six fit without dominating the sheet. */
 .rr-books-themes { gap: 6px !important; }
@@ -1987,52 +1849,26 @@ html #rr-filter-btn:active, html #rr-sort-btn:active, html #rr-settings-link:act
 }
 
 @media (prefers-color-scheme: dark) {
-  html:not([data-rr-theme="light"]) .rr-books-menu {
-    background: rgba(38, 38, 40, .94) !important;
-    border-color: rgba(255, 255, 255, .12) !important;
-  }
-  html:not([data-rr-theme="light"]) .rr-books-menu button,
-  html:not([data-rr-theme="light"]) .rr-books-menu > label {
-    background: rgba(120, 120, 128, .22) !important;
-  }
-}
-html[data-rr-theme="dark"] .rr-books-menu,
-html.rr-theme-dark .rr-books-menu {
-  background: rgba(38, 38, 40, .94) !important;
-  border-color: rgba(255, 255, 255, .12) !important;
-}
-html[data-rr-theme="dark"] .rr-books-menu button,
-html.rr-theme-dark .rr-books-menu button,
-html[data-rr-theme="dark"] .rr-books-menu > label,
-html.rr-theme-dark .rr-books-menu > label {
-  background: rgba(120, 120, 128, .22) !important;
-}
+    }
 
 /* --- motion on the reading controls -------------------------------------- */
 /* The ≡ and ✕ fade in rather than snapping when chrome returns. */
-.rr-sheet-btn, .rr-close-btn {
+.rr-close-btn {
   transition: opacity .18s ease, transform .18s cubic-bezier(.22, 1, .36, 1);
 }
-html.rr-hide-chrome .rr-sheet-btn,
 html.rr-hide-chrome .rr-close-btn { opacity: 0; transform: scale(.85); }
-.rr-sheet-btn:active, .rr-close-btn:active { transform: scale(.88); }
+.rr-close-btn:active { transform: scale(.88); }
 
 /* The sheet rises from the ≡ in the bottom-right corner it belongs to. */
-html.rr-sheet-open .rr-books-menu {
-  transform-origin: bottom right;
-}
 
 /* Switching views inside the sheet slides the new panel in. */
-.rr-books-menu > * { animation: rr-row-in .2s ease both; }
 @keyframes rr-row-in {
   from { opacity: 0; transform: translateX(8px); }
   to   { opacity: 1; transform: translateX(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html.rr-sheet-open .rr-books-menu,
-  .rr-books-menu > * { animation: none !important; }
-  .rr-sheet-btn, .rr-close-btn { transition: none; }
+    .rr-close-btn { transition: none; }
 }
 
 /* ==== v82: one theme signal for the reading sheet ========================= *
@@ -2049,73 +1885,12 @@ html.rr-sheet-open .rr-books-menu {
 /* The condition used throughout: explicit dark, or system dark without an
    explicit light override. Repeated rather than nested because :is() with
    :not() around an attribute selector is inconsistent on older WebKit. */
-html[data-rr-theme="dark"] .rr-books-menu,
-html[data-rr-theme="dark"] .rr-books-menu[data-view],
-html[data-rr-theme="dark"] .rr-books-menu[data-view=menu] {
-  background: rgba(38, 38, 40, .95) !important;
-  border-color: rgba(255, 255, 255, .14) !important;
-  color: #f5f5f7 !important;
-}
-html[data-rr-theme="dark"] .rr-books-menu > button,
-html[data-rr-theme="dark"] .rr-books-menu > header,
-html[data-rr-theme="dark"] .rr-books-menu > label,
-html[data-rr-theme="dark"] .rr-books-menu .rr-books-actions > button,
-html[data-rr-theme="dark"] .rr-books-menu[data-view=menu] > button,
-html[data-rr-theme="dark"] .rr-books-menu[data-view=menu] > .rr-books-actions > button {
-  background: rgba(120, 120, 128, .24) !important;
-  color: #f5f5f7 !important;
-}
 /* The primary row keeps its emphasis, inverted for dark. */
-html[data-rr-theme="dark"] .rr-books-menu[data-view=menu] > button:first-child {
-  background: #f5f5f7 !important;
-  color: #1c1c1e !important;
-}
-html[data-rr-theme="dark"] .rr-books-menu[data-view=Contents] > button[aria-current=location] {
-  background: #f5f5f7 !important;
-  color: #1c1c1e !important;
-}
 
 @media (prefers-color-scheme: dark) {
-  html:not([data-rr-theme="light"]) .rr-books-menu,
-  html:not([data-rr-theme="light"]) .rr-books-menu[data-view],
-  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=menu] {
-    background: rgba(38, 38, 40, .95) !important;
-    border-color: rgba(255, 255, 255, .14) !important;
-    color: #f5f5f7 !important;
-  }
-  html:not([data-rr-theme="light"]) .rr-books-menu > button,
-  html:not([data-rr-theme="light"]) .rr-books-menu > header,
-  html:not([data-rr-theme="light"]) .rr-books-menu > label,
-  html:not([data-rr-theme="light"]) .rr-books-menu .rr-books-actions > button,
-  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=menu] > button,
-  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=menu] > .rr-books-actions > button {
-    background: rgba(120, 120, 128, .24) !important;
-    color: #f5f5f7 !important;
-  }
-  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=menu] > button:first-child,
-  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=Contents] > button[aria-current=location] {
-    background: #f5f5f7 !important;
-    color: #1c1c1e !important;
-  }
-}
+      }
 
 /* Light: state it outright so the reader's own theme cannot leak in either. */
-html[data-rr-theme="light"] .rr-books-menu,
-html[data-rr-theme="light"] .rr-books-menu[data-view],
-html[data-rr-theme="light"] .rr-books-menu[data-view=menu] {
-  background: rgba(250, 250, 251, .95) !important;
-  border-color: rgba(0, 0, 0, .10) !important;
-  color: #1c1c1e !important;
-}
-html[data-rr-theme="light"] .rr-books-menu > button,
-html[data-rr-theme="light"] .rr-books-menu > header,
-html[data-rr-theme="light"] .rr-books-menu > label,
-html[data-rr-theme="light"] .rr-books-menu .rr-books-actions > button,
-html[data-rr-theme="light"] .rr-books-menu[data-view=menu] > button,
-html[data-rr-theme="light"] .rr-books-menu[data-view=menu] > .rr-books-actions > button {
-  background: rgba(120, 120, 128, .12) !important;
-  color: #1c1c1e !important;
-}
 
 /* ==== v83: theme consistency, done properly ===============================
  * Three faults, and the first two are mine.
@@ -2159,30 +1934,12 @@ html[data-rr-theme="light"] .rr-books-menu[data-view=menu] > .rr-books-actions >
 /* --- rr-theme-dark must not style chrome --------------------------------- */
 /* It describes the book, not the app. Left active it made the sheet follow
    whichever theme the book happened to use. */
-html.rr-theme-dark .rr-books-menu,
-html.rr-theme-dark .rr-books-menu[data-view],
-html.rr-theme-dark .rr-books-menu[data-view=menu] {
-  background: unset;
-  color: unset;
-}
-html.rr-theme-dark .rr-books-menu > button,
-html.rr-theme-dark .rr-books-menu > header,
-html.rr-theme-dark .rr-books-menu > label,
-html.rr-theme-dark .rr-books-actions > button { background: unset; }
 
 /* --- chrome states its own colour, never inherits the page's ------------- */
-html[data-rr-theme="dark"] .rr-books-menu,
-html[data-rr-theme="dark"] .rr-books-menu *:not(.rr-books-themes):not(.rr-books-themes *) { color: #f5f5f7 !important; }
-html[data-rr-theme="light"] .rr-books-menu,
-html[data-rr-theme="light"] .rr-books-menu *:not(.rr-books-themes):not(.rr-books-themes *) { color: #1c1c1e !important; }
 @media (prefers-color-scheme: dark) {
-  html:not([data-rr-theme="light"]) .rr-books-menu,
-  html:not([data-rr-theme="light"]) .rr-books-menu *:not(.rr-books-themes):not(.rr-books-themes *) { color: #f5f5f7 !important; }
-}
+  }
 @media (prefers-color-scheme: light) {
-  html:not([data-rr-theme="dark"]) .rr-books-menu,
-  html:not([data-rr-theme="dark"]) .rr-books-menu *:not(.rr-books-themes):not(.rr-books-themes *) { color: #1c1c1e !important; }
-}
+  }
 /* ...except the swatches, which are previews of a page, not chrome. */
 .rr-books-themes button[data-theme=original],
 .rr-books-themes button[data-theme=light],
@@ -2197,24 +1954,12 @@ html[data-rr-theme="light"] .rr-books-menu *:not(.rr-books-themes):not(.rr-books
 .rr-books-themes button[data-theme] * { color: inherit !important; }
 
 /* Selects and range inputs inside the sheet follow chrome, not the page. */
-html[data-rr-theme="dark"] .rr-books-menu select { color: #f5f5f7 !important; }
-html[data-rr-theme="light"] .rr-books-menu select { color: #1c1c1e !important; }
 
 /* The swatch colours, stated at a specificity that beats every chrome rule in
    this file. Earlier attempts used `.rr-books-themes button[data-theme=x]`
    (0,2,1), which lost to `html[data-rr-theme=dark] .rr-books-menu *` (0,2,2) -
    so cream swatches were given white text and became unreadable. Anchoring on
    html and the menu puts these at 0,4,2. */
-html .rr-books-menu .rr-books-themes button[data-theme][data-theme=original],
-html .rr-books-menu .rr-books-themes button[data-theme][data-theme=light] { background: #fff !important; color: #222 !important; }
-html .rr-books-menu .rr-books-themes button[data-theme][data-theme=quiet] { background: #4d4c52 !important; color: #eee !important; }
-html .rr-books-menu .rr-books-themes button[data-theme][data-theme=paper] { background: #eeeae1 !important; color: #332f29 !important; }
-html .rr-books-menu .rr-books-themes button[data-theme][data-theme=bold] { background: #fff !important; color: #111 !important; }
-html .rr-books-menu .rr-books-themes button[data-theme][data-theme=calm] { background: #f0dfbd !important; color: #443526 !important; }
-html .rr-books-menu .rr-books-themes button[data-theme][data-theme=focus] { background: #fffdf5 !important; color: #221f18 !important; }
-html .rr-books-menu .rr-books-themes button[data-theme][data-theme=sepia] { background: #f4e8ce !important; color: #433526 !important; }
-html .rr-books-menu .rr-books-themes button[data-theme][data-theme=dark] { background: #191919 !important; color: #ddd !important; }
-html .rr-books-menu .rr-books-themes button[data-theme] * { color: inherit !important; }
 
 /* ==== v90: inverted rows need inverted text ==============================
  * Two rows are deliberately given a light fill in dark mode for emphasis: the
@@ -2225,40 +1970,13 @@ html .rr-books-menu .rr-books-themes button[data-theme] * { color: inherit !impo
  * The inverted rows now state their own colour, and state it for their children
  * too, since that is where the text actually is.
  * ---------------------------------------------------------------------- */
-html[data-rr-theme="dark"] .rr-books-menu[data-view=menu] > button:first-child,
-html[data-rr-theme="dark"] .rr-books-menu[data-view=menu] > button:first-child *,
-html[data-rr-theme="dark"] .rr-books-menu[data-view=Contents] > button[aria-current=location],
-html[data-rr-theme="dark"] .rr-books-menu[data-view=Contents] > button[aria-current=location] * {
-  color: #14110f !important;
-}
 @media (prefers-color-scheme: dark) {
-  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=menu] > button:first-child,
-  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=menu] > button:first-child *,
-  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=Contents] > button[aria-current=location],
-  html:not([data-rr-theme="light"]) .rr-books-menu[data-view=Contents] > button[aria-current=location] * {
-    color: #14110f !important;
   }
-}
 /* Light mode: the same rows invert the other way. */
-html[data-rr-theme="light"] .rr-books-menu[data-view=menu] > button:first-child,
-html[data-rr-theme="light"] .rr-books-menu[data-view=menu] > button:first-child *,
-html[data-rr-theme="light"] .rr-books-menu[data-view=Contents] > button[aria-current=location],
-html[data-rr-theme="light"] .rr-books-menu[data-view=Contents] > button[aria-current=location] * {
-  color: #f7f3ec !important;
-}
 
 /* The Contents list is long and every row was the same weight, which is why it
    read as a grey wall. Chapter rows sit back; the section headings and the
    current position come forward. */
-.rr-books-menu[data-view=Contents] > button {
-  min-height: 38px !important;
-  font-size: 14px !important;
-  opacity: .82;
-}
-.rr-books-menu[data-view=Contents] > button[aria-current=location] {
-  opacity: 1;
-  font-weight: 600 !important;
-}
 
 /* ==== v91: one consistent system for the reading sheet ====================
  * Measured before rewriting: the sheet had accumulated 9 different min-heights
@@ -2276,97 +1994,14 @@ html[data-rr-theme="light"] .rr-books-menu[data-view=Contents] > button[aria-cur
  * system and 11.5px system read as three accidents.
  * ---------------------------------------------------------------------- */
 
-.rr-books-menu {
-  /* One rhythm for the whole sheet. */
-  --rr-row-h: 46px;          /* every full-width row */
-  --rr-tile-h: 58px;         /* the action grid and swatches */
-  --rr-radius: 14px;         /* rows */
-  --rr-radius-lg: 22px;      /* the sheet itself */
-  --rr-gap: 7px;
-  --rr-pad-x: 14px;
-  --rr-text: 15px;           /* row labels */
-  --rr-text-sm: 12.5px;      /* captions under tiles */
-  --rr-title: 17px;          /* the sheet heading */
-  --rr-icon: 19px;
-
-  width: min(322px, calc(100vw - 28px)) !important;
-  padding: 9px !important;
-  gap: var(--rr-gap) !important;
-  border-radius: var(--rr-radius-lg) !important;
-  font: var(--rr-text)/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
-}
 
 /* --- rows: one height, one radius, one size ------------------------------- */
-.rr-books-menu > button,
-.rr-books-menu > label {
-  min-height: var(--rr-row-h) !important;
-  height: auto !important;
-  padding: 0 var(--rr-pad-x) !important;
-  border-radius: var(--rr-radius) !important;
-  font-size: var(--rr-text) !important;
-  font-weight: 450 !important;
-  letter-spacing: -.005em;
-  gap: 10px !important;
-  justify-content: space-between !important;
-}
 /* The label gets the room; the icon is a fixed column at the end. Without this
    a short label and its icon were flung to opposite edges of a 322px row. */
-.rr-books-menu > button > span:first-child,
-.rr-books-menu > label > span:first-child:not([aria-hidden]) {
-  flex: 1 1 auto; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.rr-books-menu > button > span[aria-hidden],
-.rr-books-menu > button > span:last-child:not(:only-child) {
-  flex: 0 0 22px;
-  display: grid; place-items: center;
-  font-size: var(--rr-icon) !important;
-  opacity: .62;
-}
-.rr-books-menu > button > span[aria-hidden] svg { width: var(--rr-icon); height: var(--rr-icon); }
 
 /* --- heading: the one place Georgia belongs in the chrome ----------------- */
-.rr-books-menu > header {
-  min-height: var(--rr-row-h) !important;
-  padding: 0 6px 0 var(--rr-pad-x) !important;
-  border-radius: var(--rr-radius) !important;
-  background: none !important;
-  backdrop-filter: none !important;
-}
-.rr-books-menu > header > strong {
-  font: 600 var(--rr-title)/1.2 Georgia, "Iowan Old Style", serif !important;
-  letter-spacing: -.01em;
-}
-.rr-books-menu > header > button {
-  width: 32px !important; height: 32px !important;
-  min-height: 0 !important;
-  border-radius: 50% !important;
-  font-size: 15px !important;
-  flex: 0 0 auto;
-}
 
 /* --- the action grid: equal tiles, icon over label ------------------------ */
-.rr-books-actions { gap: var(--rr-gap) !important; }
-.rr-books-actions > button {
-  flex: 1 1 0 !important;
-  min-width: 0 !important;
-  min-height: var(--rr-tile-h) !important;
-  height: var(--rr-tile-h) !important;
-  padding: 0 !important;
-  border-radius: var(--rr-radius) !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 3px !important;
-  font-size: var(--rr-text-sm) !important;
-}
-.rr-books-actions > button > span:first-child { flex: 0 0 auto; }
-.rr-books-actions > button > span[aria-hidden],
-.rr-books-actions > button > span:last-child:not(:only-child) {
-  order: -1; flex: 0 0 auto; opacity: .75;
-  font-size: 20px !important;
-}
-.rr-books-actions > button > span[aria-hidden] svg { width: 20px; height: 20px; }
 
 /* --- swatches: same tile height as the action grid ----------------------- */
 .rr-books-themes { gap: var(--rr-gap) !important; }
@@ -2380,39 +2015,14 @@ html[data-rr-theme="light"] .rr-books-menu[data-view=Contents] > button[aria-cur
 }
 
 /* --- selects and sliders sit at row height -------------------------------- */
-.rr-books-menu select {
-  min-height: 0 !important;
-  font-size: var(--rr-text) !important;
-  text-align: right;
-}
-.rr-books-menu .rr-rate-row,
-.rr-books-menu .rr-voice-row { min-height: var(--rr-row-h) !important; }
-.rr-books-menu input[type="range"] { height: 22px !important; }
-.rr-books-menu .rr-rate-value {
-  font-size: var(--rr-text-sm) !important;
-  font-variant-numeric: tabular-nums;
-  min-width: 40px; text-align: right; opacity: .7;
-}
 
 /* --- Contents: a list, so tighter than an action row --------------------- */
-.rr-books-menu[data-view=Contents] > button {
-  min-height: 40px !important;
-  font-size: 14px !important;
-  padding: 7px var(--rr-pad-x) !important;
-}
-.rr-books-menu[data-view=Contents] > button > span:first-child {
-  white-space: normal !important;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-}
 
 /* ==== motion: one clear gesture, not several faint ones ==================
  * The old animation moved 18px over .24s behind a blur, which on a phone is
  * imperceptible. This travels further, overshoots slightly, and staggers the
  * rows so the sheet assembles itself - readable as one deliberate movement.
  * ---------------------------------------------------------------------- */
-html.rr-sheet-open .rr-books-menu {
-  transform-origin: bottom right;
-}
 @keyframes rr-sheet-pop {
   0%   { opacity: 0; transform: scale(.86) translate(10px, 34px); }
   60%  { opacity: 1; transform: scale(1.012) translate(0, -3px); }
@@ -2420,42 +2030,21 @@ html.rr-sheet-open .rr-books-menu {
 }
 /* Rows arrive in sequence. nth-child rather than a JS-set index: the sheet is
    rebuilt on every view change, so the delay has to come from position alone. */
-.rr-books-menu > * {
-  animation: rr-row-rise .3s cubic-bezier(.2, .9, .3, 1) both;
-}
-.rr-books-menu > :nth-child(1) { animation-delay: .04s; }
-.rr-books-menu > :nth-child(2) { animation-delay: .08s; }
-.rr-books-menu > :nth-child(3) { animation-delay: .12s; }
-.rr-books-menu > :nth-child(4) { animation-delay: .16s; }
-.rr-books-menu > :nth-child(5) { animation-delay: .2s; }
-.rr-books-menu > :nth-child(6) { animation-delay: .23s; }
-.rr-books-menu > :nth-child(7) { animation-delay: .26s; }
-.rr-books-menu > :nth-child(n+8) { animation-delay: .28s; }
 @keyframes rr-row-rise {
   from { opacity: 0; transform: translateY(12px) scale(.985); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 /* A press should feel like a press. */
-.rr-books-menu > button,
-.rr-books-actions > button,
 .rr-books-themes > button {
   transition: transform .13s cubic-bezier(.2, .9, .3, 1), filter .13s ease;
 }
-.rr-books-menu > button:active,
-.rr-books-actions > button:active,
 .rr-books-themes > button:active {
   transform: scale(.955);
   filter: brightness(.94);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html.rr-sheet-open .rr-books-menu,
-  .rr-books-menu > * { animation: none !important; }
-  .rr-books-menu > button,
-  .rr-books-actions > button,
-  .rr-books-themes > button { transition: none; }
-  .rr-books-menu > button:active,
-  .rr-books-actions > button:active,
+    .rr-books-themes > button { transition: none; }
   .rr-books-themes > button:active { transform: none; filter: none; }
 }
 
@@ -2523,14 +2112,9 @@ html.rr-books-controls .reader-panel-status {
 /* --- the stagger runs on open, not on every tap -------------------------- */
 /* Overrides the v91 rule: the animation is now conditional on rr-sheet-entering,
    which the script adds on open and removes once the sequence has played. */
-.rr-books-menu > * { animation: none; }
-html.rr-sheet-entering .rr-books-menu > * {
-  animation: rr-row-rise .3s cubic-bezier(.2, .9, .3, 1) both;
-}
 
 @media (prefers-reduced-motion: reduce) {
-  html.rr-books-controls .reader-panel,
-  html.rr-sheet-entering .rr-books-menu > * { animation: none !important; }
+  html.rr-books-controls .reader-panel { animation: none !important; }
 }
 
 /* ==== v93: shapes instead of a stack of identical pills ===================
@@ -2543,17 +2127,6 @@ html.rr-sheet-entering .rr-books-menu > * {
  * the base panel rule at the top of this file, which it predates - otherwise it
  * renders with no panel background at all.
  * ---------------------------------------------------------------------- */
-.rr-books-menu[data-view="Voice"] {
-  background: rgba(38, 38, 40, .95);
-  border-radius: 22px;
-  padding: 9px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .3);
-  -webkit-backdrop-filter: blur(30px) saturate(1.5);
-  backdrop-filter: blur(30px) saturate(1.5);
-}
-html[data-rr-theme="light"] .rr-books-menu[data-view="Voice"] {
-  background: rgba(250, 250, 251, .96);
-}
 
 /* --- root toolbar: four equal tiles, bigger icons ------------------------ */
 /* 52px tiles with 23px icons. The old 58px tile with a 20px icon was the
@@ -2630,19 +2203,6 @@ html[data-rr-theme="light"] .rr-books-segment > button[aria-pressed="true"] {
 }
 
 /* --- Read Aloud: a dominant primary, a detail row, a real slider --------- */
-.rr-books-menu > .rr-books-primary {
-  min-height: 54px !important;
-  justify-content: center !important;
-  font-size: 16px !important;
-  font-weight: 600 !important;
-  background: #f5f5f7 !important;
-  color: #14110f !important;
-}
-.rr-books-menu > .rr-books-primary > span[aria-hidden] { opacity: 1 !important; }
-html[data-rr-theme="light"] .rr-books-menu > .rr-books-primary {
-  background: #14110f !important;
-  color: #f7f3ec !important;
-}
 /* The voice row: value on the left, chevron at the end, no dead middle. */
 .rr-books-detail > span:first-child {
   font-size: 14.5px !important;
@@ -2652,32 +2212,8 @@ html[data-rr-theme="light"] .rr-books-menu > .rr-books-primary {
 .rr-books-detail > span[aria-hidden] svg { width: 15px !important; height: 15px !important; }
 
 /* Slider row: endpoints label the track instead of leaving it unexplained. */
-.rr-books-menu .rr-rate-row {
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  padding: 0 12px !important;
-}
-.rr-books-menu .rr-rate-end {
-  flex: 0 0 auto;
-  font-size: 11px !important;
-  opacity: .5;
-  font-variant-numeric: tabular-nums;
-}
-.rr-books-menu .rr-rate-row input[type="range"] { flex: 1 1 auto; min-width: 0; }
-.rr-books-menu .rr-rate-value {
-  flex: 0 0 38px;
-  font-size: 12.5px !important;
-  font-weight: 600;
-  text-align: right;
-  opacity: .9 !important;
-}
 
 /* --- Voice list: the current voice marked, not just selected ------------- */
-.rr-books-menu[data-view="Voice"] > button[aria-current="true"] {
-  background: rgba(0, 122, 255, .18) !important;
-  font-weight: 600 !important;
-}
 
 /* A PDF or comic has no search, no TTS and no text settings, so the toolbar can
    be a single tile. Left at flex:1 that one tile spans the whole sheet and reads
@@ -2729,34 +2265,6 @@ html[data-rr-theme="light"] .rr-books-menu > .rr-books-primary {
 html[data-rr-theme="light"] .rr-books-transport > .rr-books-transport-main {
   background: #fff;
 }
-.rr-books-menu > .rr-books-sleep,
-.rr-books-menu > .rr-books-stop {
-  min-height: 44px !important;
-  height: 44px !important;
-  border-radius: 14px !important;
-  font-size: 13.5px !important;
-}
-.rr-books-menu > .rr-books-sleep {
-  justify-content: flex-start !important;
-  gap: 9px !important;
-  padding: 0 14px !important;
-}
-.rr-books-menu > .rr-books-sleep > span[aria-hidden] {
-  margin-left: auto;
-}
-.rr-books-menu > .rr-books-sleep > span[aria-hidden] svg {
-  width: 18px !important;
-  height: 18px !important;
-}
-.rr-books-menu > .rr-books-stop {
-  justify-content: center !important;
-  color: #ff6b63 !important;
-  background: rgba(255, 69, 58, .10) !important;
-}
-.rr-books-menu > .rr-books-stop > span[aria-hidden] svg {
-  width: 13px !important;
-  height: 13px !important;
-}
 
 /* ==== v96: coherent reader controls and independent reader theming ========
  * Reader theme and library theme are separate choices. All floating reader
@@ -2773,39 +2281,22 @@ html.rr-book-open.rr-reader-light body { background:#fffdf7 !important; color-sc
 html.rr-book-open.rr-reader-sepia,
 html.rr-book-open.rr-reader-sepia body { background:#f3ead7 !important; color-scheme:light; }
 
-html.rr-reader-dark .rr-books-menu,
-html.rr-reader-dark .rr-books-menu[data-view="Voice"],
 html.rr-reader-dark .reader-panel {
   background:rgba(38,38,40,.96) !important;
   border-color:rgba(255,255,255,.13) !important;
   color:#f5f2e9 !important;
 }
-html.rr-reader-dark .rr-books-menu button,
-html.rr-reader-dark .rr-books-menu > label,
-html.rr-reader-dark .reader-panel button,
-html.rr-reader-dark .reader-panel input {
+html.rr-reader-dark .reader-panel button, html.rr-reader-dark .reader-panel input {
   color:#f5f2e9 !important;
   background:rgba(120,120,128,.20) !important;
   border-color:rgba(255,255,255,.13) !important;
 }
-html.rr-reader-light .rr-books-menu,
-html.rr-reader-light .rr-books-menu[data-view="Voice"],
-html.rr-reader-light .reader-panel,
-html.rr-reader-sepia .rr-books-menu,
-html.rr-reader-sepia .rr-books-menu[data-view="Voice"],
-html.rr-reader-sepia .reader-panel {
+html.rr-reader-light .reader-panel, html.rr-reader-sepia .reader-panel {
   background:rgba(250,250,251,.96) !important;
   border-color:rgba(0,0,0,.10) !important;
   color:#1c1c1e !important;
 }
-html.rr-reader-light .rr-books-menu button,
-html.rr-reader-light .rr-books-menu > label,
-html.rr-reader-light .reader-panel button,
-html.rr-reader-light .reader-panel input,
-html.rr-reader-sepia .rr-books-menu button,
-html.rr-reader-sepia .rr-books-menu > label,
-html.rr-reader-sepia .reader-panel button,
-html.rr-reader-sepia .reader-panel input {
+html.rr-reader-light .reader-panel button, html.rr-reader-light .reader-panel input, html.rr-reader-sepia .reader-panel button, html.rr-reader-sepia .reader-panel input {
   color:#1c1c1e !important;
   background:rgba(120,120,128,.11) !important;
   border-color:rgba(0,0,0,.10) !important;
@@ -2819,7 +2310,6 @@ html.rr-books-controls .reader-panel-heading > button {
   font:400 31px/1 -apple-system,BlinkMacSystemFont,sans-serif !important;
   background:rgba(120,120,128,.18) !important;
 }
-html.rr-native-panel-open .rr-books-menu,
 html.rr-native-panel-open .rr-books-dismiss { display:none !important; }
 
 /* Text-size glyphs are self-explanatory; keep their accessible labels but do
@@ -2871,15 +2361,10 @@ html.rr-native-panel-open .rr-books-dismiss { display:none !important; }
 }
 
 /* Speed reads top-to-bottom: name/current value, track, then its bounds. */
-.rr-books-menu .rr-rate-card {
-  display:grid !important;grid-template-columns:1fr !important;gap:7px !important;
-  min-height:auto !important;padding:11px 14px 9px !important;
-}
 .rr-rate-header,.rr-rate-bounds { display:flex;align-items:center;justify-content:space-between; }
 .rr-rate-header { font-size:13.5px;font-weight:550; }
 .rr-rate-header .rr-rate-value { width:auto !important;flex:none !important;font-size:13.5px !important; }
 .rr-rate-bounds { font-size:10.5px;opacity:.5;font-variant-numeric:tabular-nums; }
-.rr-books-menu .rr-rate-card input[type="range"] { width:100%;min-width:0;margin:0; }
 
 /* Sleep is a real stepper: minus and plus are distinct targets, while the
    remaining time sits still in the middle. */
@@ -2939,10 +2424,6 @@ html.rr-library-visible #rr-sort-btn svg { width:22px !important;height:22px !im
   78%  { transform: translate(0, 2px) scale(.995) rotate(.15deg); }
   100% { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
 }
-html.rr-sheet-open .rr-books-menu {
-  transform-origin: bottom right;
-  animation: rr-deal-in .44s cubic-bezier(.18, 1.1, .28, 1) both !important;
-}
 
 /* --- rows: fanned out, from the side you travelled ---------------------- */
 @keyframes rr-fan-right {
@@ -2956,27 +2437,10 @@ html.rr-sheet-open .rr-books-menu {
   100% { opacity: 1; transform: translateX(0) scale(1); }
 }
 /* On open, the whole sheet is already flying, so rows only need to assemble. */
-html.rr-sheet-entering .rr-books-menu > * {
-  animation: rr-fan-right .42s cubic-bezier(.2, 1.06, .3, 1) both;
-}
 /* On a view change the sheet stays put, so the rows carry the movement and the
    direction is what tells you whether you went deeper or came back. */
-html:not(.rr-sheet-entering) .rr-books-menu[data-nav="forward"] > * {
-  animation: rr-fan-right .38s cubic-bezier(.2, 1.06, .3, 1) both;
-}
-html:not(.rr-sheet-entering) .rr-books-menu[data-nav="back"] > * {
-  animation: rr-fan-left .38s cubic-bezier(.2, 1.06, .3, 1) both;
-}
 /* Stagger: tighter than before so a long list still finishes quickly, and the
    header leads rather than arriving with its content. */
-.rr-books-menu > :nth-child(1) { animation-delay: 0s !important; }
-.rr-books-menu > :nth-child(2) { animation-delay: .045s !important; }
-.rr-books-menu > :nth-child(3) { animation-delay: .085s !important; }
-.rr-books-menu > :nth-child(4) { animation-delay: .12s !important; }
-.rr-books-menu > :nth-child(5) { animation-delay: .15s !important; }
-.rr-books-menu > :nth-child(6) { animation-delay: .175s !important; }
-.rr-books-menu > :nth-child(7) { animation-delay: .195s !important; }
-.rr-books-menu > :nth-child(n+8) { animation-delay: .21s !important; }
 
 /* Tiles inside a group arrive left-to-right, so a toolbar reads as one gesture
    rather than four things appearing at once. */
@@ -2985,8 +2449,7 @@ html:not(.rr-sheet-entering) .rr-books-menu[data-nav="back"] > * {
   65%  { opacity: 1; transform: translateY(-2px) scale(1.02); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
-html.rr-sheet-entering .rr-books-toolbar > button,
-.rr-books-menu[data-nav] .rr-books-toolbar > button {
+html.rr-sheet-entering .rr-books-toolbar > button {
   animation: rr-tile-in .4s cubic-bezier(.2, 1.1, .3, 1) both;
 }
 .rr-books-toolbar > button:nth-child(1) { animation-delay: .1s; }
@@ -3051,27 +2514,13 @@ html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
   68%  { opacity: 1; transform: scale(1.1) rotate(2deg); }
   100% { opacity: 1; transform: scale(1) rotate(0deg); }
 }
-html.rr-books-controls .rr-sheet-btn,
 html.rr-books-controls .rr-close-btn {
   animation: rr-btn-in .34s cubic-bezier(.2, 1.25, .3, 1) both;
 }
 html.rr-books-controls .rr-close-btn { animation-delay: .05s; }
 
 @media (prefers-reduced-motion: reduce) {
-  html.rr-sheet-open .rr-books-menu,
-  html.rr-sheet-entering .rr-books-menu > *,
-  .rr-books-menu[data-nav] > *,
-  .rr-books-menu[data-nav] .rr-books-toolbar > button,
-  .rr-books-themes > button,
-  body > .rr-card-menu,
-  body > .rr-card-menu button,
-  html.rr-books-controls .reader-panel,
-  html.rr-books-controls .reader-panel > *,
-  html.rr-sort-open #rr-sort-menu,
-  html.rr-sort-open #rr-sort-menu > *,
-  html[data-rr-library-view="library"].rr-filters-open .catalog .filters,
-  html.rr-books-controls .rr-sheet-btn,
-  html.rr-books-controls .rr-close-btn { animation: none !important; }
+  .rr-books-themes > button, body > .rr-card-menu, body > .rr-card-menu button, html.rr-books-controls .reader-panel, html.rr-books-controls .reader-panel > *, html.rr-sort-open #rr-sort-menu, html.rr-sort-open #rr-sort-menu > *, html[data-rr-library-view="library"].rr-filters-open .catalog .filters, html.rr-books-controls .rr-close-btn { animation: none !important; }
 }
 
 /* ==== v102: the reading buttons slide off the right edge ==================
@@ -3090,7 +2539,6 @@ html.rr-books-controls .rr-close-btn { animation-delay: .05s; }
  * cleanly and keeps a hidden button untappable.
  * ---------------------------------------------------------------------- */
 
-html.rr-books-controls .rr-sheet-btn,
 html.rr-books-controls .rr-close-btn {
   /* One property carries the movement, so nothing fights the animation above. */
   transition:
@@ -3113,7 +2561,6 @@ html.rr-books-controls .rr-close-btn {
  *
  * The first version of this block set opacity:0 !important on the hamburger
  * without that scope, which silently removed the escape hatch. */
-html.rr-books-controls.rr-hide-chrome .rr-sheet-btn,
 html.rr-books-controls.rr-hide-chrome .rr-close-btn {
   visibility: visible !important;          /* let transform do the hiding */
   opacity: 0 !important;
@@ -3127,35 +2574,22 @@ html:not(.rr-books-controls).rr-hide-chrome .rr-close-btn {
   pointer-events: none;
   transform: translateX(26vw) rotate(9deg) scale(.82);
 }
-html:not(.rr-books-controls).rr-hide-chrome .rr-sheet-btn {
-  opacity: .22;
-  transform: translateX(0) rotate(0deg) scale(1);
-  pointer-events: auto;
-}
 /* The ✕ is the outer of the two, so it leads on the way out and trails coming
    back - the order a hand would use. */
 html.rr-books-controls.rr-hide-chrome .rr-close-btn {
   transition-delay: 0s, 0s;
 }
-html.rr-books-controls.rr-hide-chrome .rr-sheet-btn {
-  transition-delay: .06s, .06s;
-}
 
 /* Visible: settled at rest. */
-html.rr-books-controls:not(.rr-hide-chrome) .rr-sheet-btn,
-html.rr-books-controls:not(.rr-hide-chrome) .rr-close-btn,
-html:not(.rr-books-controls):not(.rr-hide-chrome) .rr-sheet-btn,
-html:not(.rr-books-controls):not(.rr-hide-chrome) .rr-close-btn {
+html.rr-books-controls:not(.rr-hide-chrome) .rr-close-btn, html:not(.rr-books-controls):not(.rr-hide-chrome) .rr-close-btn {
   opacity: 1;
   transform: translateX(0) rotate(0deg) scale(1);
   pointer-events: auto;
 }
-html.rr-books-controls:not(.rr-hide-chrome) .rr-sheet-btn { transition-delay: 0s; }
 html.rr-books-controls:not(.rr-hide-chrome) .rr-close-btn { transition-delay: .07s; }
 
 /* The press feedback has to compose with the resting transform, or tapping a
    visible button would snap it back to an untranslated scale. */
-html.rr-books-controls:not(.rr-hide-chrome) .rr-sheet-btn:active,
 html.rr-books-controls:not(.rr-hide-chrome) .rr-close-btn:active {
   transform: translateX(0) rotate(0deg) scale(.88);
   transition-duration: .1s;
@@ -3164,13 +2598,10 @@ html.rr-books-controls:not(.rr-hide-chrome) .rr-close-btn:active {
 /* The earlier rule set these from a keyframe on mount, which would replay and
    fight the transition. Mount is now handled by the same transition, entering
    from the hidden state. */
-html.rr-books-controls .rr-sheet-btn,
 html.rr-books-controls .rr-close-btn { animation: none !important; }
 
 @media (prefers-reduced-motion: reduce) {
-  html.rr-books-controls .rr-sheet-btn,
   html.rr-books-controls .rr-close-btn { transition: opacity .12s ease !important; }
-  html.rr-books-controls.rr-hide-chrome .rr-sheet-btn,
   html.rr-books-controls.rr-hide-chrome .rr-close-btn {
     transform: none !important;
     visibility: hidden !important;
@@ -3434,17 +2865,12 @@ html[data-rr-library-view="library"] .catalog .filters.expanded-filters:not(.ope
 }
 
 /* Reader chrome chips share one origin and the same damped trajectory. */
-html .rr-react-sheet-trigger,
-html.rr-books-controls .rr-close-btn,
-html.rr-books-controls .rr-sheet-btn {
+html .rr-react-sheet-trigger, html.rr-books-controls .rr-close-btn {
   transition: opacity .24s linear, transform var(--rr-spring-time) var(--rr-spring) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #rr-filter-btn, #rr-sort-btn, #rr-settings-link, #rr-sort-menu,
-  html[data-rr-library-view="library"] .catalog .filters,
-  html .rr-react-sheet-trigger, html.rr-books-controls .rr-close-btn,
-  html.rr-books-controls .rr-sheet-btn {
+  #rr-filter-btn, #rr-sort-btn, #rr-settings-link, #rr-sort-menu, html[data-rr-library-view="library"] .catalog .filters, html .rr-react-sheet-trigger, html.rr-books-controls .rr-close-btn {
     animation: none !important;
     transition: opacity .12s linear !important;
   }

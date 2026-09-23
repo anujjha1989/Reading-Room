@@ -1,12 +1,7 @@
 // Resolves which CSS rule actually wins for the reading-chrome buttons across
 // every permutation of the state classes, and asserts two invariants:
 //
-//   1. In the older reader (.rr-hide-chrome without .rr-books-controls) the
-//      hamburger MUST stay reachable. It is a deliberate escape hatch: "without
-//      it, a centre tap that failed for any reason would leave no way back to
-//      the controls at all." A slide-out animation scoped too broadly removed it
-//      once already.
-//   2. In the current sheet era both buttons MUST be untappable when hidden,
+//   1. In the current React reader both buttons MUST be untappable when hidden,
 //      since they are only moved off-screen by transform rather than removed.
 //
 // @media blocks are stripped and pseudo-class rules skipped, because this models
@@ -17,7 +12,7 @@
 // classes, using real CSS cascade order (later wins at equal specificity, and
 // !important beats non-important).
 import { readFileSync } from "node:fs";
-let css = readFileSync("app/reader-chrome.css","utf8");
+let css = readFileSync("app/reader-chrome.css","utf8") + "\n" + readFileSync("app/globals.css","utf8");
 // Remove @media blocks: this resolver models the default context. Their contents
 // are correct but conditional, and counting them produced false readings.
 css = css.replace(/@media[^{]*\{(?:[^{}]*\{[^}]*\}\s*)*\}/g, "");
@@ -28,13 +23,13 @@ const re = /([^{}]+)\{([^}]*)\}/g;
 let m;
 while ((m = re.exec(css))) {
   const sel = m[1].trim(), body = m[2];
-  if (!/rr-sheet-btn|rr-close-btn/.test(sel)) continue;
+  if (!/rr-react-sheet-trigger|rr-close-btn/.test(sel)) continue;
   if (!/opacity|transform|visibility|pointer-events/.test(body)) continue;
   for (const part of sel.split(',').map(s=>s.trim())) {
-    if (!/rr-sheet-btn|rr-close-btn/.test(part)) continue;
+    if (!/rr-react-sheet-trigger|rr-close-btn/.test(part)) continue;
     if (/:active|:hover|:focus/.test(part)) continue;   // not the resting state
     rules.push({ sel: part, body, at: m.index,
-      target: /rr-sheet-btn/.test(part) ? 'sheet' : 'close' });
+      target: /rr-react-sheet-trigger/.test(part) ? 'sheet' : 'close' });
   }
 }
 
@@ -74,8 +69,6 @@ function resolve(target, state, prop) {
 const perms = [
   ['reader open, chrome visible (sheet era)', new Set(['rr-books-controls'])],
   ['reader open, chrome HIDDEN (sheet era)',  new Set(['rr-books-controls','rr-hide-chrome'])],
-  ['older reader, chrome visible',            new Set(['rr-strip'])],
-  ['older reader, chrome HIDDEN',             new Set(['rr-strip','rr-hide-chrome'])],
   ['sheet open over reader',                  new Set(['rr-books-controls','rr-sheet-open'])],
 ];
 
@@ -86,14 +79,6 @@ for (const [label, state] of perms) {
     const o = resolve(t, state, 'opacity');
     const x = resolve(t, state, 'transform');
     console.log(`  ${t.padEnd(6)} opacity=${(o?.value??'(default 1)').padEnd(12)} transform=${x?.value??'(none)'}`);
-  }
-  // Invariant: in the OLDER reader with chrome hidden, the hamburger must remain
-  // reachable (opacity > 0).
-  if (state.has('rr-hide-chrome') && !state.has('rr-books-controls')) {
-    const o = resolve('sheet', state, 'opacity');
-    const ok = o && parseFloat(o.value) > 0;
-    console.log(`  ESCAPE HATCH intact: ${ok ? 'yes' : 'NO — hamburger unreachable'}`);
-    if (!ok) fail++;
   }
   // Invariant: in the sheet era with chrome hidden, both must be untappable.
   if (state.has('rr-hide-chrome') && state.has('rr-books-controls')) {
