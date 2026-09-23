@@ -702,9 +702,7 @@ html[data-rr-theme="dark"] #rr-settings-link {
 #rr-settings-overlay {
   position: fixed; inset: 0; z-index: 200;
   border: 0; width: 100%; height: 100%;
-  /* #fff, not var(--paper): the library shell repaints --paper to white in
-     light mode, and settings.html now uses the same palette. A cream fallback
-     here flashed sand before the iframe painted. */
+  /* Match the React Settings surface immediately, before its content paints. */
   background: #fff;
 }
 @media (prefers-color-scheme: dark) {

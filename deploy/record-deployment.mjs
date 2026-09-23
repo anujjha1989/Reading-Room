@@ -37,7 +37,6 @@ const digest = async (file, role) => {
 
 const assetFiles = [
   [join(root, "dist/index.html"), "index"],
-  [join(root, "dist/settings.html"), "settings"],
   [join(root, "overrides/sw.js"), "service-worker"],
   [join(root, "dist/client/assets", libraryAsset), "react-client"],
   [join(root, "overrides/book-art/fullscreen-bundle.js"), "reader-controls"],

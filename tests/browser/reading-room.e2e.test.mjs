@@ -127,7 +127,10 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
       const version = [...panel().querySelectorAll('.rr-settings-row')]
         .find((item) => item.querySelector('strong')?.textContent === 'Version')
         ?.querySelector('.rr-settings-value')?.textContent;
-      return { headings, dark, light, version };
+      const activeVersion = /fullscreen-bundle-v(\d+)\./.exec(
+        document.querySelector('link[href*="fullscreen-bundle-v"]')?.href || "")?.[1];
+      const legacyFrame = !!panel().querySelector('iframe');
+      return { headings, dark, light, version, activeVersion, legacyFrame };
     })()`);
     assert.deepEqual(result.headings.slice(0, 1), ["Library sources"]);
     assert.ok(result.headings.includes("Library maintenance"));
@@ -137,6 +140,8 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
     assert.deepEqual(result.dark, { theme: "dark", background: "rgb(0, 0, 0)", text: "rgb(245, 245, 247)" });
     assert.deepEqual(result.light, { theme: "light", background: "rgb(255, 255, 255)", text: "rgb(28, 28, 30)" });
     assert.match(result.version || "", /^\d+$/);
+    assert.equal(result.version, result.activeVersion, "About must show the deployed asset version");
+    assert.equal(result.legacyFrame, false, "Settings must be rendered by React, not the retired iframe");
     await browser.screenshot("01b-settings-parity.png");
     const closed = await browser.evaluate(`(async () => {
       document.querySelector('#rr-settings-overlay #close')?.click();

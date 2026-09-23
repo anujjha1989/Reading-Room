@@ -118,12 +118,9 @@ async function navigationStrategy(request) {
   const cache = await caches.open(SHELL);
   try {
     const response = await fetch(request);
-    // Key each document under its own URL. This used to cache every navigation
-    // as '/', which collided: settings.html loads in an iframe, so its request
-    // mode is "navigate" too, and opening Settings overwrote the cached home
-    // page with the settings document (and the reverse). The offline fallback
-    // then matched '/' and could serve either one. Also keep '/' updated from
-    // the real home page so the offline shell still works.
+    // Key each document under its own URL. An older iframe-based Settings page
+    // used to collide with the cached home page here. Keep '/' updated only
+    // from the actual home document so the offline shell remains unambiguous.
     if (response.ok) {
       cache.put(request, response.clone());
       const path = new URL(request.url).pathname;

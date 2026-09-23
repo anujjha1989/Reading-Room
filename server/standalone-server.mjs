@@ -1310,6 +1310,14 @@ const handler = async (request, response) => {
   try {
     const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
     switch (url.pathname) {
+      case "/settings.html": {
+        // Older bookmarks targeted the retired standalone Settings document.
+        // Settings now lives inside the React library; do not expose a stale
+        // copy left on disk by an earlier additive deployment.
+        response.writeHead(302, { location: "/", "cache-control": "no-store" });
+        response.end();
+        return;
+      }
       case "/catalog.json": {
         if (request.headers["if-none-match"] === catalogEtag) {
           response.writeHead(304, { etag: catalogEtag, "cache-control": "no-cache, must-revalidate" });

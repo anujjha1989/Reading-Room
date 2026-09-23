@@ -101,7 +101,6 @@ cp dist/client/assets/*.js dist/client/assets/*.css dist/stage/assets/
 cp overrides/assets/* dist/stage/assets/
 cp dist/index.html dist/stage/index.html
 cp overrides/sw.js dist/stage/sw.js
-cp dist/settings.html dist/stage/settings.html
 cp server/standalone-server.mjs server/rr-settings.mjs server/rr-tts.mjs dist/stage/
 
 echo "==> uploading"
@@ -202,7 +201,6 @@ verify_origin() {
   }
 
   for asset_path in / \
-    /settings.html \
     /assets/$library_asset \
     /assets/book-art/images/fullscreen-bundle-v$VERSION.js \
     /assets/book-art/images/fullscreen-bundle-v$VERSION.css; do
@@ -224,17 +222,15 @@ verify_origin() {
   done
 
   if [ -z "$problem" ]; then
-    # The version the user actually sees, fetched over HTTP rather than read off
-    # disk: this is the check that proves the About row reached the device.
-    local settings_version
-    # || true: under set -e a failing curl in a command substitution exits the
-    # script, which would skip the advisory handling below.
-    settings_version=$(curl -fsS --max-time 15 "$origin/settings.html" \
-      | sed -n "s/.*title:'Version', value:'\([0-9][0-9]*\)'.*/\1/p" | head -1) || true
-    if [ "$settings_version" = "$VERSION" ]; then
-      printf '    %-56s %s\n' "settings.html About version" "$settings_version"
+    # A stale standalone file can still be present on the Pi for rollback.
+    # The active server must route old Settings bookmarks into the React app.
+    local settings_location
+    settings_location=$(curl -fsSI --max-time 15 "$origin/settings.html" \
+      | awk -F': *' 'tolower($1)=="location" {print $2}' | tr -d '\r') || true
+    if [ "$settings_location" = "/" ]; then
+      printf '    %-56s %s\n' "legacy Settings bookmark" "redirects to /"
     else
-      check "$origin settings.html reports version '${settings_version:-none}', expected $VERSION"
+      check "$origin/settings.html redirects to '${settings_location:-nothing}', expected /"
     fi
   fi
 

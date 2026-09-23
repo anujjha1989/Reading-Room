@@ -36,6 +36,9 @@ check(globalCss.includes(':root[data-rr-theme="dark"] { --rr-library-icon:#f5f5f
   && globalCss.includes(':root[data-rr-theme="light"] { --rr-library-icon:#26332f; }'), "library icon token covers explicit light and dark themes");
 check(!legacy.includes("rr-library-dock"), "legacy navigation injector is deleted");
 check(!legacy.includes('var ID = "rr-settings-link"'), "legacy Settings injector is deleted");
+check(!renderer.includes("settings.template.html")
+  && !readFileSync("deploy/deploy.sh", "utf8").includes("cp dist/settings.html dist/stage/settings.html"),
+  "standalone Settings page is no longer generated or staged");
 check(!legacy.includes('FILTER_ID = "rr-filter-btn"'), "legacy filter/sort injector is deleted");
 
 process.exit(failed ? 1 : 0);
