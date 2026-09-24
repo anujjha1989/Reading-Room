@@ -54,6 +54,7 @@ type TestWindow = Window & typeof globalThis & {
   var TURN_TIMEOUT = 850;
   var PAGE_TURN_SETTLE = 520;      // one animated turn must finish before another can begin
   var STALL_TIMEOUT = 9000;
+  var LOAD_TIMEOUT = 25000;       // an uncached high-quality voice may need synthesis first
   var MAX_CHARS = 220;             // short enough for reliable iOS Web Speech callbacks
   var STARTUP_CHARS = 80;          // quick first sound while the longer queue warms behind it
 
@@ -375,7 +376,7 @@ type TestWindow = Window & typeof globalThis & {
   }
 
   if (testWindow.__RR_TTS_TEST_ONLY__) {
-    testWindow.__RR_TTS_TEST_API__ = { speechChunks: speechChunks, resolveVoice: resolveVoice, isAppleMobile: isAppleMobile, isControlTap: isControlTap, ignoreSteeringClick: ignoreSteeringClick, testWindow: window };
+    testWindow.__RR_TTS_TEST_API__ = { speechChunks: speechChunks, startupSplitOffset: startupSplitOffset, resolveVoice: resolveVoice, isAppleMobile: isAppleMobile, isControlTap: isControlTap, ignoreSteeringClick: ignoreSteeringClick, testWindow: window };
     return;
   }
 
@@ -428,19 +429,23 @@ type TestWindow = Window & typeof globalThis & {
     return out;
   }
 
-  // Piper returns a complete audio file, not a stream. A normal 200-character
-  // clip can therefore leave a new book silent while the whole sentence is
-  // synthesised. Split only the first clip of a newly started position; the
-  // rest retain the longer cadence-friendly size and are prefetched while
-  // this short lead-in plays.
+  // A short first clip can reduce startup latency, but cutting at an arbitrary
+  // word makes an audible break in the middle of a sentence. Only split at a
+  // natural phrase boundary; otherwise keep the full sentence intact.
+  function startupSplitOffset(text: string, limit: number) {
+    var boundary = /[.!?;:](?:["'”’)]*)\s+/g;
+    var cut = -1, match: RegExpExecArray | null;
+    while ((match = boundary.exec(text)) && match.index < limit) {
+      var end = match.index + match[0].length;
+      if (end >= 20 && end < text.length && end <= limit) cut = end;
+    }
+    return cut;
+  }
+
   function prepareStartupClip(doc: NarrationDocument, index: number) {
     var item = queue[index];
     if (!item || item.startupReady || item.text.length <= STARTUP_CHARS || !item.block) return;
-    var min = Math.min(44, STARTUP_CHARS - 1);
-    var cut = -1;
-    for (var i = STARTUP_CHARS; i >= min; i -= 1) {
-      if (/\s/.test(item.text.charAt(i))) { cut = i + 1; break; }
-    }
+    var cut = startupSplitOffset(item.text, STARTUP_CHARS);
     if (cut <= 0 || cut >= item.text.length) return;
     var middle = item.at + cut;
     var firstRange = rangeFor(doc, item.block, item.at, middle);
@@ -754,7 +759,14 @@ type TestWindow = Window & typeof globalThis & {
     var item = queue[cursor];
     var ok = await bringIntoView(state, item, mine);
     if (!playing || paused || mine !== epoch) return;
-    if (!ok) return;
+    if (!ok) {
+      // A page turn can replace the iframe while bringIntoView is waiting.
+      // The old path exited here with playing=true but no audio or pending
+      // callback, so the chapter appeared frozen until the user pressed Skip.
+      await sleep(TURN_SETTLE);
+      if (playing && !paused && mine === epoch) void step(mine);
+      return;
+    }
 
     highlight(state.doc, item.range);
     speak(item.text, mine, state.doc);
@@ -823,7 +835,7 @@ type TestWindow = Window & typeof globalThis & {
     state.turn();
     // A new section means a new document, but the engines take their time
     // mounting it — poll rather than guess a delay.
-    for (var waited = 0; waited < 2600; waited += 160) {
+    for (var waited = 0; waited < 6000; waited += 160) {
       await sleep(160);
       if (!playing || paused || mine !== epoch) return;
       // Re-assert playbackState so iOS does not suspend the audio session
@@ -846,6 +858,7 @@ type TestWindow = Window & typeof globalThis & {
   var rrTtsAudio: HTMLAudioElement | null = null;
   var rrPrefetch: Partial<Record<string, Promise<unknown>>> = Object.create(null);
   var rrWarmTimer: ReturnType<typeof setTimeout> | null = null;
+  var rrWarmAttempts = 0;
   var stallTimer: ReturnType<typeof setTimeout> | null = null, stallRetries = 0, stallText = "";
 
   function clearStallWatchdog() {
@@ -853,7 +866,7 @@ type TestWindow = Window & typeof globalThis & {
     stallTimer = null;
   }
 
-  function armStallWatchdog(text: string, mine: number) {
+  function armStallWatchdog(text: string, mine: number, timeout = STALL_TIMEOUT) {
     clearStallWatchdog();
     stallTimer = setTimeout(function () {
       stallTimer = null;
@@ -862,7 +875,7 @@ type TestWindow = Window & typeof globalThis & {
       stallRetries += 1;
       if (stallRetries <= 2) restartCurrentSentence();
       else { stallRetries = 0; cursor += 1; restartCurrentSentence(); }
-    }, STALL_TIMEOUT);
+    }, timeout);
   }
 
   function ttsVoice() {
@@ -889,9 +902,15 @@ type TestWindow = Window & typeof globalThis & {
   function warmUrl(url: string): Promise<unknown> {
     if (rrPrefetch[url]) return rrPrefetch[url];
     try {
-      rrPrefetch[url] = fetch(url, { cache: "force-cache" }).catch(function () {});
+      rrPrefetch[url] = fetch(url, { cache: "force-cache" }).then(function (response) {
+        if (!response.ok) throw new Error("TTS prefetch returned " + response.status);
+      }).catch(function () {
+        // A failed synthesis must remain retryable. Remembering a resolved
+        // failure made every subsequent warm-ahead believe the clip was ready.
+        delete rrPrefetch[url];
+      });
     } catch (e) {
-      rrPrefetch[url] = Promise.resolve();
+      return Promise.resolve();
     }
     return rrPrefetch[url];
   }
@@ -930,9 +949,15 @@ type TestWindow = Window & typeof globalThis & {
     rrWarmTimer = null;
     if (playing) return;
     var state = reader();
-    if (!state) return;
+    if (!state) {
+      if (rrWarmAttempts++ < 12) rrWarmTimer = setTimeout(warmFirstSentence, 250);
+      return;
+    }
     ensureQueue(state.doc);
-    if (!queue.length) return;
+    if (!queue.length) {
+      if (rrWarmAttempts++ < 12) rrWarmTimer = setTimeout(warmFirstSentence, 250);
+      return;
+    }
     var at = 0;
     for (var i = 0; i < queue.length; i += 1) {
       if (isVisible(state, queue[i].range)) { at = i; break; }
@@ -942,11 +967,13 @@ type TestWindow = Window & typeof globalThis & {
     item = queue[at];
     if (!item || !item.text) return;
     var url = ttsUrl(item.text);
-    warmUrl(url).then(function () { warmAhead(at + 1, 6); });
+    warmUrl(url);
+    warmAhead(at + 1, 6);
   }
 
   function scheduleWarmFirstSentence(delay?: number) {
     if (rrWarmTimer) clearTimeout(rrWarmTimer);
+    rrWarmAttempts = 0;
     rrWarmTimer = setTimeout(warmFirstSentence, delay == null ? 80 : delay);
   }
 
@@ -998,11 +1025,11 @@ type TestWindow = Window & typeof globalThis & {
     };
     a.onplaying = function () { armStallWatchdog(text, mine); };
     a.ontimeupdate = function () { armStallWatchdog(text, mine); };
-    a.onwaiting = function () { armStallWatchdog(text, mine); };
+    a.onwaiting = function () { armStallWatchdog(text, mine, a.readyState < 2 ? LOAD_TIMEOUT : STALL_TIMEOUT); };
     a.src = ttsUrl(text);
     mediaSession(doc);
     stallText = text;
-    armStallWatchdog(text, mine);
+    armStallWatchdog(text, mine, LOAD_TIMEOUT);
     var go = a.play();
     if (go && go.catch) {
       go.catch(function () {

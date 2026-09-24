@@ -36,9 +36,15 @@ check(/STALL_TIMEOUT/.test(engine) && /armStallWatchdog/.test(engine) && /stallR
   "stalled clips have bounded automatic recovery");
 check(/STARTUP_CHARS\s*=\s*80/.test(engine)
   && /function prepareStartupClip\(doc: NarrationDocument, index: number\)/.test(engine)
+  && /startupSplitOffset\(item\.text, STARTUP_CHARS\)/.test(engine)
   && /prepareStartupClip\(state\.doc, cursor\)/.test(engine)
   && /prepareStartupClip\(state\.doc, at\)/.test(engine),
-  "new reading positions use a short first clip before normal narration chunks");
+  "new reading positions split the first clip only at a natural boundary");
+check(/if \(!ok\) \{[\s\S]{0,400}?void step\(mine\)/.test(engine),
+  "chapter document swaps resume the narration pump");
+check(/LOAD_TIMEOUT\s*=\s*25000/.test(engine)
+  && /armStallWatchdog\(text, mine, LOAD_TIMEOUT\)/.test(engine),
+  "uncached audio gets a synthesis window before stall recovery");
 check(/const inFlight = new Map\(\)/.test(ttsServer)
   && /inFlight\.get\(key\)/.test(ttsServer)
   && /await job/.test(ttsServer),
