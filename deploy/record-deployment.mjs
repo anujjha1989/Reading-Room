@@ -48,7 +48,7 @@ const assetFiles = [
 
 const record = {
   schemaVersion: 1,
-  application: "Reading Room",
+  application: "Home Books",
   version: Number(version),
   deployedAt: new Date().toISOString(),
   previousVersion: Number(required("previous-version")),

@@ -1,4 +1,4 @@
-/* The Reading Room — full-page reading.
+/* Home Books — full-page reading.
  *
  * Two different things eat an iPhone screen, and they need different fixes.
  *
@@ -238,7 +238,8 @@ html main > .topbar {
   padding:calc(20px + env(safe-area-inset-top)) max(24px,calc((100vw - 1200px)/2)) 8px;
   background:var(--paper); border:0; backdrop-filter:none; gap:20px; flex-wrap:wrap;
 }
-html .topbar .brand-mark { width:36px; height:40px; border-radius:6px; background:var(--ink); }
+html .topbar .brand-mark { width:36px; height:40px; border-radius:6px; background:url('/home-books-icon.svg') center/contain no-repeat; color:transparent; font-size:0; }
+html .topbar .brand strong { color:#d71920; }
 html .topbar .brand strong { font:600 18px Georgia,serif; }
 html .topbar .brand small { font-size:8px; letter-spacing:.13em; }
 html .topbar nav { position:static; display:flex; gap:4px; height:auto; padding:0; background:none; border:0; backdrop-filter:none; }

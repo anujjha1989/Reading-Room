@@ -5,13 +5,13 @@ import "./reader-chrome.css";
 import "./library-layout.css";
 
 export const metadata: Metadata = {
-  title: "The Reading Room",
+  title: "Home Books",
   description: "A searchable private catalogue of ebooks, graphic novels, and scripts.",
   icons: { icon: "/favicon.svg" },
   openGraph: {
-    title: "The Reading Room",
+    title: "Home Books",
     description: "Every ebook, graphic novel, and script—one clean catalogue.",
-    images: [{ url: "/reading-room-social.png", width: 1536, height: 1024, alt: "The Reading Room" }],
+    images: [{ url: "/home-books-icon.svg", width: 512, height: 512, alt: "Home Books" }],
   },
 };
 

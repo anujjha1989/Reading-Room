@@ -1,4 +1,4 @@
-/* The Reading Room — reader responsiveness fix.
+/* Home Books — reader responsiveness fix.
  *
  * Symptom: between roughly 700px and 900px wide, the reader stops reflowing.
  * Book text is laid out wider than the window and runs off the right edge,
@@ -74,7 +74,7 @@
 }
 
 /* --- Reader banner -------------------------------------------------------
- * Drop the "THE READING ROOM" eyebrow — you know where you are — and put every
+ * Drop the "HOME BOOKS" eyebrow — you know where you are — and put every
  * control and the title on one type size, so the bar reads as a single row
  * rather than three competing ones. */
 .reader-header > div:first-child > span {

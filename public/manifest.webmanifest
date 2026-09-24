@@ -1,6 +1,6 @@
 {
-  "name": "The Reading Room",
-  "short_name": "Reading Room",
+  "name": "Home Books",
+  "short_name": "Home Books",
   "description": "A private, searchable catalogue for reading ebooks, graphic novels, and scripts.",
   "start_url": "/",
   "scope": "/",
@@ -10,6 +10,7 @@
   "orientation": "any",
   "categories": ["books", "education", "lifestyle"],
   "icons": [
+    { "src": "/home-books-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
     {
       "src": "/icon-192.png",
       "sizes": "192x192",

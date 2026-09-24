@@ -1,6 +1,6 @@
-# Reading Room
+# Home Books
 
-Reading Room is a private, Apple Books-inspired web library and reader hosted
+Home Books is a private, Apple Books-inspired web library and reader hosted
 on a Raspberry Pi. It combines a searchable catalogue with EPUB, PDF and comic
 readers, reading progress, themes, bookmarks, search and Read Aloud.
 

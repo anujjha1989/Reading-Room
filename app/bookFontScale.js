@@ -1,4 +1,4 @@
-// The Reading Room — make A− / A+ work in every book.
+// Home Books — make A− / A+ work in every book.
 //
 // The reader changes text size by setting a percentage on <body>. That only
 // works if the book sizes its text relatively. Plenty of books don't: Calibre

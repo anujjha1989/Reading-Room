@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build The Reading Room and deploy it to the Pi.
+# Build Home Books and deploy it to the Pi.
 #
 #   ./deploy/deploy.sh            build, deploy, verify
 #   ./deploy/deploy.sh --no-build use whatever is already in dist/
@@ -274,7 +274,7 @@ if [ "$SOURCE_CLEAN" = true ]; then
       DEPLOY_TAG=""
     fi
   elif ! git tag -a "$DEPLOY_TAG" "$DEPLOY_COMMIT" \
-    -m "Reading Room deployment v$VERSION"; then
+    -m "Home Books deployment v$VERSION"; then
     echo "    WARNING: could not create $DEPLOY_TAG" >&2
     DEPLOY_TAG=""
   fi

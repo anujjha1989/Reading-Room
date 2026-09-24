@@ -4,7 +4,7 @@ import { launchBrowser } from "./cdp-browser.mjs";
 
 const BASE_URL = process.env.READING_ROOM_BASE_URL || "http://anujrpi.local:4311";
 
-test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) => {
+test("Home Books critical mobile flows", { timeout: 120_000 }, async (suite) => {
   const browser = await launchBrowser();
   suite.after(() => browser.close());
   const consoleProblems = [];
@@ -25,7 +25,7 @@ test("Reading Room critical mobile flows", { timeout: 120_000 }, async (suite) =
       books: document.querySelectorAll('.book').length,
       overlay: !!document.querySelector('nextjs-portal, vite-error-overlay'),
     })`);
-    assert.equal(identity.title, "The Reading Room");
+    assert.equal(identity.title, "Home Books");
     assert.ok(identity.heading);
     assert.ok(identity.books > 0, "the catalogue should render book cards");
     assert.equal(identity.overlay, false, "no framework error overlay should be present");

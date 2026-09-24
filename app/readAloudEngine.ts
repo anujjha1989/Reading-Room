@@ -30,7 +30,7 @@ type TestWindow = Window & typeof globalThis & {
   __RR_TTS_TEST_API__?: object;
 };
 
-// The Reading Room — read aloud.
+// Home Books — read aloud.
 //
 // Works on both reading engines the app uses: epub.js (EPUB) and foliate
 // (MOBI/AZW/AZW3/KF8). Rather than borrowing either library's own text
@@ -954,10 +954,10 @@ type TestWindow = Window & typeof globalThis & {
     if (!("mediaSession" in navigator)) return;
     try {
       var title = document.querySelector<HTMLElement>(".reader-shell h1, .reader-title")?.textContent
-        || document.title || "The Reading Room";
+        || document.title || "Home Books";
       navigator.mediaSession.metadata = new MediaMetadata({
         title: String(title).trim().slice(0, 120),
-        artist: "The Reading Room",
+        artist: "Home Books",
       });
       // Tell iOS the audio session is actively playing so it keeps background
       // audio alive through page-turn gaps (fixes reading stopping after 2-3

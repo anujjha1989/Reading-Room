@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import LibraryClient from "./LibraryClient";
 
 export const metadata: Metadata = {
-  title: "The Reading Room",
+      title: "Home Books",
   description: "A searchable private catalogue of ebooks, graphic novels, and scripts.",
 };
 

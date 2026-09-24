@@ -1,4 +1,4 @@
-// The Reading Room — full-page reading.
+// Home Books — full-page reading.
 //
 // Companion to fullscreen-fix.css, which carries the reasoning. This file sets
 // classes on <html> and wires up the gestures:

@@ -629,7 +629,7 @@ export default function LibraryClient() {
         >
           <span className={compact ? "shelf-cover rr-author-portrait" : "shelf-cover"} style={{ "--cover": palettes[hashCode(book.id) % palettes.length][0], "--ink": palettes[hashCode(book.id) % palettes.length][1] } as React.CSSProperties}>
             <span className="rr-cover-label" aria-hidden="true">
-              <small>READING ROOM</small>
+              <small>HOME BOOKS</small>
               <strong>{shelfTitle(book)}</strong>
               <em>{compact || /complete works/i.test(book.title) ? "Collected works" : book.author || book.category || "Book"}</em>
             </span>
@@ -690,7 +690,7 @@ export default function LibraryClient() {
     </section></div>}
 
     <header className="topbar">
-      <button className="brand" onClick={() => chooseChromeView("home")} aria-label="The Reading Room home"><span className="brand-mark">R</span><span><strong>The Reading Room</strong><small>PRIVATE DIGITAL LIBRARY</small></span></button>
+      <button className="brand" onClick={() => chooseChromeView("home")} aria-label="Home Books home"><span className="brand-mark">⌂</span><span><strong>Home Books</strong><small>PRIVATE DIGITAL LIBRARY</small></span></button>
       <nav aria-label="Library views">
         <button className={view === "library" ? "active" : ""} onClick={() => { setView("library"); setShelfFilter(null); }}><span aria-hidden="true">⌂</span>Library</button>
         <button className={view === "continue" ? "active" : ""} onClick={() => { setView("continue"); setSort("opened"); setShelfFilter(null); }}><span aria-hidden="true">▶</span>Continue</button>
@@ -700,7 +700,7 @@ export default function LibraryClient() {
     </header>
 
     <section className="hero compact-hero">
-      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{chromeView === "home" ? "Home" : chromeView === "favorites" ? "Favorites" : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Library"}</h1></div>
+      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{chromeView === "home" ? "Home Books" : chromeView === "favorites" ? "Favorites" : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Library"}</h1></div>
       <label className="search"><span>⌕</span><input value={query} onChange={(event) => { setQuery(event.target.value); setVisible(20); }} placeholder="Search title, author, series or collection…" /><kbd>{shortcutKey}</kbd></label>
       <div className="category-chips">
         <button aria-pressed={category === "Fiction"} onClick={() => { setCategory(category === "Fiction" ? "All categories" : "Fiction"); setVisible(20); }}>Fiction</button>
@@ -759,6 +759,6 @@ export default function LibraryClient() {
 
     {reader && <BookReader title={reader.title} file={reader.file} initialPosition={reader.initialPosition} bookmarks={savedStates[reader.bookId]?.bookmarks || []} onBookmarksChange={handleBookmarksChange} onLocationChange={handleReaderLocation} seriesNavigation={{ previous: readerSeriesIndex > 0 ? readerSeries[readerSeriesIndex - 1]?.title : undefined, next: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? readerSeries[readerSeriesIndex + 1]?.title : undefined, onPrevious: readerSeriesIndex > 0 ? () => openBook(readerSeries[readerSeriesIndex - 1]) : undefined, onNext: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? () => openBook(readerSeries[readerSeriesIndex + 1]) : undefined }} onClose={() => setReader(null)} />}
     <LibraryChrome view={chromeView} displayMode={displayMode} sort={sort} filtersOpen={filtersOpen} hidden={Boolean(reader || selected || seriesFocus || editionsFor)} onViewChange={chooseChromeView} onDisplayModeChange={chooseDisplayMode} onSortChange={chooseSort} onFiltersOpenChange={setFiltersOpen} />
-    <footer><span>The Reading Room</span><p>One clean catalogue for your digital shelves. Covers enriched by <a href="https://openlibrary.org" target="_blank" rel="noreferrer">Open Library</a>.</p></footer>
+    <footer><span>Home Books</span><p>One calm home for your digital shelves. Covers enriched by <a href="https://openlibrary.org" target="_blank" rel="noreferrer">Open Library</a>.</p></footer>
   </main>;
 }
