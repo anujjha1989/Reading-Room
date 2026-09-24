@@ -18,6 +18,7 @@ STAGE=/home/anujjha1989/rr-deploy/stage
 SITE=/opt/reading-room/current/site
 RELEASE=/opt/reading-room/current
 SERVER_FILES=(standalone-server.mjs rr-settings.mjs rr-tts.mjs)
+PUBLIC_FILES=(favicon.svg home-books-icon.svg icon-192.png icon-512.png apple-touch-icon.png manifest.webmanifest)
 
 [ -d "$STAGE/assets" ] || { echo "reading-room-deploy: no staged assets" >&2; exit 1; }
 [ -f "$STAGE/index.html" ] || { echo "reading-room-deploy: no staged index.html" >&2; exit 1; }
@@ -29,6 +30,13 @@ find "$STAGE/assets" -maxdepth 1 -type f \( -name '*.js' -o -name '*.css' \) -pr
 
 cp -f "$STAGE/index.html" "$SITE/index.html"
 [ -f "$STAGE/sw.js" ] && cp -f "$STAGE/sw.js" "$SITE/sw.js"
+# Public branding files are part of the release, alongside the HTML that
+# references them. Keep the fixed allowlist so staging cannot redirect writes.
+for name in "${PUBLIC_FILES[@]}"; do
+  if [ -f "$STAGE/$name" ]; then
+    install -o root -g root -m 0644 "$STAGE/$name" "$SITE/$name"
+  fi
+done
 # settings.html is a standalone page the build does not produce. It is optional
 # here so an older stage, or a rollback that only carries index.html, still
 # installs. Its group is reading-room, not root: the server reads it as that

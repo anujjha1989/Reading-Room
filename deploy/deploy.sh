@@ -37,6 +37,11 @@ if ! "${SSH[@]}" "$PI" "grep -q 'SERVER_FILES=' /usr/local/sbin/reading-room-dep
   echo "        Install deploy/reading-room-deploy on the Pi first." >&2
   exit 1
 fi
+if ! "${SSH[@]}" "$PI" "grep -q 'PUBLIC_FILES=' /usr/local/sbin/reading-room-deploy"; then
+  echo "FAILED: the Pi deployment helper cannot install public branding assets." >&2
+  echo "        Install deploy/reading-room-deploy on the Pi first." >&2
+  exit 1
+fi
 
 if [ "${1:-}" != "--no-build" ]; then
   echo "==> building (version $VERSION)"
@@ -100,6 +105,10 @@ rm -rf dist/stage && mkdir -p dist/stage/assets
 cp dist/client/assets/*.js dist/client/assets/*.css dist/stage/assets/
 cp dist/index.html dist/stage/index.html
 cp overrides/sw.js dist/stage/sw.js
+PUBLIC_FILES=(favicon.svg home-books-icon.svg icon-192.png icon-512.png apple-touch-icon.png manifest.webmanifest)
+for name in "${PUBLIC_FILES[@]}"; do
+  cp "public/$name" "dist/stage/$name"
+done
 cp server/standalone-server.mjs server/rr-settings.mjs server/rr-tts.mjs dist/stage/
 
 echo "==> uploading"
@@ -123,7 +132,10 @@ mkdir -p "$ROLLBACK"
 "${SSH[@]}" "$PI" "tar czf - -C /opt/reading-room/current \
   standalone-server.mjs rr-settings.mjs rr-tts.mjs -C site index.html \
   \$([ -f /opt/reading-room/current/site/sw.js ] && echo sw.js) \
-  \$([ -f /opt/reading-room/current/site/settings.html ] && echo settings.html)" \
+  \$([ -f /opt/reading-room/current/site/settings.html ] && echo settings.html) \
+  \$(for name in favicon.svg home-books-icon.svg icon-192.png icon-512.png apple-touch-icon.png manifest.webmanifest; do \
+      [ -f /opt/reading-room/current/site/\$name ] && echo \$name; \
+    done)" \
   > "$ROLLBACK/site-html.tar.gz"
 # cat, not cp: cp on this SMB mount leaves an ._ AppleDouble sidecar behind.
 cat deploy/reading-room-deploy > "$ROLLBACK/reading-room-deploy"
@@ -184,7 +196,9 @@ verify_origin() {
   }
 
   for asset_path in / \
-    /assets/$library_asset; do
+    /assets/$library_asset \
+    /favicon.svg /home-books-icon.svg /icon-192.png /icon-512.png \
+    /apple-touch-icon.png /manifest.webmanifest; do
     headers=$(curl -fsSI --max-time 15 "$origin$asset_path") || {
       check "$origin$asset_path could not be fetched"
       break
@@ -193,12 +207,29 @@ verify_origin() {
     case "$asset_path" in
       *.js)  expected='javascript' ;;
       *.css) expected='text/css' ;;
+      *.svg) expected='image/svg+xml' ;;
+      *.png) expected='image/png' ;;
+      *.webmanifest) expected='application/manifest+json' ;;
       *)     expected='text/html' ;;
     esac
     printf '    %-56s %s\n' "$asset_path" "$content_type"
     case "$content_type" in
       *"$expected"*) ;;
       *) check "$origin$asset_path returned $content_type, expected $expected"; break ;;
+    esac
+    case "$asset_path" in
+      /favicon.svg|/home-books-icon.svg|/icon-192.png|/icon-512.png|/apple-touch-icon.png|/manifest.webmanifest)
+        local expected_hash actual_hash
+        expected_hash=$(shasum -a 256 "public/${asset_path#/}" | awk '{print $1}')
+        actual_hash=$(curl -fsS --max-time 15 "$origin$asset_path" | shasum -a 256 | awk '{print $1}') || {
+          check "$origin$asset_path could not be downloaded for hash verification"
+          break
+        }
+        [ "$actual_hash" = "$expected_hash" ] || {
+          check "$origin$asset_path does not match the source asset"
+          break
+        }
+        ;;
     esac
   done
 
