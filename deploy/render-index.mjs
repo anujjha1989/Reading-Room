@@ -91,7 +91,8 @@ html = html.replaceAll(defaultStatusBar, translucentStatusBar);
 // template and fail loudly if its shape changes again instead of shipping a
 // recoverable-but-noisy client redraw.
 const initialMarkup = [
-  ["<h1>Find your next book.</h1>", "<h1>Home</h1>"],
+  ["<h1>Find your next book.</h1>", "<h1>Home Books</h1>"],
+  ['<span class="brand-mark">R</span>', '<span class="brand-mark">⌂</span>'],
   ["<kbd>⌘ K</kbd>", "<kbd>Ctrl K</kbd>"],
   [
     '<div class="category-chips"><button>Fiction</button><button>Non-Fiction</button><button>Graphic Novels</button><button>Scripts</button><button>Readable here</button></div>',
