@@ -28,7 +28,7 @@ check(component.includes('className="rr-library-dock"'), "React owns the library
 check(client.includes("<LibraryChrome"), "LibraryClient renders the typed chrome component");
 check(layout.includes('name="rr-react-library-chrome"'), "new renders declare React chrome ownership");
 check(renderer.includes('name="rr-react-library-chrome"'), "the committed prerender is reconciled to React ownership");
-check(renderer.includes('["<h1>Find your next book.</h1>", "<h1>Home</h1>"]'), "the prerendered heading matches hydration");
+check(renderer.includes('["<h1>Find your next book.</h1>", "<h1>Home Books</h1>"]'), "the prerendered heading matches hydration");
 check(component.includes('stroke="var(--rr-library-icon)"')
   && component.includes('fill="var(--rr-library-icon)"'), "React icons declare their own themed stroke and fill");
 const globalCss = readFileSync("app/globals.css", "utf8");
