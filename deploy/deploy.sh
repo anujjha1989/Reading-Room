@@ -46,16 +46,16 @@ fi
 if [ "${1:-}" != "--no-build" ]; then
   echo "==> building (version $VERSION)"
 
-  # The project lives on an SMB mount. pnpm can't hardlink from its store
-  # across filesystems, so node_modules/.bin is never populated there.
-  # Build in a local temp dir where hardlinks work, then bring dist/ back.
-  BUILD_DIR=$(mktemp -d)
-  trap 'rm -rf "$BUILD_DIR"' EXIT
-  rsync -a --exclude=node_modules --exclude=dist --exclude='._*' --exclude='.DS_Store' . "$BUILD_DIR/"
-  # --yes on both: without it the second npx stops to ask "Ok to proceed?" when
-  # it has to fetch pnpm, which makes an otherwise unattended deploy wait for a
-  # keypress. The first call already had it; the second was missed.
-  (cd "$BUILD_DIR" && npx --yes pnpm@10 install --prefer-offline && npx --yes pnpm@10 run build)
+  # Build on the Mac SSD: pnpm cannot hardlink its store into the SMB mount.
+  # Reuse node_modules across releases instead of reinstalling every package
+  # into a fresh temporary directory. --delete keeps source files in sync;
+  # excluded node_modules survives, while pnpm reconciles lockfile changes.
+  BUILD_DIR="${HOME}/Library/Caches/home-books-build"
+  mkdir -p "$BUILD_DIR"
+  rsync -a --delete --exclude=node_modules --exclude=dist --exclude=.git \
+    --exclude='._*' --exclude='.DS_Store' . "$BUILD_DIR/"
+  (cd "$BUILD_DIR" && npx --yes pnpm@10 install --prefer-offline --frozen-lockfile \
+    && npx --yes pnpm@10 run build)
   # Replace the local artifact tree instead of merging it. Merging leaves
   # every historical content-hashed asset in dist/, making each staging upload
   # slower and larger even though the Pi intentionally keeps its old assets.
