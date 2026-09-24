@@ -1040,6 +1040,22 @@ html.rr-library-visible main > .hero h1 {
   display: flex;
   align-items: center;
 }
+@media (max-width: 600px) {
+  html[data-rr-library-view="home"] main > .hero h1 {
+    gap: 11px;
+    color: #d71920;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-weight: 700;
+    letter-spacing: -.035em;
+  }
+  html[data-rr-library-view="home"] main > .hero h1::before {
+    content: "";
+    flex: 0 0 36px;
+    height: 36px;
+    border-radius: 7px;
+    background: url('/home-books-icon.svg') center / contain no-repeat;
+  }
+}
 /* Home and Favorites have no search field, so their band is shorter and the
    content below needs correspondingly less clearance. */
 html[data-rr-library-view="home"] main > .discovery,
