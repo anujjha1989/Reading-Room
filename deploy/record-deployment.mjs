@@ -19,26 +19,27 @@ const required = (name) => {
 };
 
 const root = resolve(new URL("..", import.meta.url).pathname);
+const distDir = resolve(required("dist-dir"));
 const version = required("version");
 const outputDir = resolve(required("output-dir"));
 const libraryAsset = required("library-asset");
 
-const digest = async (file, role) => {
+const digest = async (file, role, source) => {
   const data = await readFile(file);
   const info = await stat(file);
   return {
     role,
     file: basename(file),
-    source: relative(root, file),
+    source: source || relative(root, file),
     bytes: info.size,
     sha256: createHash("sha256").update(data).digest("hex"),
   };
 };
 
 const assetFiles = [
-  [join(root, "dist/index.html"), "index"],
+  [join(distDir, "index.html"), "index", "dist/index.html"],
   [join(root, "overrides/sw.js"), "service-worker"],
-  [join(root, "dist/client/assets", libraryAsset), "react-client"],
+  [join(distDir, "client/assets", libraryAsset), "react-client", `dist/client/assets/${libraryAsset}`],
   [join(root, "app/readerChromeBridge.js"), "reader-interactions-source"],
   [join(root, "app/bookFontScale.js"), "book-font-scale-source"],
   [join(root, "app/reader-chrome.css"), "reader-chrome-source"],
@@ -59,7 +60,7 @@ const record = {
     tag: args.get("tag") || null,
     sourceTreeClean: required("source-clean") === "true",
   },
-  assets: await Promise.all(assetFiles.map(([file, role]) => digest(file, role))),
+  assets: await Promise.all(assetFiles.map(([file, role, source]) => digest(file, role, source))),
   verification: {
     lan: required("lan-result"),
     tailscale: required("tailscale-result"),

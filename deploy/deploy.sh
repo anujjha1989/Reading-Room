@@ -323,6 +323,7 @@ if ! node deploy/record-deployment.mjs \
   --branch "${DEPLOY_BRANCH:-detached}" \
   --tag "$DEPLOY_TAG" \
   --source-clean "$SOURCE_CLEAN" \
+  --dist-dir "$BUILD_DIR/dist" \
   --library-asset "$library_asset" \
   --lan-result "$LAN_RESULT" \
   --tailscale-result "$TAILSCALE_RESULT" \
