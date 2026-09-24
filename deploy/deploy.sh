@@ -2,7 +2,7 @@
 # Build Home Books and deploy it to the Pi.
 #
 #   ./deploy/deploy.sh            build, deploy, verify
-#   ./deploy/deploy.sh --no-build use whatever is already in dist/
+#   ./deploy/deploy.sh --no-build reuse the last Mac SSD build
 #
 # The build has to run here: the Pi's node is 20.x and vinext needs >= 22.13.
 # Everything privileged on the Pi happens in one helper, reading-room-deploy.
@@ -43,41 +43,42 @@ if ! "${SSH[@]}" "$PI" "grep -q 'PUBLIC_FILES=' /usr/local/sbin/reading-room-dep
   exit 1
 fi
 
+# Build and stage on the Mac SSD. The repo lives on an SMB mount, where many
+# small generated-file writes dominate release time. Only source is synced;
+# node_modules and dist stay local between releases.
+BUILD_DIR="${HOME}/Library/Caches/home-books-build"
+mkdir -p "$BUILD_DIR"
+rsync -a --delete --exclude=node_modules --exclude=dist --exclude=.git \
+  --exclude='._*' --exclude='.DS_Store' . "$BUILD_DIR/"
+
 if [ "${1:-}" != "--no-build" ]; then
   echo "==> building (version $VERSION)"
-
-  # Build on the Mac SSD: pnpm cannot hardlink its store into the SMB mount.
-  # Reuse node_modules across releases instead of reinstalling every package
-  # into a fresh temporary directory. --delete keeps source files in sync;
-  # excluded node_modules survives, while pnpm reconciles lockfile changes.
-  BUILD_DIR="${HOME}/Library/Caches/home-books-build"
-  mkdir -p "$BUILD_DIR"
-  rsync -a --delete --exclude=node_modules --exclude=dist --exclude=.git \
-    --exclude='._*' --exclude='.DS_Store' . "$BUILD_DIR/"
   (cd "$BUILD_DIR" && npx --yes pnpm@10 install --prefer-offline --frozen-lockfile \
     && npx --yes pnpm@10 run build)
-  # Replace the local artifact tree instead of merging it. Merging leaves
-  # every historical content-hashed asset in dist/, making each staging upload
-  # slower and larger even though the Pi intentionally keeps its old assets.
-  rsync -a --delete "$BUILD_DIR/dist/" dist/
+else
+  [ -f "$BUILD_DIR/dist/server/__vite_rsc_assets_manifest.js" ] || {
+    echo "FAILED: no cached build for --no-build; run a full deploy first" >&2
+    exit 1
+  }
 fi
 # Persist the version after a successful build (or immediately for --no-build).
 # render-index.mjs reads this file, while the upload step uses $VERSION; keeping
 # the write inside the build branch made --no-build publish HTML for N while
 # uploading the override files as N+1.
 echo "$VERSION" > overrides/VERSION
-node deploy/render-index.mjs
+echo "$VERSION" > "$BUILD_DIR/overrides/VERSION"
+(cd "$BUILD_DIR" && node deploy/render-index.mjs)
 
 # The build runs from an rsync of this tree into a temp dir, over SMB. Confirm
 # the bundle it produced actually contains the app source, rather than trusting
 # that the copy was current: a stale rsync produces a clean build of old code,
 # which is indistinguishable from success until the app misbehaves.
 if [ "${1:-}" != "--no-build" ]; then
-  library_bundle=$(grep -o 'LibraryClient-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)
+  library_bundle=$(grep -o 'LibraryClient-[A-Za-z0-9_-]*\.js' "$BUILD_DIR/dist/index.html" | head -1)
   [ -n "$library_bundle" ] || { echo "FAILED: no LibraryClient in rendered HTML" >&2; exit 1; }
   # A string that only exists in the current app source. Update it when the
   # feature it names is removed.
-  if ! grep -q 'reading-room-reader-theme-set' "dist/client/assets/$library_bundle"; then
+  if ! grep -q 'reading-room-reader-theme-set' "$BUILD_DIR/dist/client/assets/$library_bundle"; then
     echo "FAILED: built bundle does not contain current app source." >&2
     echo "        The build likely ran against a stale rsync of the tree." >&2
     exit 1
@@ -88,32 +89,33 @@ fi
 # Static checks the syntax parser cannot do: a function defined and never
 # called is valid JavaScript and silently does nothing, which is how a fix
 # shipped four times without taking effect.
-node deploy/check-overrides.mjs
-node deploy/check-motion.mjs
-node deploy/check-contrast.mjs
-node deploy/check-reading-sheet.mjs
-node deploy/check-sheet-parity.mjs
-node deploy/check-popover-motion.mjs
-node deploy/check-read-aloud-follow.mjs
-node deploy/check-read-aloud-integration.mjs
-node deploy/check-panel-return.mjs
-node deploy/check-library-chrome.mjs
-node deploy/check-reader-consolidation.mjs
+(cd "$BUILD_DIR" &&
+  node deploy/check-overrides.mjs &&
+  node deploy/check-motion.mjs &&
+  node deploy/check-contrast.mjs &&
+  node deploy/check-reading-sheet.mjs &&
+  node deploy/check-sheet-parity.mjs &&
+  node deploy/check-popover-motion.mjs &&
+  node deploy/check-read-aloud-follow.mjs &&
+  node deploy/check-read-aloud-integration.mjs &&
+  node deploy/check-panel-return.mjs &&
+  node deploy/check-library-chrome.mjs &&
+  node deploy/check-reader-consolidation.mjs)
 
 echo "==> staging"
-rm -rf dist/stage && mkdir -p dist/stage/assets
-cp dist/client/assets/*.js dist/client/assets/*.css dist/stage/assets/
-cp dist/index.html dist/stage/index.html
-cp overrides/sw.js dist/stage/sw.js
+rm -rf "$BUILD_DIR/dist/stage" && mkdir -p "$BUILD_DIR/dist/stage/assets"
+cp "$BUILD_DIR"/dist/client/assets/*.js "$BUILD_DIR"/dist/client/assets/*.css "$BUILD_DIR/dist/stage/assets/"
+cp "$BUILD_DIR/dist/index.html" "$BUILD_DIR/dist/stage/index.html"
+cp overrides/sw.js "$BUILD_DIR/dist/stage/sw.js"
 PUBLIC_FILES=(favicon.svg home-books-icon.svg icon-192.png icon-512.png apple-touch-icon.png manifest.webmanifest)
 for name in "${PUBLIC_FILES[@]}"; do
-  cp "public/$name" "dist/stage/$name"
+  cp "public/$name" "$BUILD_DIR/dist/stage/$name"
 done
-cp server/standalone-server.mjs server/rr-settings.mjs server/rr-tts.mjs dist/stage/
+cp server/standalone-server.mjs server/rr-settings.mjs server/rr-tts.mjs "$BUILD_DIR/dist/stage/"
 
 echo "==> uploading"
 "${SSH[@]}" "$PI" "rm -rf ~/rr-deploy/stage && mkdir -p ~/rr-deploy/stage"
-COPYFILE_DISABLE=1 tar czf - -C dist/stage . | "${SSH[@]}" "$PI" "tar xzf - -C ~/rr-deploy/stage"
+COPYFILE_DISABLE=1 tar czf - -C "$BUILD_DIR/dist/stage" . | "${SSH[@]}" "$PI" "tar xzf - -C ~/rr-deploy/stage"
 # macOS tar can still emit AppleDouble sidecars, and ._foo.js matches the
 # installer's *.js glob. Belt and braces: never let one reach the site tree.
 "${SSH[@]}" "$PI" "find ~/rr-deploy/stage -name '._*' -delete"
@@ -171,7 +173,7 @@ done
 
 echo "==> verifying"
 sleep 3
-library_asset=$(grep -o 'LibraryClient-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)
+library_asset=$(grep -o 'LibraryClient-[A-Za-z0-9_-]*\.js' "$BUILD_DIR/dist/index.html" | head -1)
 [ -n "$library_asset" ] || fail "no LibraryClient asset in rendered HTML"
 
 # Check both origins. The LAN one is the shortest path to the server and is
