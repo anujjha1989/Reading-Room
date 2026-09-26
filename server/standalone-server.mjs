@@ -10,7 +10,7 @@ import { access, readFile, stat, mkdir, writeFile, rename, readdir, unlink } fro
 import { extname, join, normalize, resolve, dirname } from "node:path";
 import { homedir, networkInterfaces } from "node:os";
 import { gzipSync } from "node:zlib";
-import { createHash } from "node:crypto";
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { settingsRoute } from "./rr-settings.mjs";
@@ -1306,6 +1306,233 @@ function sendHtml(request, response, html, cacheControl = "no-store") {
   respond(request, response, entry);
 }
 
+// ---------------------------------------------------------------------------
+// Public access
+//
+// The library has never asked who you are: it answers on the home network and
+// on the tailnet, and nowhere else. For reading away from home without
+// Tailscale, a second listener carries the same app to Tailscale Funnel - the
+// open internet - and everything on it sits behind a passphrase.
+//
+// Two listeners rather than one with a "is this request public?" check:
+// Funnel and tailnet traffic both arrive from tailscale serve on loopback, and
+// a header is the only difference between them. A port can't be forged. The
+// public one binds to 127.0.0.1, so the only way to reach it is through Funnel.
+//
+// The passphrase is stored as a scrypt hash, never in the source or in plain
+// text on disk. It is set, once, from the private side (see /api/public-access)
+// and compared the way ReelPi compares its own: capitals, stray spaces and
+// Unicode look-alikes a phone keyboard adds don't decide whether it opens.
+// ---------------------------------------------------------------------------
+const publicPort = Number(process.env.READING_ROOM_PUBLIC_PORT ?? 4315);
+const publicAccessPath = join(dataDir, "public-access.json");
+const SESSION_COOKIE = "hb_session";
+const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;   // 90 days, as ReelPi
+const OPEN_ON_PUBLIC = new Set([
+  "/login", "/favicon.svg", "/home-books-icon.svg", "/apple-touch-icon.png",
+  "/icon-192.png", "/icon-512.png", "/manifest.webmanifest",
+]);
+
+let publicAccess = null;   // { salt, hash, secret, updatedAt } once set
+try { publicAccess = JSON.parse(readFileSync(publicAccessPath, "utf8")); } catch { /* not set up yet */ }
+
+function normalisePassphrase(value) {
+  return String(value || "").normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
+}
+function hashPassphrase(passphrase, salt) {
+  return scryptSync(normalisePassphrase(passphrase), salt, 32).toString("base64url");
+}
+function passphraseMatches(given) {
+  if (!publicAccess) return false;
+  const a = Buffer.from(hashPassphrase(given, publicAccess.salt));
+  const b = Buffer.from(publicAccess.hash);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+async function savePublicAccess(passphrase) {
+  const next = {
+    salt: randomBytes(16).toString("base64url"),
+    secret: randomBytes(32).toString("base64url"),   // a new one signs everyone out
+    updatedAt: new Date().toISOString(),
+  };
+  next.hash = hashPassphrase(passphrase, next.salt);
+  await mkdir(dataDir, { recursive: true });
+  const tmp = `${publicAccessPath}.${process.pid}.tmp`;
+  await writeFile(tmp, JSON.stringify(next), { mode: 0o600 });
+  await rename(tmp, publicAccessPath);
+  publicAccess = next;
+}
+
+function signSession(exp) {
+  return createHmac("sha256", publicAccess.secret).update(`session|${exp}`).digest("base64url");
+}
+function sessionValid(request) {
+  if (!publicAccess) return false;
+  const cookie = String(request.headers.cookie || "").split(";").map((part) => part.trim())
+    .find((part) => part.startsWith(`${SESSION_COOKIE}=`));
+  const match = /^(\d{10,16})\.([A-Za-z0-9_-]{43})$/.exec(cookie ? cookie.slice(SESSION_COOKIE.length + 1) : "");
+  if (!match || !(Number(match[1]) > Date.now())) return false;
+  const given = Buffer.from(match[2]);
+  const want = Buffer.from(signSession(Number(match[1])));
+  return given.length === want.length && timingSafeEqual(given, want);
+}
+
+// Ten misses in fifteen minutes shuts the door on that caller; a hundred from
+// everyone together shuts it for everyone, so a guessable phrase can't simply
+// be worked through from many addresses.
+const loginMisses = new Map();
+let globalMisses = { count: 0, until: 0 };
+function callerOf(request) {
+  // Only trusted because the public listener is bound to loopback: the one
+  // thing that can connect to it is tailscale serve, which sets this header.
+  return String(request.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+}
+function loginBlocked(who, now = Date.now()) {
+  const own = loginMisses.get(who);
+  return (own && own.until > now && own.count >= 10) || (globalMisses.until > now && globalMisses.count >= 100);
+}
+function loginMissed(who, now = Date.now()) {
+  const own = loginMisses.get(who);
+  if (!own || own.until <= now) loginMisses.set(who, { count: 1, until: now + 900000 });
+  else own.count++;
+  if (globalMisses.until <= now) globalMisses = { count: 1, until: now + 900000 };
+  else globalMisses.count++;
+  if (loginMisses.size > 5000) for (const [key, value] of loginMisses) if (value.until <= now) loginMisses.delete(key);
+}
+
+async function readSmallBody(request, limit = 4096) {
+  let body = "";
+  for await (const chunk of request) {
+    body += chunk;
+    if (body.length > limit) throw Object.assign(new Error("too large"), { status: 413 });
+  }
+  return body;
+}
+
+// Only a same-site path, so a crafted link can't bounce you somewhere else.
+function safeNext(value) {
+  const next = String(value || "/");
+  return next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/";
+}
+
+function loginPage(next, message = "") {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow"><title>Home Books</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+:root{color-scheme:light dark;--bg:#f3efe5;--ink:#1f1d1a;--muted:#6b665c;--line:#d8d0bf;--field:#fffdf8;--btn:#203a32;--btn-ink:#f3efe5;--bad:#9b2c1f}
+@media (prefers-color-scheme:dark){:root{--bg:#202123;--ink:#f1eee6;--muted:#b3ada1;--line:#45443f;--field:#2a2b2e;--btn:#d8c9aa;--btn-ink:#202123;--bad:#f0a193}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);
+  font:17px/1.45 -apple-system,system-ui,sans-serif;padding:24px}
+main{width:100%;max-width:340px;text-align:center}
+svg{width:52px;height:52px;margin-bottom:14px}
+h1{font:600 26px/1.2 "New York","Iowan Old Style",Georgia,serif;margin:0 0 8px}
+p{color:var(--muted);margin:0 0 22px}
+input{width:100%;font:inherit;font-size:17px;padding:13px 15px;border-radius:12px;border:1px solid var(--line);
+  background:var(--field);color:var(--ink);margin-bottom:12px}
+button{width:100%;font:inherit;font-weight:600;padding:13px;border:0;border-radius:999px;background:var(--btn);color:var(--btn-ink)}
+.bad{color:var(--bad);margin:-2px 0 14px;font-size:15px}
+</style></head><body><main>
+<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 8C12.4 5.2 7.9 4.6 3.8 5.2A1.5 1.5 0 0 0 2.5 6.7v17.1a1.4 1.4 0 0 0 1.6 1.4C8.5 24.6 12.6 25.2 16 28c3.4-2.8 7.5-3.4 11.9-2.8a1.4 1.4 0 0 0 1.6-1.4V6.7a1.5 1.5 0 0 0-1.3-1.5C24.1 4.6 19.6 5.2 16 8Zm0 0v20"/></svg>
+<h1>Home Books</h1>
+<p>Enter the passphrase to open the library.</p>
+<form method="post" action="/login">
+<input type="hidden" name="next" value="${escapeHtml(next)}">
+<input type="password" name="passphrase" placeholder="Passphrase" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" autofocus required>
+${message ? `<div class="bad" role="alert">${escapeHtml(message)}</div>` : ""}
+<button type="submit">Open</button>
+</form>
+</main></body></html>`;
+}
+
+function sendLogin(response, status, next, message) {
+  const body = loginPage(next, message);
+  response.writeHead(status, {
+    "content-type": "text/html; charset=utf-8",
+    "content-length": Buffer.byteLength(body),
+    "cache-control": "no-store",
+    "x-frame-options": "DENY",
+    "referrer-policy": "no-referrer",
+  });
+  response.end(body);
+}
+
+// Runs before the normal routes on the public listener. True when it answered.
+async function publicGate(request, response) {
+  const url = new URL(request.url || "/", "http://public");
+  if (!publicAccess) {
+    response.writeHead(503, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
+    response.end("Home Books isn't open to the internet yet.");
+    return true;
+  }
+  if (url.pathname === "/login" && request.method === "POST") {
+    const who = callerOf(request);
+    let fields;
+    try { fields = new URLSearchParams(await readSmallBody(request)); }
+    catch { response.writeHead(413).end(); return true; }
+    const next = safeNext(fields.get("next"));
+    if (loginBlocked(who)) { sendLogin(response, 429, next, "Too many attempts. Try again in fifteen minutes."); return true; }
+    if (!passphraseMatches(fields.get("passphrase"))) {
+      loginMissed(who);
+      sendLogin(response, 401, next, "That passphrase doesn't open it.");
+      return true;
+    }
+    loginMisses.delete(who);
+    const exp = Date.now() + SESSION_TTL_MS;
+    response.writeHead(303, {
+      location: next,
+      "cache-control": "no-store",
+      // Always Secure: the only way in is Funnel, which is always https.
+      "set-cookie": `${SESSION_COOKIE}=${exp}.${signSession(exp)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_TTL_MS / 1000}`,
+    });
+    response.end();
+    return true;
+  }
+  if (url.pathname === "/logout") {
+    response.writeHead(303, {
+      location: "/login", "cache-control": "no-store",
+      "set-cookie": `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
+    });
+    response.end();
+    return true;
+  }
+  if (url.pathname === "/login") {
+    if (sessionValid(request)) { response.writeHead(303, { location: safeNext(url.searchParams.get("next")) }).end(); return true; }
+    sendLogin(response, 200, safeNext(url.searchParams.get("next")));
+    return true;
+  }
+  // Setting the passphrase belongs to the home side only, signed in or not.
+  if (url.pathname === "/api/public-access") { response.writeHead(404).end(); return true; }
+  if (OPEN_ON_PUBLIC.has(url.pathname) || sessionValid(request)) return false;
+  // A browser page gets sent to sign in; anything else (catalogue, covers, book
+  // files, the API) gets a plain refusal it can act on.
+  const wantsPage = (request.method === "GET" || request.method === "HEAD")
+    && String(request.headers.accept || "").includes("text/html");
+  if (wantsPage) {
+    response.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}`, "cache-control": "no-store" });
+  } else {
+    response.writeHead(401, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    response.write(JSON.stringify({ error: "Sign in required" }));
+  }
+  response.end();
+  return true;
+}
+
+// Private side only. Sets the passphrase the first time; after that, changing
+// it needs the current one, so a guest on the home Wi-Fi can't take it over.
+async function handlePublicAccess(request, response) {
+  if (request.method === "GET") { sendJson(response, 200, { configured: !!publicAccess, updatedAt: publicAccess?.updatedAt || null }); return; }
+  if (request.method !== "POST") { response.writeHead(405).end("GET or POST"); return; }
+  let payload;
+  try { payload = JSON.parse(await readSmallBody(request) || "{}"); }
+  catch { sendJson(response, 400, { error: "Send JSON: {\"passphrase\": \"...\"}" }); return; }
+  if (publicAccess && !passphraseMatches(payload.current)) { sendJson(response, 403, { error: "Changing it needs the current passphrase." }); return; }
+  if (normalisePassphrase(payload.passphrase).length < 8) { sendJson(response, 400, { error: "Use at least eight characters." }); return; }
+  await savePublicAccess(payload.passphrase);
+  sendJson(response, 200, { configured: true, updatedAt: publicAccess.updatedAt });
+}
+
 const handler = async (request, response) => {
   try {
     const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
@@ -1338,6 +1565,7 @@ const handler = async (request, response) => {
         if (await settingsRoute(request, response, url)) return;
         break;
       case "/api/library-state": await handleLibraryState(request, response); return;
+      case "/api/public-access": await handlePublicAccess(request, response); return;
       case "/api/cover": await cover(response, url); return;
       case "/api/meta-fix":
         if (request.method !== "POST") { response.writeHead(405).end("POST only"); return; }
@@ -1408,6 +1636,28 @@ http.listen(port, host, () => {
   console.log(`Reading state syncs via ${statePath}`);
   setTimeout(() => { runWarmer().catch((e) => console.error("Warmer error:", e.message)); }, 2500);
 });
+
+// The Funnel side. Loopback only: tailscale serve is the one thing that can reach it.
+if (publicPort > 0) {
+  const outside = createHttpServer(async (request, response) => {
+    try {
+      if (await publicGate(request, response)) return;
+    } catch (error) {
+      console.error(error);
+      if (!response.headersSent) response.writeHead(500).end("Home Books encountered an error");
+      return;
+    }
+    await handler(request, response);
+  });
+  outside.keepAliveTimeout = 65000;
+  outside.headersTimeout = 70000;
+  outside.requestTimeout = 0;
+  servers.push(outside);
+  outside.on("error", (error) => console.error("Public endpoint unavailable:", error.message));
+  outside.listen(publicPort, "127.0.0.1", () => {
+    console.log();
+  });
+}
 
 if (certPath && keyPath) {
   try {
