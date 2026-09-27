@@ -1223,8 +1223,26 @@ async function localBookPath(id) {
 
 async function sendLocalBook(request, response, file, mimeType) {
   const info = await stat(file);
+  // Validators, so a book opened again costs a 304 rather than the whole file.
+  // Without them every reopen after five minutes re-sent it in full - 31 MB for
+  // the Naipaul, 73 MB for the Patterson. The iPhone app's shelf uses the same
+  // tag to check its copy is current.
+  const etag = `"${info.size.toString(36)}-${Math.floor(info.mtimeMs).toString(36)}"`;
+  const lastModified = new Date(info.mtimeMs).toUTCString();
   const base = { "content-type": mimeType, "accept-ranges": "bytes",
-                 "cache-control": "private, max-age=300" };
+                 "cache-control": "private, max-age=300", etag, "last-modified": lastModified };
+  if (!request.headers.range) {
+    const tags = String(request.headers["if-none-match"] || "").split(",").map((tag) => tag.trim());
+    const since = Date.parse(String(request.headers["if-modified-since"] || ""));
+    const unchanged = request.headers["if-none-match"]
+      ? tags.includes(etag) || tags.includes("*")
+      : Number.isFinite(since) && Math.floor(info.mtimeMs / 1000) * 1000 <= since;
+    if (unchanged) {
+      response.writeHead(304, { etag, "last-modified": lastModified, "cache-control": base["cache-control"] });
+      response.end();
+      return;
+    }
+  }
   const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.range || "");
   if (range) {
     let start = range[1] === "" ? null : Number(range[1]);
