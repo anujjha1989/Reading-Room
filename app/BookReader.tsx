@@ -12,6 +12,10 @@ import ReadAloudTransport from "./ReadAloudTransport";
 import type { Book as EpubBook, Location, Rendition } from "epubjs";
 import type { RenditionOptions } from "epubjs/types/rendition";
 import PdfReader, { type PdfReaderHandle } from "./PdfReader";
+import ReaderAnnotations, { HighlightsList, type AnnotationAdapter, type AnnotationTarget } from "./ReaderAnnotations";
+import { colorFill, type Highlight } from "./annotations";
+import { recordReading, timeLeft, type TimeLeft } from "./readingPace";
+import { restartReadAloudFromView } from "./readAloudController";
 import ComicReader, { type ComicReaderHandle } from "./ComicReader";
 
 export type ReaderFile = {
@@ -280,12 +284,16 @@ async function secureMobiSections(view: FoliateView) {
   return () => safeUrls.forEach((url) => URL.revokeObjectURL(url));
 }
 
-export default function BookReader({ title, file, initialPosition, bookmarks = [], onBookmarksChange, onLocationChange, seriesNavigation, onClose }: {
+export default function BookReader({ title, author, coverUrl, file, initialPosition, bookmarks = [], onBookmarksChange, highlights = [], onHighlightsChange, onLocationChange, seriesNavigation, onClose }: {
   title: string;
+  author?: string;
+  coverUrl?: string;
   file: ReaderFile;
   initialPosition?: string;
   bookmarks?: ReaderBookmark[];
   onBookmarksChange?: (bookmarks: ReaderBookmark[]) => void;
+  highlights?: Highlight[];
+  onHighlightsChange?: (highlights: Highlight[]) => void;
   onLocationChange?: (location: ReaderLocation) => void;
   seriesNavigation?: { previous?: string; next?: string; onPrevious?: () => void; onNext?: () => void };
   onClose: () => void;
@@ -333,6 +341,26 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   const [mangaMode, setMangaMode] = useState(false);
   const [epubRevision, setEpubRevision] = useState(0);
   const [panel, setPanel] = useState<"search" | "bookmarks" | null>(null);
+  const [marksTab, setMarksTab] = useState<"bookmarks" | "highlights">("bookmarks");
+  // Highlights: the engine-specific adapter (built once the book is open) and a
+  // ref so engine callbacks that outlive a render see the current list.
+  const [annotationAdapter, setAnnotationAdapter] = useState<AnnotationAdapter | null>(null);
+  const highlightsRef = useRef<Highlight[]>(highlights);
+  highlightsRef.current = highlights;
+  const cfiCompareRef = useRef<(a: string, b: string) => number>((a, b) => a.localeCompare(b));
+  const chapterLabelRef = useRef("");
+  // Time left: this reader's pace against how much of the book is still ahead.
+  const [left, setLeft] = useState<TimeLeft>({});
+  const paceRef = useRef<{ at: number; chars: number } | null>(null);
+  const sectionSizesRef = useRef<number[] | null>(null);
+  const textRatioRef = useRef<Map<number, number>>(new Map());
+  // Listening: whether the voice is going (pace is not learned from narrated
+  // pages), and what the handoff and Lock Screen controls need to reach.
+  const narratingRef = useRef(false);
+  const annotationAdapterRef = useRef<AnnotationAdapter | null>(null);
+  annotationAdapterRef.current = annotationAdapter;
+  const currentTocIndexRef = useRef(-1);
+  const tocRef = useRef<TocEntry[]>([]);
   const [reactSheetOpen, setReactSheetOpen] = useState(false);
   const [readingSheetHost, setReadingSheetHost] = useState<HTMLElement | null>(null);
 
@@ -466,6 +494,21 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     }, 700);
   }, []);
 
+  // Remaining reading from where the page is now; a forward page turn also
+  // teaches the pace (how many characters the last page held, over how long it
+  // stayed open). Narrated pages and jumps are not reading, so they don't count.
+  const noteTimeLeft = useCallback((sectionChars: number | undefined, bookChars: number | undefined) => {
+    const now = Date.now();
+    const before = paceRef.current;
+    if (bookChars != null) {
+      if (before && !narratingRef.current && document.visibilityState === "visible" && before.chars > bookChars) {
+        recordReading(before.chars - bookChars, (now - before.at) / 1000);
+      }
+      paceRef.current = { at: now, chars: bookChars };
+    }
+    setLeft(timeLeft(sectionChars, bookChars));
+  }, []);
+
   useEffect(() => () => {
     if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
     const pending = pendingLocationRef.current;
@@ -476,6 +519,10 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   useEffect(() => {
     setDisplayTitle(title);
     currentLocationRef.current = { label: "Saved place", position: initialPosition };
+    sectionSizesRef.current = null;
+    textRatioRef.current = new Map();
+    paceRef.current = null;
+    setLeft({});
     searchRunRef.current += 1;
     setPanel(null);
     setSearchQuery("");
@@ -594,6 +641,102 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
           await rendition.display();
         }
         if (disposed) return;
+
+        // Byte size of each spine file, read once from the archive; with the
+        // text-to-markup ratio of the sections actually opened it gives the
+        // characters still ahead without loading the rest of the book.
+        const sectionSize = (index: number) => {
+          if (!sectionSizesRef.current) {
+            const archive = (book as unknown as { archive?: { zip?: { files?: Record<string, { _data?: { uncompressedSize?: number } }> } } }).archive;
+            const files = archive?.zip?.files ?? {};
+            const keys = Object.keys(files);
+            const sizes: number[] = [];
+            (book.spine as unknown as { each: (callback: (section: { index: number; url?: string; href: string; linear?: string }) => void) => void }).each((section) => {
+              let path = (section.url || section.href || "").replace(/^\//, "");
+              try { path = decodeURIComponent(path); } catch { /* keep as is */ }
+              const key = files[path] ? path : keys.find((name) => name.endsWith(section.href));
+              sizes[section.index] = section.linear === "no" ? 0 : (key ? files[key]?._data?.uncompressedSize ?? 0 : 0);
+            });
+            sectionSizesRef.current = sizes;
+          }
+          return sectionSizesRef.current[index] ?? 0;
+        };
+        const measureEpub = (location: Location) => {
+          try {
+            const index = location.start.index;
+            const contents = (rendition.getContents() as unknown as Array<{ sectionIndex: number; document: Document }>)
+              .find((item) => item.sectionIndex === index);
+            const doc = contents?.document;
+            if (!doc?.body) return;
+            const total = doc.body.textContent?.length ?? 0;
+            const size = sectionSize(index);
+            if (size > 0 && total > 0) textRatioRef.current.set(index, total / size);
+            const ratios = [...textRatioRef.current.values()];
+            const ratio = ratios.length ? ratios.reduce((a, b) => a + b, 0) / ratios.length : 0.6;
+            let read = 0;
+            const range = (rendition as unknown as { getRange: (cfi: string) => Range | null }).getRange(location.start.cfi);
+            if (range && range.startContainer.ownerDocument === doc) {
+              const before = doc.createRange();
+              before.setStart(doc.body, 0);
+              before.setEnd(range.startContainer, range.startOffset);
+              read = before.toString().length;
+            }
+            const inSection = Math.max(0, total - read);
+            const sizes = sectionSizesRef.current ?? [];
+            const ahead = sizes.slice(index + 1).reduce((sum, bytes) => sum + (bytes || 0), 0) * ratio;
+            noteTimeLeft(inSection, sizes.some((bytes) => bytes > 0) ? inSection + ahead : undefined);
+          } catch { /* the section is still rendering */ }
+        };
+
+        // Highlights: epub.js draws them as marks over each section and puts
+        // them back itself whenever that section renders again.
+        const EpubCFI = (ePub as unknown as { CFI: new (cfi?: string) => { spinePos: number; compare: (a: string, b: string) => number; toRange: (doc: Document) => Range | null } }).CFI;
+        cfiCompareRef.current = (a, b) => { try { return new EpubCFI().compare(a, b); } catch { return a.localeCompare(b); } };
+        type EpubContents = { sectionIndex: number; document: Document; cfiFromRange: (range: Range) => string };
+        const epubContents = () => (rendition.getContents() as unknown as EpubContents[]).filter((item) => item?.document?.body);
+        const epubTarget = (item: EpubContents): AnnotationTarget => ({
+          doc: item.document,
+          frame: (item.document.defaultView?.frameElement as HTMLIFrameElement | null) ?? null,
+          index: item.sectionIndex,
+        });
+        const marks = rendition.annotations as unknown as {
+          highlight: (cfi: string, data: object, cb: undefined, className: string, styles: object) => unknown;
+          underline: (cfi: string, data: object, cb: undefined, className: string, styles: object) => unknown;
+          remove: (cfi: string, type: string) => void;
+        };
+        setAnnotationAdapter({
+          targets: () => epubContents().map(epubTarget),
+          targetAt: (x, y) => epubContents().map(epubTarget).find((target) => {
+            const box = target.frame?.getBoundingClientRect();
+            return !!box && x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+          }) ?? null,
+          cfiFor: (target, range) => {
+            const item = epubContents().find((entry) => entry.document === target.doc);
+            try { return item ? item.cfiFromRange(range) : null; } catch { return null; }
+          },
+          rangeFor: (cfi) => {
+            let parsed: InstanceType<typeof EpubCFI>;
+            try { parsed = new EpubCFI(cfi); } catch { return null; }
+            const item = epubContents().find((entry) => entry.sectionIndex === parsed.spinePos);
+            if (!item) return null;
+            try {
+              const range = parsed.toRange(item.document);
+              return range ? { target: epubTarget(item), range } : null;
+            } catch { return null; }
+          },
+          draw: (highlight) => {
+            const fill = colorFill(highlight.color);
+            try {
+              if (highlight.color === "underline") marks.underline(highlight.cfi, { id: highlight.id }, undefined, "rr-ul", { stroke: fill, "stroke-opacity": "0.9", "stroke-width": "2" });
+              else marks.highlight(highlight.cfi, { id: highlight.id }, undefined, "rr-hl", { fill, "fill-opacity": "0.32", "mix-blend-mode": "normal" });
+            } catch { /* a position this edition no longer has */ }
+          },
+          erase: (highlight) => { try { marks.remove(highlight.cfi, highlight.color === "underline" ? "underline" : "highlight"); } catch { /* already gone */ } },
+          compare: (a, b) => cfiCompareRef.current(a, b),
+          go: (cfi) => { try { void rendition.display(cfi).catch(() => undefined); } catch { /* reader closed */ } },
+          chapter: () => chapterLabelRef.current,
+        });
+
         rendition.on("relocated", (location: Location) => {
           const page = location.start.displayed;
           const atEnd = (location as Location & { atEnd?: boolean }).atEnd ?? false;
@@ -604,6 +747,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
             localStorage.setItem(`reading-room-position-${file.id}`, location.start.cfi);
             reportLocation({ label, position: location.start.cfi, status: atEnd ? "finished" : "reading" });
           }
+          measureEpub(location);
         });
         // Some otherwise-readable EPUBs omit the optional navigation package.
         // Do not throw merely because they have no table of contents: the book
@@ -625,6 +769,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
       const book = bookRef.current;
       renditionRef.current = null;
       bookRef.current = null;
+      setAnnotationAdapter(null);
       rendition?.destroy();
       // epub.js resolves navigation asynchronously and reads `book.loading` in
       // its own completion callback. Destroying the book before that callback
@@ -635,7 +780,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
           .then(() => book.destroy());
       }
     };
-  }, [epubRevision, file.format, file.id, initialPosition, isEpub, readerModeReady, reportLocation]);
+  }, [epubRevision, file.format, file.id, initialPosition, isEpub, noteTimeLeft, readerModeReady, reportLocation]);
 
   useEffect(() => {
     if (!isEpub || !readerModeReady) return;
@@ -689,8 +834,82 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         view.renderer?.setAttribute("max-column-count", isMobileViewport() ? "1" : "2");
         view.renderer?.setStyles(mobiStyles(fontSizeRef.current, themeRef.current, lineHeightRef.current, marginRef.current));
         view.addEventListener("load", () => view.renderer?.setStyles(mobiStyles(fontSizeRef.current, themeRef.current, lineHeightRef.current, marginRef.current)));
+
+        // Highlights: foliate draws annotations on a per-section overlay and asks
+        // for them again each time a section's overlay is created.
+        const [{ Overlayer }, { compare: compareCFI }] = await Promise.all([
+          import("foliate-js/overlayer.js") as Promise<{ Overlayer: { highlight: unknown; underline: unknown } }>,
+          import("foliate-js/epubcfi.js") as Promise<{ compare: (a: string, b: string) => number }>,
+        ]);
+        if (disposed) return;
+        type FoliateMore = {
+          addAnnotation: (annotation: { value: string; color?: string }) => Promise<unknown>;
+          deleteAnnotation: (annotation: { value: string }) => Promise<unknown>;
+          getCFI: (index: number, range: Range) => string;
+          resolveNavigation: (cfi: string) => { index: number; anchor?: (doc: Document) => Range } | undefined;
+          renderer?: { getContents?: () => Array<{ doc: Document; index: number }> };
+          book?: { sections?: Array<{ size?: number }> };
+        };
+        const fv = view as unknown as FoliateMore;
+        cfiCompareRef.current = (a, b) => { try { return compareCFI(a, b); } catch { return a.localeCompare(b); } };
+        const mobiContents = () => (fv.renderer?.getContents?.() ?? []).filter((item) => item?.doc?.body);
+        const mobiTarget = (item: { doc: Document; index: number }): AnnotationTarget => ({
+          doc: item.doc,
+          frame: (item.doc.defaultView?.frameElement as HTMLIFrameElement | null) ?? null,
+          index: item.index,
+        });
+        view.addEventListener("draw-annotation", (event) => {
+          const { draw, annotation } = (event as CustomEvent<{ draw: (fn: unknown, options: object) => void; annotation: { value: string; color?: Highlight["color"] } }>).detail;
+          const color = annotation.color ?? highlightsRef.current.find((item) => item.cfi === annotation.value)?.color ?? "yellow";
+          if (color === "underline") draw(Overlayer.underline, { color: colorFill("underline"), width: 2 });
+          else draw(Overlayer.highlight, { color: colorFill(color) });
+        });
+        view.addEventListener("create-overlay", (event) => {
+          const { index } = (event as CustomEvent<{ index: number }>).detail;
+          for (const item of highlightsRef.current) {
+            try {
+              if (fv.resolveNavigation(item.cfi)?.index === index) void fv.addAnnotation({ value: item.cfi, color: item.color }).catch(() => undefined);
+            } catch { /* not in this edition */ }
+          }
+        });
+        setAnnotationAdapter({
+          targets: () => mobiContents().map(mobiTarget),
+          targetAt: (x, y) => mobiContents().map(mobiTarget).find((target) => {
+            const box = target.frame?.getBoundingClientRect();
+            return !!box && x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+          }) ?? null,
+          cfiFor: (target, range) => { try { return target.index != null ? fv.getCFI(target.index, range) : null; } catch { return null; } },
+          rangeFor: (cfi) => {
+            try {
+              const resolved = fv.resolveNavigation(cfi);
+              const item = mobiContents().find((entry) => entry.index === resolved?.index);
+              const range = item && resolved?.anchor ? resolved.anchor(item.doc) : null;
+              return item && range ? { target: mobiTarget(item), range } : null;
+            } catch { return null; }
+          },
+          draw: (highlight) => { try { void fv.addAnnotation({ value: highlight.cfi, color: highlight.color }).catch(() => undefined); } catch { /* unresolvable */ } },
+          erase: (highlight) => { try { void fv.deleteAnnotation({ value: highlight.cfi }).catch(() => undefined); } catch { /* unresolvable */ } },
+          compare: (a, b) => cfiCompareRef.current(a, b),
+          go: (cfi) => { try { void Promise.resolve(view.goTo(cfi)).catch(() => undefined); } catch { /* reader closed */ } },
+          chapter: () => chapterLabelRef.current,
+        });
+
         view.addEventListener("relocate", (event) => {
-          const detail = (event as CustomEvent<{ fraction?: number; cfi?: string; tocItem?: { label?: string } }>).detail;
+          const detail = (event as CustomEvent<{ fraction?: number; cfi?: string; tocItem?: { label?: string }; section?: { current?: number }; time?: { section?: number; total?: number } }>).detail;
+          // foliate reports what is left in 1,600-byte units of markup.
+          const index = detail.section?.current;
+          if (typeof index === "number" && detail.time) {
+            const item = mobiContents().find((entry) => entry.index === index);
+            const size = fv.book?.sections?.[index]?.size ?? 0;
+            const length = item?.doc.body.textContent?.length ?? 0;
+            if (size > 0 && length > 0) textRatioRef.current.set(index, length / size);
+            const ratios = [...textRatioRef.current.values()];
+            const ratio = ratios.length ? ratios.reduce((a, b) => a + b, 0) / ratios.length : 0.6;
+            noteTimeLeft(
+              typeof detail.time.section === "number" ? detail.time.section * 1600 * ratio : undefined,
+              typeof detail.time.total === "number" ? detail.time.total * 1600 * ratio : undefined,
+            );
+          }
           const percent = typeof detail.fraction === "number" ? `${Math.max(1, Math.round(detail.fraction * 100))}%` : "";
           const label = detail.tocItem?.label || percent || "In progress";
           setProgress(label);
@@ -716,11 +935,12 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
       disposed = true;
       controller.abort();
       revokeSafeUrls();
+      setAnnotationAdapter(null);
       mobiViewRef.current?.close();
       mobiViewRef.current?.remove();
       mobiViewRef.current = null;
     };
-  }, [file.id, file.format, format, initialPosition, isMobi, readerModeReady, reportLocation, title]);
+  }, [file.id, file.format, format, initialPosition, isMobi, noteTimeLeft, readerModeReady, reportLocation, title]);
 
   useEffect(() => {
     if (!isMobi || !readerModeReady) return;
@@ -1037,6 +1257,83 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
     value: item.href,
     current: index === currentTocIndex,
   }));
+  const chapterName = currentTocIndex >= 0 ? (toc[currentTocIndex]?.label ?? "").trim() : "";
+  chapterLabelRef.current = chapterName;
+  currentTocIndexRef.current = currentTocIndex;
+  tocRef.current = toc;
+
+  // Lock Screen and CarPlay's Now Playing: the chapter as the track, the author
+  // as the artist, the book as the album, with its cover.
+  useEffect(() => {
+    if (!isReflowable) return;
+    const w = window as Window & { __rrNowPlaying?: { title?: string; artist?: string; album?: string; artwork?: string } };
+    let artwork: string | undefined;
+    try { artwork = coverUrl ? new URL(coverUrl, window.location.href).href : undefined; } catch { artwork = undefined; }
+    w.__rrNowPlaying = { title: chapterName || displayTitle, artist: author || undefined, album: displayTitle, artwork };
+    return () => { delete w.__rrNowPlaying; };
+  }, [isReflowable, chapterName, displayTitle, author, coverUrl]);
+
+  // Reading and listening are one place in the book. While the voice reads, the
+  // saved place follows the sentence being spoken; pausing or stopping leaves
+  // the page on it, and waking the screen brings the page back to it.
+  // Previous/next track on the Lock Screen move by chapter and carry on reading.
+  useEffect(() => {
+    if (!isReflowable) return;
+    let lastCfi: string | null = null;
+    let savedAt = 0;
+    const save = () => {
+      if (!lastCfi) return;
+      try { localStorage.setItem(`reading-room-position-${file.id}`, lastCfi); } catch { /* storage off */ }
+      reportLocation({ label: currentLocationRef.current.label || "In progress", position: lastCfi, status: "reading" });
+    };
+    const onNarration = (event: Event) => {
+      const detail = (event as CustomEvent<{ kind: string; doc?: Document | null; range?: Range | null }>).detail || { kind: "" };
+      if (detail.kind === "sentence") {
+        narratingRef.current = true;
+        const adapter = annotationAdapterRef.current;
+        const target = adapter && detail.doc ? adapter.targets().find((item) => item.doc === detail.doc) : null;
+        const cfi = adapter && target && detail.range ? adapter.cfiFor(target, detail.range) : null;
+        if (cfi) lastCfi = cfi;
+        if (Date.now() - savedAt > 5000) { savedAt = Date.now(); save(); }
+      } else if (detail.kind === "paused" || detail.kind === "stopped") {
+        const wasNarrating = narratingRef.current;
+        narratingRef.current = false;
+        paceRef.current = null;
+        if (!wasNarrating || !lastCfi) return;
+        save();
+        annotationAdapterRef.current?.go(lastCfi);
+        if (detail.kind === "stopped") lastCfi = null;
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || !narratingRef.current || !lastCfi) return;
+      annotationAdapterRef.current?.go(lastCfi);
+    };
+    const onChapter = (event: Event) => {
+      const delta = (event as CustomEvent<{ delta?: number }>).detail?.delta ?? 0;
+      const list = tocRef.current;
+      if (!delta || !list.length) return;
+      const here = currentTocIndexRef.current < 0 ? 0 : currentTocIndexRef.current;
+      const entry = list[Math.max(0, Math.min(list.length - 1, here + delta))];
+      if (!entry) return;
+      const moved = isEpub ? renditionRef.current?.display(entry.href) : mobiViewRef.current?.goTo(entry.href);
+      void Promise.resolve(moved).catch(() => undefined).then(() => restartReadAloudFromView());
+    };
+    window.addEventListener("rr-narration", onNarration);
+    window.addEventListener("rr-narration-chapter", onChapter);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("rr-narration", onNarration);
+      window.removeEventListener("rr-narration-chapter", onChapter);
+      document.removeEventListener("visibilitychange", onVisible);
+      narratingRef.current = false;
+    };
+  }, [file.id, isEpub, isReflowable, reportLocation]);
+
+  const footerLabel = left.chapter
+    ? (progress && progress !== "In progress" ? `${progress} · ${left.chapter} left in chapter` : `${left.chapter} left in chapter`)
+    : progress;
+  const sheetProgress = left.book ? `${left.book} left in book` : progress;
 
   return (
     <section className={`reader-shell reader-theme-${theme}`} ref={shellRef} role="dialog" aria-modal="true" aria-labelledby="reader-title">
@@ -1065,20 +1362,32 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
         <div className="reader-search-results">{searchResults.map((result, index) => <button key={`${result.target}-${index}`} onClick={() => goToPosition(result.target)}><strong>{result.label}</strong><span>{result.excerpt}</span></button>)}</div>
       </aside>, readingSheetHost) : null}
 
-      {panel === "bookmarks" && readingSheetHost ? createPortal(<aside className="reader-panel rr-reader-panel-portal" aria-label="Bookmarks">
-        <div className="reader-panel-heading"><div><span>SAVED PLACES</span><strong>Bookmarks</strong></div><button onClick={backToReadingMenu} aria-label="Back to reading menu">‹</button></div>
-        <button className="reader-add-bookmark" onClick={addBookmark}>+ Bookmark current place</button>
-        <div className="reader-bookmarks">{bookmarks.length ? bookmarks.map((bookmark) => <div key={bookmark.id}><button onClick={() => goToPosition(bookmark.position)}><strong>{bookmark.label}</strong><span>{new Date(bookmark.createdAt).toLocaleDateString()}</span></button><button onClick={() => removeBookmark(bookmark.id)} aria-label={`Remove bookmark ${bookmark.label}`}>×</button></div>) : <p>No bookmarks yet.</p>}</div>
+      {panel === "bookmarks" && readingSheetHost ? createPortal(<aside className="reader-panel rr-reader-panel-portal" aria-label="Bookmarks and highlights">
+        <div className="reader-panel-heading"><div><span>SAVED PLACES</span><strong>{marksTab === "highlights" && isReflowable ? "Highlights & Notes" : "Bookmarks"}</strong></div><button onClick={backToReadingMenu} aria-label="Back to reading menu">‹</button></div>
+        {isReflowable && <div className="rr-marks-tabs" role="tablist" aria-label="Saved places">
+          <button type="button" role="tab" aria-selected={marksTab === "bookmarks"} onClick={() => setMarksTab("bookmarks")}>Bookmarks{bookmarks.length ? ` ${bookmarks.length}` : ""}</button>
+          <button type="button" role="tab" aria-selected={marksTab === "highlights"} onClick={() => setMarksTab("highlights")}>Highlights{highlights.length ? ` ${highlights.length}` : ""}</button>
+        </div>}
+        {marksTab === "highlights" && isReflowable
+          ? <HighlightsList highlights={highlights} title={displayTitle} author={author}
+              onGo={(highlight) => goToPosition(highlight.cfi)}
+              onRemove={(highlight) => onHighlightsChange?.(highlights.filter((item) => item.id !== highlight.id))} />
+          : <>
+            <button className="reader-add-bookmark" onClick={addBookmark}>+ Bookmark current place</button>
+            <div className="reader-bookmarks">{bookmarks.length ? bookmarks.map((bookmark) => <div key={bookmark.id}><button onClick={() => goToPosition(bookmark.position)}><strong>{bookmark.label}</strong><span>{new Date(bookmark.createdAt).toLocaleDateString()}</span></button><button onClick={() => removeBookmark(bookmark.id)} aria-label={`Remove bookmark ${bookmark.label}`}>×</button></div>) : <p>No bookmarks yet.</p>}</div>
+          </>}
       </aside>, readingSheetHost) : null}
 
       {isBookReader ? <>
         <div className="epub-stage" onTouchStart={(event) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={endSwipe}>{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{isComic && readingMode && <ComicReader ref={comicReaderRef} fileId={file.id} format={file.format} mode={readingMode} direction={mangaMode ? "rtl" : "ltr"} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download {format}</a>}</div>}</div>
-        <footer className="reader-footer"><button onClick={previous}>{readingMode === "scroll" ? "↑ Up" : "← Previous"}</button><span>{progress || (readingMode === "scroll" ? "Continuous scroll" : "Use the arrow keys to turn pages")}</span><button onClick={next}>{readingMode === "scroll" ? "Down ↓" : "Next →"}</button></footer>
+        <footer className="reader-footer"><button onClick={previous}>{readingMode === "scroll" ? "↑ Up" : "← Previous"}</button><span>{footerLabel || (readingMode === "scroll" ? "Continuous scroll" : "Use the arrow keys to turn pages")}</span><button onClick={next}>{readingMode === "scroll" ? "Down ↓" : "Next →"}</button></footer>
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
 
       {readingSheetHost ? createPortal(<>
         <button type="button" className="rr-close-btn" aria-label="Close book" onClick={onClose}>×</button>
         <ReadAloudTransport api={readAloud} />
+        {isReflowable && <ReaderAnnotations adapter={annotationAdapter} highlights={highlights}
+          onChange={(next) => onHighlightsChange?.(next)} title={displayTitle} author={author} host={readingSheetHost} />}
         <button type="button" className="rr-react-sheet-trigger"
           aria-label={reactSheetOpen ? "Close reading settings" : "Open reading settings"}
           aria-expanded={reactSheetOpen}
@@ -1104,7 +1413,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
           onMarginChange={setMargin}
           toc={sheetToc.length > 0 ? sheetToc : undefined}
           onTocSelect={goToChapter}
-          progressLabel={progress || undefined}
+          progressLabel={sheetProgress || undefined}
           onSearch={(isReflowable || isPdf) ? () => { setReactSheetOpen(false); setPanel("search"); } : undefined}
           onBookmarks={() => { setReactSheetOpen(false); setPanel("bookmarks"); }}
           onShare={shareBook}

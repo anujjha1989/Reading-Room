@@ -149,6 +149,7 @@ export function mountReaderInteractions() {
       if (sel && String(sel).length) { debug("Ignored: text selection"); return; }
     } catch (e) { /* ignore */ }
 
+    if (typeof window.__rrTapAt === "function" && window.__rrTapAt(x, y)) { lastActed = Date.now(); return; }
     lastActed = Date.now();
     debug("Action: " + (fraction >= 0.3 && fraction <= 0.7 ? "centre" : pagesMode() ? fraction < 0.3 ? "previous" : "next" : "scroll mode"));
     if (sheetOpen()) return;
@@ -253,6 +254,12 @@ export function mountReaderInteractions() {
             lastActed = Date.now();
             return;
           }
+          // A highlight under the finger opens its menu (ReaderAnnotations).
+          if (Date.now() - lastActed >= 350 && typeof window.__rrTapAt === "function"
+              && window.__rrTapAt(event.clientX, event.clientY)) {
+            lastActed = Date.now();
+            return;
+          }
           if (Date.now() - lastActed < 350) return;
           lastActed = Date.now();
           debug("Host tap: " + label);
@@ -267,10 +274,28 @@ export function mountReaderInteractions() {
       });
       // Preserve horizontal swipe navigation; suppress the click after a swipe.
       var swipe = null;
+      // Press and hold selects the word under the finger (ReaderAnnotations
+      // lifts this layer so the selection can then be adjusted natively).
+      var holdTimer = null;
+      function cancelHold() { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } }
       tapLayer.addEventListener("touchstart", function (event) {
         swipe = event.touches.length === 1 ? {x:event.touches[0].clientX,y:event.touches[0].clientY,t:Date.now()} : null;
+        cancelHold();
+        if (!swipe || typeof window.__rrLongPress !== "function") return;
+        var at = swipe;
+        holdTimer = setTimeout(function () {
+          holdTimer = null;
+          if (swipe !== at) return;
+          if (window.__rrLongPress(at.x, at.y)) { swipe = null; lastActed = Date.now() + 400; }
+        }, 480);
+      }, {passive:true});
+      tapLayer.addEventListener("touchmove", function (event) {
+        if (!swipe || !event.touches.length) return;
+        var t = event.touches[0];
+        if (Math.abs(t.clientX - swipe.x) > SLOP || Math.abs(t.clientY - swipe.y) > SLOP) cancelHold();
       }, {passive:true});
       tapLayer.addEventListener("touchend", function (event) {
+        cancelHold();
         event.stopPropagation();
         if (!swipe) { lastActed = Date.now(); return; }
         if (Date.now() - swipe.t > MAX_MS) { swipe = null; lastActed = Date.now(); return; }
@@ -283,7 +308,12 @@ export function mountReaderInteractions() {
           turnPage(dx < 0 ? 1 : -1);
         } else if (Math.abs(dx) > SLOP || Math.abs(dy) > SLOP) lastActed = Date.now();
       }, {passive:false});
-      tapLayer.addEventListener("touchcancel", function () { swipe = null; });
+      tapLayer.addEventListener("touchcancel", function () { swipe = null; cancelHold(); });
+      // Selecting text lifts the layer; clearing the selection puts it back.
+      window.__rrTextMode = function (on) {
+        textMode = !!on;
+        syncTapLayer();
+      };
       document.body.appendChild(tapLayer);
       textModeButton = make("rr-text-mode", "Select text or follow book links", "Select text / follow links", function () {
         textMode = !textMode;

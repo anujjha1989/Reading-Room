@@ -517,8 +517,8 @@ type TestWindow = Window & typeof globalThis & {
       try {
         var overlays = doc.querySelectorAll && doc.querySelectorAll(".rr-reading-highlight-overlay");
         for (var j = 0; overlays && j < overlays.length; j += 1) overlays[j].remove();
-        var sel = doc.getSelection && doc.getSelection();
-        if (sel && sel.rangeCount) sel.removeAllRanges();
+        // Narration draws overlays now, not a DOM selection, so a reader's own
+        // text selection (to highlight or look up) is left alone.
       } catch (e) { /* document torn down */ }
     }
   }
@@ -769,7 +769,33 @@ type TestWindow = Window & typeof globalThis & {
     }
 
     highlight(state.doc, item.range);
+    announce("sentence", state.doc, item.range);
     speak(item.text, mine, state.doc);
+  }
+
+  // The reader keeps its saved place on the sentence being spoken, so stopping
+  // listening leaves the book open where the voice was (on this device and the
+  // next), and waking the screen brings the page back to it.
+  var lastSpoken: { doc: NarrationDocument; range: Range } | null = null;
+  function announce(kind: "sentence" | "playing" | "paused" | "stopped", doc?: NarrationDocument, range?: Range) {
+    if (doc && range) lastSpoken = { doc: doc, range: range };
+    try {
+      window.dispatchEvent(new CustomEvent("rr-narration", {
+        detail: { kind: kind, doc: lastSpoken ? lastSpoken.doc : null, range: lastSpoken ? lastSpoken.range : null },
+      }));
+    } catch (e) { /* the reader is gone */ }
+  }
+
+  // After the reader jumps (a chapter from the Lock Screen), carry on from the
+  // first sentence on the new page rather than the old queue.
+  function restartFromView() {
+    if (!playing) return;
+    epoch += 1;
+    var mine = epoch;
+    haltCurrentAudio();
+    queueDoc = null;
+    render();
+    setTimeout(function () { if (playing && mine === epoch) { paused = false; step(mine); } }, 450);
   }
 
   function ensureQueue(doc: NarrationDocument) {
@@ -982,10 +1008,19 @@ type TestWindow = Window & typeof globalThis & {
     try {
       var title = document.querySelector<HTMLElement>(".reader-shell h1, .reader-title")?.textContent
         || document.title || "Home Books";
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: String(title).trim().slice(0, 120),
-        artist: "Home Books",
-      });
+      // The reader publishes the chapter, author and cover, so the Lock Screen
+      // and CarPlay's Now Playing read like an audiobook's.
+      var info = (window as Window & { __rrNowPlaying?: { title?: string; artist?: string; album?: string; artwork?: string } }).__rrNowPlaying || {};
+      var meta = {
+        title: String(info.title || title).trim().slice(0, 120),
+        artist: String(info.artist || "Home Books").slice(0, 120),
+        album: String(info.album || title).trim().slice(0, 120),
+        artwork: info.artwork ? [{ src: info.artwork, sizes: "512x512" }] : [],
+      };
+      var current = navigator.mediaSession.metadata;
+      if (!current || current.title !== meta.title || current.artist !== meta.artist || current.album !== meta.album) {
+        navigator.mediaSession.metadata = new MediaMetadata(meta);
+      }
       // Tell iOS the audio session is actively playing so it keeps background
       // audio alive through page-turn gaps (fixes reading stopping after 2-3
       // pages when the screen is locked).
@@ -993,9 +1028,18 @@ type TestWindow = Window & typeof globalThis & {
       navigator.mediaSession.setActionHandler("play", function () { if (paused) toggle(); });
       navigator.mediaSession.setActionHandler("pause", function () { if (!paused) toggle(); });
       navigator.mediaSession.setActionHandler("stop", stop);
-      navigator.mediaSession.setActionHandler("previoustrack", function () { skipSentence(-1); });
-      navigator.mediaSession.setActionHandler("nexttrack", function () { skipSentence(1); });
+      // Skip back/forward (the Lock Screen's 15-second buttons, AirPods, the car)
+      // move by a couple of sentences - about that long spoken. Previous/next
+      // track move by chapter, as in an audiobook.
+      navigator.mediaSession.setActionHandler("seekbackward", function () { skipSentence(-1); skipSentence(-1); });
+      navigator.mediaSession.setActionHandler("seekforward", function () { skipSentence(1); skipSentence(1); });
+      navigator.mediaSession.setActionHandler("previoustrack", function () { changeChapter(-1); });
+      navigator.mediaSession.setActionHandler("nexttrack", function () { changeChapter(1); });
     } catch (e) { /* older browsers */ }
+  }
+
+  function changeChapter(delta: -1 | 1) {
+    try { window.dispatchEvent(new CustomEvent("rr-narration-chapter", { detail: { delta: delta } })); } catch (e) {}
   }
 
   function speak(text: string, mine: number, doc: NarrationDocument) {
@@ -1110,6 +1154,7 @@ type TestWindow = Window & typeof globalThis & {
     if (sweeper) { clearInterval(sweeper); sweeper = null; }
     clearHighlights();
     render();
+    announce("stopped");
   }
 
   // Keep the same audio element and source paused so iOS retains the media
@@ -1131,6 +1176,7 @@ type TestWindow = Window & typeof globalThis & {
     try { if (rrTtsAudio) rrTtsAudio.pause(); } catch (e) { /* ignore */ }
     try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; } catch (e) {}
     render();
+    announce("paused");
   }
 
   function haltCurrentAudio() {
@@ -1303,6 +1349,7 @@ type TestWindow = Window & typeof globalThis & {
     toggle: toggle,
     stop: stop,
     skip: skipSentence,
+    restartFromView: restartFromView,
     adjustSleep: adjustSleepTime,
     setRate: setRate,
     setVoice: setVoice,

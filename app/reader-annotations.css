@@ -1,0 +1,192 @@
+/*
+ * Highlights, notes and look-up. Same glass, radii, type and motion as the
+ * reading sheet (reading-sheet.module.css) so the menu reads as part of the
+ * reader's chrome rather than a web popup. Light glass by default; the book's
+ * dark theme (html.rr-reader-dark) switches to dark glass.
+ */
+
+.rr-hl-menu, .rr-note-sheet {
+  --surface: rgba(250, 250, 251, 0.96);
+  --surface-line: rgba(0, 0, 0, 0.10);
+  --fill: rgba(120, 120, 128, 0.12);
+  --fill-active: rgba(120, 120, 128, 0.24);
+  --ink: #1c1c1e;
+  --ink-dim: rgba(28, 28, 30, 0.55);
+  --accent: #007aff;
+  --danger: #d9342b;
+}
+html.rr-reader-dark .rr-hl-menu, html.rr-reader-dark .rr-note-sheet {
+  --surface: rgba(38, 38, 40, 0.96);
+  --surface-line: rgba(255, 255, 255, 0.12);
+  --fill: rgba(120, 120, 128, 0.24);
+  --fill-active: rgba(120, 120, 128, 0.36);
+  --ink: #f5f2e9;
+  --ink-dim: rgba(245, 242, 233, 0.6);
+  --accent: #0a84ff;
+  --danger: #ff6961;
+}
+
+.rr-hl-menu {
+  position: fixed;
+  z-index: 160;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--surface-line);
+  border-radius: 22px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.26), 0 2px 8px rgba(0, 0, 0, 0.1);
+  -webkit-backdrop-filter: blur(30px) saturate(1.5);
+  backdrop-filter: blur(30px) saturate(1.5);
+  font: 15px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  transform-origin: top center;
+  animation: rr-hl-pop 0.26s cubic-bezier(0.16, 1.16, 0.3, 1) both;
+  -webkit-user-select: none;
+  user-select: none;
+}
+@keyframes rr-hl-pop {
+  from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+.rr-hl-scrim { position: fixed; inset: 0; z-index: 155; background: transparent; }
+
+.rr-hl-swatches { display: flex; justify-content: space-between; gap: 6px; padding: 2px 4px; }
+.rr-hl-swatch {
+  width: 36px; height: 36px; flex: 0 0 36px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--hl);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  transition: transform 0.16s ease;
+}
+.rr-hl-swatch.current { border-color: var(--ink); }
+.rr-hl-swatch:active { transform: scale(0.9); }
+.rr-hl-swatch.rr-hl-underline { background: var(--fill); display: grid; place-items: center; }
+.rr-hl-swatch.rr-hl-underline span {
+  font: 600 17px/1 Georgia, "Iowan Old Style", serif;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--hl);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.rr-hl-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.rr-hl-actions button {
+  flex: 1 1 auto;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--fill);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.rr-hl-actions button:active { background: var(--fill-active); }
+.rr-hl-actions button.danger { color: var(--danger); }
+
+/* --- the note sheet ------------------------------------------------------ */
+.rr-note-backdrop {
+  position: fixed; inset: 0; z-index: 170;
+  display: grid; place-items: end center;
+  padding: 0 12px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  background: rgba(0, 0, 0, 0.28);
+  animation: rr-note-fade 0.2s ease both;
+}
+@keyframes rr-note-fade { from { opacity: 0; } to { opacity: 1; } }
+.rr-note-sheet {
+  width: min(520px, 100%);
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--surface-line);
+  border-radius: 22px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  -webkit-backdrop-filter: blur(30px) saturate(1.5);
+  backdrop-filter: blur(30px) saturate(1.5);
+  font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  animation: rr-hl-pop 0.28s cubic-bezier(0.16, 1.16, 0.3, 1) both;
+}
+.rr-note-sheet blockquote {
+  margin: 0;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--hl);
+  font: italic 15px/1.45 Georgia, "Iowan Old Style", serif;
+  color: var(--ink-dim);
+  max-height: 7.5em;
+  overflow: auto;
+}
+.rr-note-sheet textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid var(--surface-line);
+  border-radius: 14px;
+  background: var(--fill);
+  color: var(--ink);
+  font: 16px/1.45 Georgia, "Iowan Old Style", serif;
+  resize: vertical;
+  outline: none;
+}
+.rr-note-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.rr-note-actions button {
+  min-height: 40px; padding: 0 18px;
+  border: 0; border-radius: 12px;
+  background: var(--fill); color: var(--ink);
+  font: inherit; cursor: pointer;
+}
+.rr-note-actions button.primary { background: var(--accent); color: #fff; font-weight: 600; }
+
+/* --- the Marks panel: Bookmarks | Highlights ----------------------------- */
+.rr-marks-tabs {
+  display: flex; gap: 3px; padding: 3px; margin-top: 10px;
+  border-radius: 12px;
+  background: rgba(120, 120, 128, 0.14);
+}
+/* Written against the reader panel's own button rule, which is !important. */
+html[class] .reader-panel .rr-marks-tabs button {
+  flex: 1; min-height: 32px;
+  border: 0 !important; border-radius: 9px;
+  background: transparent !important;
+  font-size: 13.5px; font-weight: 500;
+  cursor: pointer;
+}
+html[class] .reader-panel .rr-marks-tabs button[aria-selected="true"] {
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #1c1c1e !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+}
+html.rr-reader-dark html[class] .reader-panel .rr-marks-tabs button[aria-selected="true"] { background: rgba(99, 99, 102, 0.9) !important; color: #fff !important; }
+
+.rr-hl-list { min-height: 0; overflow: auto; margin-top: 8px; }
+.rr-hl-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) 34px;
+  border-top: 1px solid rgba(128, 128, 128, 0.22);
+}
+.rr-hl-item > button:first-child {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 11px 3px 11px 12px;
+  border: 0 !important; background: none !important;
+  box-shadow: inset 3px 0 0 var(--hl);
+  text-align: left; cursor: pointer;
+}
+.rr-hl-quote {
+  font: 14px/1.42 Georgia, "Iowan Old Style", serif;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.rr-hl-note { font-size: 13px; line-height: 1.35; opacity: 0.85; }
+.rr-hl-item small { font-size: 11.5px; opacity: 0.6; }
+.rr-hl-remove { border: 0 !important; background: none !important; font-size: 18px; opacity: 0.55; cursor: pointer; }
+.rr-hl-empty { margin: 16px 6px 6px; font-size: 13.5px; line-height: 1.4; text-align: center; opacity: 0.7; }
+.rr-hl-export { width: 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rr-hl-menu, .rr-note-sheet, .rr-note-backdrop { animation: none; }
+  .rr-hl-swatch { transition: none; }
+}

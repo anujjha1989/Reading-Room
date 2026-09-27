@@ -97,7 +97,7 @@ export default function LibraryChrome(props: Props) {
       {sortOptions.map((option) => <button type="button" role="menuitemradio" aria-checked={props.sort === option.value} key={option.value} onClick={() => { props.onSortChange(option.value); closePopovers(); }}><Tick /><span>{option.label}</span></button>)}
     </div>
     <nav className="rr-library-dock" aria-label="Home Books navigation" hidden={props.hidden}>
-      {(["home", "library", "favorites"] as const).map((item) => <button type="button" data-view={item[0].toUpperCase() + item.slice(1)} aria-label={item === "library" ? "Browse full library" : item[0].toUpperCase() + item.slice(1)} aria-current={props.view === item ? "page" : undefined} key={item} onClick={() => props.onViewChange(item)}><Icon name={item} /><span>{item[0].toUpperCase() + item.slice(1)}</span></button>)}
+      {(["home", "library", "favorites"] as const).map((item) => <button type="button" data-view={item[0].toUpperCase() + item.slice(1)} aria-label={item === "library" ? "Browse full library" : item === "favorites" ? "My Books" : item[0].toUpperCase() + item.slice(1)} aria-current={props.view === item ? "page" : undefined} key={item} onClick={() => props.onViewChange(item)}><Icon name={item} /><span>{item === "favorites" ? "My Books" : item[0].toUpperCase() + item.slice(1)}</span></button>)}
     </nav>
     {settingsMounted && <SettingsPanel version={version} closing={settingsClosing} onClose={closeSettings} onRefresh={() => { closeSettings(); location.reload(); }} onThemeChange={(theme) => {
       if (theme === "system") delete document.documentElement.dataset.rrTheme;

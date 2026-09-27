@@ -4,7 +4,32 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+### Added
+
+- Highlights and notes: press and hold a word to select it (drag the handles to
+  extend), then pick a colour or underline, add a note, copy, look it up or
+  translate. Tap a highlight to recolour, edit its note or remove it. Marks now
+  has Bookmarks | Highlights tabs; each highlight jumps back to its place and
+  the list exports as Markdown. Highlights sync through library state.
+- Time left in the chapter (footer) and the book (Contents row), learned from
+  your own page-turn pace on each device.
+- In the iPhone app, Look Up opens the system dictionary, Translate the system
+  translation sheet, and "Who's This?" answers from the pages read so far only
+  (Apple Intelligence, or Claude when chosen in Settings) - no spoilers.
+- My Books (was Favorites): Favorites, Want to Read, Finished and your own
+  collections, as chips there and as shelves on Home. Every book's ⋯ menu has
+  Add to Want to Read and Add to Collection…; opening a book takes it off Want
+  to Read. Reading status filter gains Want to Read.
+- Listening like an audiobook: the Lock Screen and CarPlay's Now Playing show
+  the chapter, author and cover; skip back/forward move by a couple of
+  sentences and previous/next track by chapter.
+- Reading and listening hand off: the saved place follows the spoken sentence,
+  pausing or stopping leaves the page there, and waking the screen brings the
+  page to the sentence being read.
+
 ### Fixed
+
+- A card's ⋯ menu opened once per shelf the book was on, stacking copies.
 
 - Contents now marks the book or chapter you are reading and opens scrolled to
   it, including in merged Complete Works editions whose contents list only books.

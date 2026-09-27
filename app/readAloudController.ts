@@ -15,6 +15,7 @@ export type ReadAloudEngine = {
   toggle: () => void;
   stop: () => void;
   skip: (direction: -1 | 1) => void;
+  restartFromView?: () => void;
   adjustSleep: (minutes: number) => void;
   setRate: (rate: number) => void;
   setVoice: (value: string) => void;
@@ -72,6 +73,9 @@ export function subscribeReadAloud(listener: () => void) {
 export const getReadAloudSnapshot = () => snapshot;
 export const getReadAloudVoices = () => voices;
 export const hasReadAloudEngine = () => Boolean(engine);
+
+/** Carry on narrating from what is now on screen (after the reader jumped). */
+export const restartReadAloudFromView = () => engine?.restartFromView?.();
 
 export const readAloudActions = {
   toggle: () => engine?.toggle(),

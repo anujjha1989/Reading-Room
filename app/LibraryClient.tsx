@@ -6,6 +6,8 @@ import BookReader, { type ReaderBookmark, type ReaderFile, type ReaderLocation }
 import LibraryChrome, { type LibraryChromeView } from "./LibraryChrome";
 import BookDetailsEditor from "./BookDetailsEditor";
 import ShelfRail from "./ShelfRail";
+import type { Highlight } from "./annotations";
+import "./library-lists.css";
 import { driveDownloadUrl } from "./drive";
 import { cardTitle, completeLabel, continueProgress, coverOptions, groupShelf, homeShelves, recentlyOpened, reviewBooks, type ShelfBook } from "./homeShelves";
 
@@ -24,7 +26,14 @@ type ReadingStatus = "unread" | "reading" | "finished";
 type SavedState = {
   bookId: string; fileId?: string | null; favorite: boolean; lastOpened?: number | null;
   progressLabel?: string | null; position?: string | null; status: ReadingStatus; bookmarks?: ReaderBookmark[]; updatedAt: number;
+  /** On the Want to Read list; cleared when the book is first opened. */
+  wantToRead?: boolean;
+  /** The reader's own collections this book is in, by name. */
+  lists?: string[];
+  highlights?: Highlight[];
 };
+/** Which of the reader's own shelves My Books shows. */
+type MyShelf = "favorites" | "want" | "finished" | `list:${string}`;
 
 type FilterChoice = { value: string; count: number };
 const asShelf = (items: Book[]) => items as ShelfBook[];
@@ -314,8 +323,12 @@ export default function LibraryClient() {
   // id plus the ⋯ button's viewport rect. The menu is position:fixed rather
   // than absolute: the shelf strips are horizontal scroll containers, so an
   // absolutely-positioned menu was clipped by its own card.
-  const [menuFor, setMenuFor] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [menuFor, setMenuFor] = useState<{ id: string; x: number; y: number; where?: string } | null>(null);
   const [detailsFor, setDetailsFor] = useState<{ book: Book; focusDelete: boolean } | null>(null);
+  const [myShelf, setMyShelf] = useState<MyShelf>("favorites");
+  // The "Add to Collection" sheet: which book, and the name being typed.
+  const [listsFor, setListsFor] = useState<Book | null>(null);
+  const [newListName, setNewListName] = useState("");
 
   // Any change to the query, the filters or the view starts the list again.
   useEffect(() => { setVisible(20); }, [query, collection, author, category, series, format, readingStatus, readableOnly, sort, view, shelfFilter]);
@@ -393,6 +406,11 @@ export default function LibraryClient() {
     return groups;
   }, [books]);
   const favorites = useMemo(() => Object.values(savedStates).filter((item) => item.favorite).map((item) => item.bookId), [savedStates]);
+  // Collections exist while a book is in one; names sorted as a reader expects.
+  const userLists = useMemo(() => [...new Set(Object.values(savedStates).flatMap((item) => item.lists || []))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })), [savedStates]);
+  const wantToRead = useMemo(() => Object.values(savedStates).filter((item) => item.wantToRead)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).map((item) => item.bookId), [savedStates]);
   const recent = useMemo(() => Object.values(savedStates).filter((item) => item.lastOpened).sort((a, b) => (b.lastOpened || 0) - (a.lastOpened || 0)).map((item) => item.bookId), [savedStates]);
 
   const filtered = useMemo(() => {
@@ -406,10 +424,18 @@ export default function LibraryClient() {
         && (category === "All categories" || book.category === category)
         && (series === "All series" || book.series === series)
         && (format === "All formats" || book.formats.includes(format))
-        && (readingStatus === "All reading statuses" || (state?.status || "unread") === readingStatus)
+        && (readingStatus === "All reading statuses" || (readingStatus === "want" ? !!state?.wantToRead : (state?.status || "unread") === readingStatus))
         && (!readableOnly || book.copies.some((copy) => canReadHere(copy.format)));
     });
-    if (view === "favorites") list = list.filter((book) => favorites.includes(book.id));
+    if (view === "favorites") {
+      list = list.filter((book) => {
+        const state = deferredSavedStates[book.id];
+        if (myShelf === "favorites") return favorites.includes(book.id);
+        if (myShelf === "want") return !!state?.wantToRead;
+        if (myShelf === "finished") return state?.status === "finished";
+        return !!state?.lists?.includes(myShelf.slice(5));
+      });
+    }
     if (view === "recent") list = list.filter((book) => recent.includes(book.id));
     if (view === "continue") list = list.filter((book) => deferredSavedStates[book.id]?.status === "reading");
     return [...list].sort((a, b) => {
@@ -419,7 +445,20 @@ export default function LibraryClient() {
       if (sort === "series") return (a.series || "ZZZ").localeCompare(b.series || "ZZZ", undefined, { numeric: true }) || a.title.localeCompare(b.title, undefined, { numeric: true });
       return a.normalizedTitle.localeCompare(b.normalizedTitle, undefined, { numeric: true });
     });
-  }, [author, books, category, collection, deferredQuery, favorites, format, readableOnly, readingStatus, recent, deferredSavedStates, series, shelfFilter, sort, view]);
+  }, [author, books, category, collection, deferredQuery, favorites, format, myShelf, readableOnly, readingStatus, recent, deferredSavedStates, series, shelfFilter, sort, view]);
+  // My Books shelves on Home: what's next, the reader's own collections, and
+  // what's been read, most recently touched first.
+  const bookById = useMemo(() => new Map(books.map((book) => [book.id, book])), [books]);
+  const wantBooks = useMemo(() => wantToRead.map((id) => bookById.get(id)).filter((book): book is Book => Boolean(book)), [bookById, wantToRead]);
+  const finishedBooks = useMemo(() => Object.values(savedStates).filter((item) => item.status === "finished")
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).map((item) => bookById.get(item.bookId))
+    .filter((book): book is Book => Boolean(book)), [bookById, savedStates]);
+  const listShelves = useMemo(() => userLists.map((name) => ({
+    name,
+    items: Object.values(savedStates).filter((item) => item.lists?.includes(name))
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).map((item) => bookById.get(item.bookId))
+      .filter((book): book is Book => Boolean(book)),
+  })), [bookById, savedStates, userLists]);
 
   const continueBooks = useMemo(() => recent.filter((id) => savedStates[id]?.status === "reading").map((id) => books.find((book) => book.id === id)).filter((book): book is Book => Boolean(book)).slice(0, 10), [books, recent, savedStates]);
   const recentlyAdded = useMemo(() => [...books].filter((book) => book.modified).sort((a, b) => (b.modified || "").localeCompare(a.modified || "")).slice(0, 10), [books]);
@@ -459,6 +498,11 @@ export default function LibraryClient() {
   }
 
   function toggleFavorite(id: string) { saveState(id, { favorite: !savedStates[id]?.favorite }); }
+  function toggleWantToRead(id: string) { saveState(id, { wantToRead: !savedStates[id]?.wantToRead }); }
+  function toggleInList(id: string, name: string) {
+    const lists = savedStatesRef.current[id]?.lists || [];
+    saveState(id, { lists: lists.includes(name) ? lists.filter((item) => item !== name) : [...lists, name] });
+  }
   function toggleFinished(id: string) {
     const current = savedStates[id]?.status || "unread";
     if (current === "finished") {
@@ -472,13 +516,13 @@ export default function LibraryClient() {
     // More than one file: let the reader choose rather than guessing.
     if (book.copies.length > 1) { setSelected(book); return; }
     const readableCopy = book.copies.find((copy) => canReadHere(copy.format));
-    saveState(book.id, { lastOpened: Date.now(), status: savedStates[book.id]?.status === "finished" ? "finished" : "reading", fileId: readableCopy?.id || book.copies[0]?.id });
+    saveState(book.id, { lastOpened: Date.now(), status: savedStates[book.id]?.status === "finished" ? "finished" : "reading", fileId: readableCopy?.id || book.copies[0]?.id, ...(readableCopy ? { wantToRead: false } : {}) });
     if (readableCopy) { setSelected(null); setSeriesFocus(null); setReader({ title: book.title, file: readableCopy, bookId: book.id, initialPosition: savedStatesRef.current[book.id]?.position || undefined }); }
     else setSelected(book);
   }
 
   function openCopy(book: Book, copy: Copy) {
-    saveState(book.id, { lastOpened: Date.now(), status: savedStatesRef.current[book.id]?.status === "finished" ? "finished" : "reading", fileId: copy.id });
+    saveState(book.id, { lastOpened: Date.now(), status: savedStatesRef.current[book.id]?.status === "finished" ? "finished" : "reading", fileId: copy.id, wantToRead: false });
     setSelected(null);
     setReader({ title: book.title, file: copy, bookId: book.id, initialPosition: savedStatesRef.current[book.id]?.position || undefined });
   }
@@ -497,7 +541,7 @@ export default function LibraryClient() {
     // flipping above only when there is genuinely no room. The height is
     // measured from the item count rather than assumed - a fixed 300 estimate
     // pushed short menus far above their button.
-    const rows = 2 + (editions && editions.length > 1 ? 1 : 0)
+    const rows = 4 + (editions && editions.length > 1 ? 1 : 0)
       + (book.copies.length > 1 ? 1 + book.copies.length : 0)
       + (book.series ? 1 : 0) + 2;
     const W = 224, M = 8;
@@ -516,6 +560,12 @@ export default function LibraryClient() {
       </button>
       <button role="menuitem" onClick={act(() => toggleFavorite(book.id))}>
         {state?.favorite ? "Remove from Favorites" : "Add to Favorites"}
+      </button>
+      {!finished && <button role="menuitem" onClick={act(() => toggleWantToRead(book.id))}>
+        {state?.wantToRead ? "Remove from Want to Read" : "Add to Want to Read"}
+      </button>}
+      <button role="menuitem" onClick={act(() => { setNewListName(""); setListsFor(book); })}>
+        {state?.lists?.length ? `In ${state.lists.length === 1 ? state.lists[0] : `${state.lists.length} collections`}…` : "Add to Collection…"}
       </button>
       {editions && editions.length > 1 && <button role="menuitem" onClick={act(() => setEditionsFor(book))}>
         {editions.length} editions…
@@ -562,6 +612,11 @@ export default function LibraryClient() {
     saveState(reader.bookId, { bookmarks });
   }
 
+  function handleHighlightsChange(highlights: Highlight[]) {
+    if (!reader) return;
+    saveState(reader.bookId, { highlights: highlights.slice(0, 2000) });
+  }
+
   const clearFilters = () => {
     setShelfFilter(null);
     setCollection("All collections"); setAuthor("All authors"); setCategory("All categories");
@@ -587,8 +642,9 @@ export default function LibraryClient() {
   const activeFilters = [
     shelfFilter?.title || "",
     collection !== "All collections" ? collection : "", author !== "All authors" ? author : "", category !== "All categories" ? category : "",
-    series !== "All series" ? series : "", format !== "All formats" ? format : "", readingStatus !== "All reading statuses" ? readingStatus : "", readableOnly ? "Readable here" : "",
+    series !== "All series" ? series : "", format !== "All formats" ? format : "", readingStatus !== "All reading statuses" ? ({ unread: "Unread", want: "Want to Read", reading: "In progress", finished: "Finished" } as Record<string, string>)[readingStatus] || readingStatus : "", readableOnly ? "Readable here" : "",
   ].filter(Boolean);
+  const myShelfTitle = myShelf === "favorites" ? "Favorites" : myShelf === "want" ? "Want to Read" : myShelf === "finished" ? "Finished" : myShelf.slice(5);
   const currentReaderBook = reader ? books.find((book) => book.id === reader.bookId) : undefined;
   const readerSeries = currentReaderBook?.series ? seriesGroups.get(currentReaderBook.series) || [] : [];
   const readerSeriesIndex = currentReaderBook ? readerSeries.findIndex((book) => book.id === currentReaderBook.id) : -1;
@@ -598,6 +654,7 @@ export default function LibraryClient() {
     clearFilters();
     setChromeView(next);
     setView(next === "favorites" ? "favorites" : "library");
+    if (next === "favorites") setMyShelf("favorites");
     window.scrollTo({ top: 0, behavior: "auto" });
   };
 
@@ -662,8 +719,9 @@ export default function LibraryClient() {
         </button>
         {/* Sibling, not child: .shelf-book is itself a <button> and nesting one
             inside another is invalid and swallows the inner tap. */}
-        <button className="rr-card-more" aria-label={`Options for ${shelfTitle(book)}`} aria-haspopup="menu" aria-expanded={menuFor?.id === book.id} onClick={(event) => { event.stopPropagation(); const r = event.currentTarget.getBoundingClientRect(); setMenuFor(menuFor?.id === book.id ? null : { id: book.id, x: r.right, y: r.bottom }); }}>⋯</button>
-        {menuFor?.id === book.id && <BookMenu book={book} />}
+        <button className="rr-card-more" aria-label={`Options for ${shelfTitle(book)}`} aria-haspopup="menu" aria-expanded={menuFor?.id === book.id && menuFor.where === title} onClick={(event) => { event.stopPropagation(); const r = event.currentTarget.getBoundingClientRect(); setMenuFor(menuFor?.id === book.id && menuFor.where === title ? null : { id: book.id, x: r.right, y: r.bottom, where: title }); }}>⋯</button>
+        {/* A book can sit on several shelves; only the one whose ⋯ was tapped opens. */}
+        {menuFor?.id === book.id && menuFor.where === title && <BookMenu book={book} />}
         </div>)}
       </ShelfRail>
     </section>;
@@ -689,19 +747,51 @@ export default function LibraryClient() {
       </div>
     </section></div>}
 
+    {listsFor && <div className="modal-backdrop" onClick={() => setListsFor(null)}><section className="modal rr-editions rr-lists" role="dialog" aria-modal="true" aria-label="Add to Collection" onClick={(event) => event.stopPropagation()}>
+      <button className="rr-editions-close" aria-label="Close collections" onClick={() => setListsFor(null)}>×</button>
+      <h2>Add to Collection</h2>
+      <p>{shelfTitle(listsFor)}</p>
+      <div className="rr-list-choices">
+        {userLists.map((name) => {
+          const inList = !!savedStates[listsFor.id]?.lists?.includes(name);
+          return <button key={name} type="button" role="menuitemcheckbox" aria-checked={inList} onClick={() => toggleInList(listsFor.id, name)}>
+            <span className="rr-list-check" aria-hidden="true">{inList ? "✓" : ""}</span>
+            <strong>{name}</strong>
+            <small>{listShelves.find((shelf) => shelf.name === name)?.items.length || 0}</small>
+          </button>;
+        })}
+        {!userLists.length && <p className="rr-list-empty">Collections are your own shelves — a reading plan, a book club, books to lend.</p>}
+      </div>
+      <form className="rr-list-new" onSubmit={(event) => {
+        event.preventDefault();
+        const name = newListName.replace(/\s+/g, " ").trim().slice(0, 60);
+        if (!name) return;
+        if (!savedStates[listsFor.id]?.lists?.includes(name)) toggleInList(listsFor.id, name);
+        setNewListName("");
+      }}>
+        <input value={newListName} onChange={(event) => setNewListName(event.target.value)} placeholder="New collection" aria-label="New collection name" maxLength={60} />
+        <button type="submit" disabled={!newListName.trim()}>Add</button>
+      </form>
+    </section></div>}
+
     <header className="topbar">
       <button className="brand" onClick={() => chooseChromeView("home")} aria-label="Home Books home"><span className="brand-mark">⌂</span><span><strong>Home Books</strong><small>PRIVATE DIGITAL LIBRARY</small></span></button>
       <nav aria-label="Library views">
         <button className={view === "library" ? "active" : ""} onClick={() => { setView("library"); setShelfFilter(null); }}><span aria-hidden="true">⌂</span>Library</button>
         <button className={view === "continue" ? "active" : ""} onClick={() => { setView("continue"); setSort("opened"); setShelfFilter(null); }}><span aria-hidden="true">▶</span>Continue</button>
-        <button className={view === "favorites" ? "active" : ""} onClick={() => { setView("favorites"); setShelfFilter(null); }}><span aria-hidden="true">♡</span>Favorites <b>{favorites.length}</b></button>
+        <button className={view === "favorites" ? "active" : ""} onClick={() => { setView("favorites"); setShelfFilter(null); }}><span aria-hidden="true">♡</span>My Books <b>{favorites.length}</b></button>
         <button className={view === "recent" ? "active" : ""} onClick={() => { setView("recent"); setSort("opened"); setShelfFilter(null); }}><span aria-hidden="true">↺</span>Recent</button>
       </nav>
     </header>
 
     <section className="hero compact-hero">
-      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{chromeView === "home" ? "Home Books" : chromeView === "favorites" ? "Favorites" : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Library"}</h1></div>
+      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{chromeView === "home" ? "Home Books" : chromeView === "favorites" || view === "favorites" ? myShelfTitle : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Library"}</h1></div>
       <label className="search"><span>⌕</span><input value={query} onChange={(event) => { setQuery(event.target.value); setVisible(20); }} placeholder="Search title, author, series or collection…" /><kbd>{shortcutKey}</kbd></label>
+      {view === "favorites" && <div className="category-chips rr-my-shelves" role="tablist" aria-label="My Books">
+        {([["favorites", "Favorites", favorites.length], ["want", "Want to Read", wantToRead.length], ["finished", "Finished", finishedBooks.length]] as const)
+          .map(([key, label, count]) => <button key={key} role="tab" aria-selected={myShelf === key} aria-pressed={myShelf === key} onClick={() => { setMyShelf(key); setVisible(20); }}>{label}{count ? <b>{count}</b> : null}</button>)}
+        {listShelves.map((shelf) => <button key={shelf.name} role="tab" aria-selected={myShelf === `list:${shelf.name}`} aria-pressed={myShelf === `list:${shelf.name}`} onClick={() => { setMyShelf(`list:${shelf.name}`); setVisible(20); }}>{shelf.name}<b>{shelf.items.length}</b></button>)}
+      </div>}
       <div className="category-chips">
         <button aria-pressed={category === "Fiction"} onClick={() => { setCategory(category === "Fiction" ? "All categories" : "Fiction"); setVisible(20); }}>Fiction</button>
         <button aria-pressed={category === "Non-Fiction"} onClick={() => { setCategory(category === "Non-Fiction" ? "All categories" : "Non-Fiction"); setVisible(20); }}>Non-Fiction</button>
@@ -713,10 +803,13 @@ export default function LibraryClient() {
 
     {view === "library" && !query && !activeFilters.length && <section className="discovery">
       {renderShelf("Continue", continueBooks)}
+      {renderShelf("Want to Read", wantBooks)}
+      {listShelves.map((shelf) => renderShelf(shelf.name, shelf.items))}
       {shelves.slice(0, 2).map((shelf) => renderShelf(shelf.title, shelf.items, shelf.compact))}
       {renderShelf("Recently added", recentlyAdded)}
       {renderShelf("Recently Opened", openedBooks)}
       {shelves.slice(2).map((shelf) => renderShelf(shelf.title, shelf.items))}
+      {renderShelf("Finished", finishedBooks)}
     </section>}
 
     <section className="catalog">
@@ -727,7 +820,7 @@ export default function LibraryClient() {
         <label><span>Category</span><select value={category} onChange={(event) => { setCategory(event.target.value); setVisible(20); }}><option>All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
         <SearchableFilter label="Series" value={series} allLabel="All series" choices={seriesChoices} onChange={(next) => { setSeries(next); setVisible(20); }} />
         <label><span>Format</span><select value={format} onChange={(event) => { setFormat(event.target.value); setVisible(20); }}><option>All formats</option>{formats.map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label><span>Reading status</span><select value={readingStatus} onChange={(event) => { setReadingStatus(event.target.value); setVisible(20); }}><option>All reading statuses</option><option value="unread">Unread</option><option value="reading">In progress</option><option value="finished">Finished</option></select></label>
+        <label><span>Reading status</span><select value={readingStatus} onChange={(event) => { setReadingStatus(event.target.value); setVisible(20); }}><option>All reading statuses</option><option value="unread">Unread</option><option value="want">Want to Read</option><option value="reading">In progress</option><option value="finished">Finished</option></select></label>
         <label className="readable-check"><input type="checkbox" checked={readableOnly} onChange={(event) => setReadableOnly(event.target.checked)} /><span>Readable on this site</span></label>
         <button className="clear" onClick={clearFilters}>Clear filters</button>
       </div>
@@ -747,7 +840,7 @@ export default function LibraryClient() {
               and therefore the ⋯ - lands at the same height on every card. */}
           <div className="book-caption"><strong>{book.title}</strong><span className="rr-byline"><small>{book.author || "Author unknown"}</small><button className="rr-card-more" aria-label={`Options for ${book.title}`} aria-haspopup="menu" aria-expanded={menuFor?.id === book.id} onClick={(event) => { event.stopPropagation(); const r = event.currentTarget.getBoundingClientRect(); setMenuFor(menuFor?.id === book.id ? null : { id: book.id, x: r.right, y: r.bottom }); }}>⋯</button></span></div>
           <div className="list-copy"><button onClick={() => openBook(book)} aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`}><small>{book.series || book.category || "Book"}</small><strong>{book.title}</strong><em>{book.author || "Author not listed"}</em>{state?.progressLabel && <span>{state.progressLabel}</span>}</button></div>
-          {menuFor?.id === book.id && <BookMenu book={book} />}
+          {menuFor?.id === book.id && !menuFor.where && <BookMenu book={book} />}
         </article>;
       })}</div> : <div className="empty"><b>No books found</b><p>Try clearing one or more filters.</p><button onClick={() => { setQuery(""); clearFilters(); }}>Reset search</button></div>}
       {visible < filtered.length && <button className="load" onClick={() => setVisible((count) => count + 20)}>Show more books</button>}
@@ -757,7 +850,7 @@ export default function LibraryClient() {
 
     {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)} role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="book-title" onMouseDown={(event) => event.stopPropagation()}><button autoFocus className="close" onClick={() => setSelected(null)} aria-label="Close">×</button><p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p><h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}{selected.series ? ` · ${selected.series}` : ""}</p><div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format) && <button onClick={() => openCopy(selected, copy)}>Read here</button>}<a href={["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? driveDownloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? "Download" : "Drive"} ↗</a></div></div>)}</div><p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p></section></div>}
 
-    {reader && <BookReader title={reader.title} file={reader.file} initialPosition={reader.initialPosition} bookmarks={savedStates[reader.bookId]?.bookmarks || []} onBookmarksChange={handleBookmarksChange} onLocationChange={handleReaderLocation} seriesNavigation={{ previous: readerSeriesIndex > 0 ? readerSeries[readerSeriesIndex - 1]?.title : undefined, next: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? readerSeries[readerSeriesIndex + 1]?.title : undefined, onPrevious: readerSeriesIndex > 0 ? () => openBook(readerSeries[readerSeriesIndex - 1]) : undefined, onNext: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? () => openBook(readerSeries[readerSeriesIndex + 1]) : undefined }} onClose={() => setReader(null)} />}
+    {reader && <BookReader title={reader.title} file={reader.file} author={currentReaderBook?.author || undefined} coverUrl={currentReaderBook ? coverUrl(currentReaderBook) : undefined} highlights={savedStates[reader.bookId]?.highlights || []} onHighlightsChange={handleHighlightsChange} initialPosition={reader.initialPosition} bookmarks={savedStates[reader.bookId]?.bookmarks || []} onBookmarksChange={handleBookmarksChange} onLocationChange={handleReaderLocation} seriesNavigation={{ previous: readerSeriesIndex > 0 ? readerSeries[readerSeriesIndex - 1]?.title : undefined, next: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? readerSeries[readerSeriesIndex + 1]?.title : undefined, onPrevious: readerSeriesIndex > 0 ? () => openBook(readerSeries[readerSeriesIndex - 1]) : undefined, onNext: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? () => openBook(readerSeries[readerSeriesIndex + 1]) : undefined }} onClose={() => setReader(null)} />}
     <LibraryChrome view={chromeView} displayMode={displayMode} sort={sort} filtersOpen={filtersOpen} hidden={Boolean(reader || selected || seriesFocus || editionsFor)} onViewChange={chooseChromeView} onDisplayModeChange={chooseDisplayMode} onSortChange={chooseSort} onFiltersOpenChange={setFiltersOpen} />
     <footer><span>Home Books</span><p>One calm home for your digital shelves. Covers enriched by <a href="https://openlibrary.org" target="_blank" rel="noreferrer">Open Library</a>.</p></footer>
   </main>;
