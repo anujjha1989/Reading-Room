@@ -9,7 +9,7 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 - The Reference Room is now a second library inside Home Books. In the Library
   page's filters, the Collection filter is replaced by Library: Reading Room
   (the default on every launch, unchanged) or Reference Room. Choosing the
-  Reference Room lists its 3,776 titles, and Category shows its folders (Cases,
+  Reference Room lists its 3,776 titles (the page keeps the title Library), and Category shows its folders (Cases,
   Consulting, Danaher, HBR Articles, MBA, Test Prep and the rest). Search and
   filters follow the chosen library. Its PDFs, EPUBs and MOBIs open in the same
   reader, straight from the Seagate; slides, spreadsheets and documents

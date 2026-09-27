@@ -40,9 +40,6 @@
 }
 .rr-list-new button:disabled { opacity: .35; }
 
-/* "Reference Room" is twice as long as "Library"; the library page keeps 150px
- * of the title row for its icon rail, so the longer name steps down to fit. */
-html[data-rr-library-view="library"] .hero h1.rr-title-long { font-size: min(34px, 6.6vw); }
 
 /* Reference Room papers almost never have artwork, so a thumbnail without art
  * carries its title on the cover, as the Home shelves draw theirs. Reading Room
