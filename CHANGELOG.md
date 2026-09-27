@@ -59,6 +59,13 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ### Changed
 
+- New Home Books brand: one book outline drawn by a shared component
+  (`HomeBooksMark`, `bookBrand.js`) is the Home heading's mark and, rendered by
+  `scripts/build-brand-icons.mjs`, the favicon and install icons (white on
+  #202123, which the web manifest now uses as its theme and background). The
+  prerendered heading is rendered from the same component so it hydrates
+  without a redraw; `tests/browser/home-brand.test.mjs` checks it in both
+  themes.
 - Moved the Read Aloud engine into the main application bundle. React now talks
   to it through a typed controller/store; the separately deployed narration
   override and its browser-global API have been removed.

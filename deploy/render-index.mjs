@@ -8,6 +8,9 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import HomeBooksMark from "../app/HomeBooksMark.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = (await import(join(root, "dist/server/__vite_rsc_assets_manifest.js"))).default;
@@ -91,7 +94,7 @@ html = html.replaceAll(defaultStatusBar, translucentStatusBar);
 // template and fail loudly if its shape changes again instead of shipping a
 // recoverable-but-noisy client redraw.
 const initialMarkup = [
-  ["<h1>Find your next book.</h1>", "<h1>Home Books</h1>"],
+  ["<h1>Find your next book.</h1>", `<h1>${renderToStaticMarkup(createElement(HomeBooksMark))}Home Books</h1>`],
   ['<span class="brand-mark">R</span>', '<span class="brand-mark">⌂</span>'],
   ["One clean catalogue for your digital shelves.", "One calm home for your digital shelves."],
   ["<kbd>⌘ K</kbd>", "<kbd>Ctrl K</kbd>"],

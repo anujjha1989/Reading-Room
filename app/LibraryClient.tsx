@@ -6,6 +6,7 @@ import BookReader, { type ReaderBookmark, type ReaderFile, type ReaderLocation }
 import LibraryChrome, { type LibraryChromeView } from "./LibraryChrome";
 import BookDetailsEditor from "./BookDetailsEditor";
 import ShelfRail from "./ShelfRail";
+import HomeBooksMark from "./HomeBooksMark";
 import type { Highlight } from "./annotations";
 import "./library-lists.css";
 import { driveDownloadUrl } from "./drive";
@@ -825,7 +826,7 @@ export default function LibraryClient() {
     </header>
 
     <section className="hero compact-hero">
-      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{chromeView === "home" ? "Home Books" : chromeView === "favorites" || view === "favorites" ? myShelfTitle : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Library"}</h1></div>
+      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{chromeView === "home" && <HomeBooksMark />}{chromeView === "home" ? "Home Books" : chromeView === "favorites" || view === "favorites" ? myShelfTitle : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Library"}</h1></div>
       <label className="search"><span>⌕</span><input value={query} onChange={(event) => { setQuery(event.target.value); setVisible(20); }} placeholder="Search title, author, series or collection…" /><kbd>{shortcutKey}</kbd></label>
       {view === "favorites" && <div className="category-chips rr-my-shelves" role="tablist" aria-label="My Books">
         {([["favorites", "Favorites", favorites.length], ["want", "Want to Read", wantToRead.length], ["finished", "Finished", finishedBooks.length]] as const)
