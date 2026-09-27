@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { createPortal } from "react-dom";
 import { driveDownloadUrl } from "./drive";
 import ReadingSheet, { type SheetTocItem } from "./ReadingSheet";
@@ -320,6 +320,8 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
   const marginRef = useRef(4);
   const [status, setStatus] = useState(isBookReader ? "Loading the book…" : "");
   const [toc, setToc] = useState<TocEntry[]>([]);
+  // Where the reader is, as the book's own href, so Contents can mark it.
+  const [locationHref, setLocationHref] = useState("");
   const [fontSize, setFontSize] = useState(100);
   const [progress, setProgress] = useState("");
   const [readingMode, setReadingMode] = useState<ReadingMode | null>(null);
@@ -597,6 +599,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
           const atEnd = (location as Location & { atEnd?: boolean }).atEnd ?? false;
           const label = readingModeRef.current === "scroll" ? "In progress" : page?.total ? `Page ${page.page} of ${page.total}` : "In progress";
           setProgress(label);
+          setLocationHref(location.start.href || "");
           if (location.start.cfi) {
             localStorage.setItem(`reading-room-position-${file.id}`, location.start.cfi);
             reportLocation({ label, position: location.start.cfi, status: atEnd ? "finished" : "reading" });
@@ -691,6 +694,7 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
           const percent = typeof detail.fraction === "number" ? `${Math.max(1, Math.round(detail.fraction * 100))}%` : "";
           const label = detail.tocItem?.label || percent || "In progress";
           setProgress(label);
+          setLocationHref((detail.tocItem as { href?: string } | undefined)?.href || "");
           if (detail.cfi) {
             localStorage.setItem(`reading-room-position-${file.id}`, detail.cfi);
             reportLocation({ label, position: detail.cfi, status: "reading" });
@@ -1005,9 +1009,33 @@ export default function BookReader({ title, file, initialPosition, bookmarks = [
 
   // The TOC is already state here. The old sheet cloned a <select> to get it,
   // which is why its depth prefixes were baked into the label string.
-  const sheetToc: SheetTocItem[] = toc.map((item) => ({
+  // The contents entry for where the reader is: for an EPUB, the last entry at or before the
+  // current spine item (so a chapter file with no entry of its own still marks its chapter, and
+  // a merged collection whose contents list only books marks the book); for MOBI, foliate names
+  // the entry itself. Spine positions are worked out once per contents list, not per page turn.
+  const tocSpine = useMemo(() => {
+    const book = bookRef.current as { spine?: { get?: (target: string) => { index?: number } | null } } | null;
+    if (!isEpub || !book?.spine?.get) return [] as number[];
+    return toc.map((item) => {
+      try { return book.spine!.get!(item.href.split("#")[0])?.index ?? -1; } catch { return -1; }
+    });
+  }, [toc, isEpub]);
+  const currentTocIndex = useMemo(() => {
+    if (!locationHref || toc.length === 0) return -1;
+    const base = (href: string) => href.split("#")[0];
+    if (!isEpub) return toc.findIndex((item) => item.href === locationHref);
+    const book = bookRef.current as { spine?: { get?: (target: string) => { index?: number } | null } } | null;
+    let here = -1;
+    try { here = book?.spine?.get?.(base(locationHref))?.index ?? -1; } catch { here = -1; }
+    if (here < 0) return toc.findIndex((item) => base(item.href) === base(locationHref));
+    let best = -1, bestAt = -1;
+    tocSpine.forEach((at, index) => { if (at >= 0 && at <= here && at > bestAt) { best = index; bestAt = at; } });
+    return best;
+  }, [locationHref, toc, tocSpine, isEpub]);
+  const sheetToc: SheetTocItem[] = toc.map((item, index) => ({
     label: `${"— ".repeat(item.depth)}${item.label}`,
     value: item.href,
+    current: index === currentTocIndex,
   }));
 
   return (

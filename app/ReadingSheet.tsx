@@ -212,6 +212,15 @@ export default function ReadingSheet(props: ReadingSheetProps) {
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [present, setPresent] = useState(open);
   const panelRef = useRef<HTMLElement | null>(null);
+  // Contents opens at where you are, not at the top of a long list.
+  const contentsScroller = useRef<HTMLDivElement | null>(null);
+  const currentEntry = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    const list = contentsScroller.current, entry = currentEntry.current;
+    if (view !== "contents" || !list || !entry) return;
+    const offset = entry.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+    list.scrollTop = Math.max(0, offset - list.clientHeight / 3);
+  }, [view]);
 
   // Keep the sheet mounted while it follows the same spring path back to the
   // hamburger. Unmounting immediately made every close abrupt even when the
@@ -298,12 +307,13 @@ export default function ReadingSheet(props: ReadingSheetProps) {
       {view === "contents" && (
         <>
           <SheetHeader title="Contents" onBack={() => go("menu")} />
-          <div className={styles.scroller}>
+          <div className={styles.scroller} ref={contentsScroller}>
             {props.toc?.map((item) => (
               <button key={item.value} type="button"
                 className={[styles.row, styles.tocRow, item.current && styles.current]
                   .filter(Boolean).join(" ")}
                 aria-current={item.current ? "location" : undefined}
+                ref={item.current ? currentEntry : undefined}
                 onClick={() => { props.onTocSelect?.(item.value); close(); }}>
                 <span className={styles.rowLabel}>{item.label}</span>
               </button>

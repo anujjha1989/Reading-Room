@@ -6,6 +6,8 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ### Fixed
 
+- Contents now marks the book or chapter you are reading and opens scrolled to
+  it, including in merged Complete Works editions whose contents list only books.
 - Restored the filter, sort and Settings icon foregrounds in dark mode. Their
   React SVGs now use an explicit app theme token instead of browser-default
   black fills.
