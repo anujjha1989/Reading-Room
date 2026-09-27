@@ -9,6 +9,7 @@ import ShelfRail from "./ShelfRail";
 import HomeBooksMark from "./HomeBooksMark";
 import type { Highlight } from "./annotations";
 import "./library-lists.css";
+import { installHaptics } from "./haptics";
 import { driveDownloadUrl } from "./drive";
 import { cardTitle, completeLabel, continueProgress, coverOptions, groupShelf, homeShelves, recentlyOpened, reviewBooks, type ShelfBook } from "./homeShelves";
 
@@ -352,6 +353,7 @@ export default function LibraryClient() {
   // The override layer waits for this before it touches the rendered list.
   useEffect(() => {
     document.documentElement.dataset.rrLibraryReady = "1";
+    installHaptics();
     window.dispatchEvent(new Event("rr-library-ready"));
   }, []);
 

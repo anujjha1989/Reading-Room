@@ -6,6 +6,12 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ### Added
 
+- Haptic feedback: a light tap on every button in the library, the reader, its
+  menus and sheets (a selection tick for tabs, pickers and toggles, a firmer one
+  for press-and-hold). It fires on release and only when the finger didn't
+  move, so scrolling and page turns stay silent. In the iPhone app it uses the
+  system haptics (Settings → Home Books → Haptic feedback turns it off);
+  Android browsers vibrate; desktop and Safari do nothing.
 - The Reference Room is now a second library inside Home Books. In the Library
   page's filters, the Collection filter is replaced by Library: Reading Room
   (the default on every launch, unchanged) or Reference Room. Choosing the

@@ -23,6 +23,7 @@ import {
   type Highlight, type HighlightColor,
 } from "./annotations";
 import { askAbout, hasNativeLookUp, lookUp, shareText, translate } from "./nativeBridge";
+import { haptic } from "./haptics";
 import "./reader-annotations.css";
 
 export type AnnotationTarget = { doc: Document; frame: HTMLIFrameElement | null; index?: number };
@@ -168,7 +169,7 @@ export default function ReaderAnnotations({ adapter, highlights, onChange, title
       selectingRef.current = selection;
       w.__rrTextMode?.(true);
       setMenu({ kind: "selection", selection, rect: unionRect(target, range) });
-      try { navigator.vibrate?.(8); } catch { /* not supported */ }
+      haptic("firm");
       return true;
     };
     // A tap on a highlight opens it instead of turning the page.
