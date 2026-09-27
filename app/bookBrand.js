@@ -1,6 +1,6 @@
 // Shared vector geometry for the header and generated installable icons.
 // App-icon bounds are x=25…230, y=13.5…208; center them on (128, 128).
-// 194.5 × 1.1845758355 = 230.4, exactly 90% of the 256px icon.
-export const APP_ICON_TRANSFORM = "translate(128 128) scale(1.1845758355) translate(-127.5 -110.75)";
+// 205 × 1.024 = 209.92: 82% width and ~78% height, without distortion.
+export const APP_ICON_TRANSFORM = "translate(128 128) scale(1.024) translate(-127.5 -110.75)";
 export const HOUSE_PATH = "M109 21Q128 6 147 21L217 77Q230 87 230 104V174Q230 208 196 208H59Q25 208 25 174V104Q25 87 38 77Z";
 export const BOOK_PAGES = "M61 106Q61 100 68 97Q96 85 116 99Q122 102 122 109V179Q101 161 69 169Q61 171 61 164ZM134 109Q134 102 140 99Q160 85 187 97Q194 100 194 106V164Q194 171 186 169Q155 161 134 179Z";

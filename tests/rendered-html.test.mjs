@@ -19,7 +19,8 @@ test("server-renders the ebook library", async () => {
   assert.match(html, /<h1><svg\b[^>]*class="home-books-mark"[\s\S]*?<\/svg>BOOKS<\/h1>/);
   assert.match(html, /name="rr-react-library-chrome" content="1"/);
   assert.match(html, /Continue/);
-  assert.match(html, /All collections/);
-  assert.match(html, /Thumbnails/);
+  assert.match(html, /aria-label="Home Books home"/);
+  // Filter/sort popovers mount on interaction; browser tests cover their
+  // contents. The retired Collection filter is not part of the first render.
   assert.doesNotMatch(html, /Audiobooks excluded/);
 });
