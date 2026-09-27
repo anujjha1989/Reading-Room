@@ -1,8 +1,9 @@
 import { createElement as h } from "react";
 
-import { BOOK_OUTLINE } from "./bookBrand.js";
+import { HOUSE_PATH, BOOK_PAGES } from "./bookBrand.js";
 
 export default function HomeBooksMark() {
-  return h("svg", { className: "home-books-mark", viewBox: "0 0 32 32", "aria-hidden": "true", fill: "none", stroke: "currentColor", strokeWidth: 1.7 },
-    h("path", { d: BOOK_OUTLINE }));
+  return h("svg", { className: "home-books-mark", viewBox: "0 0 256 256", "aria-hidden": "true" },
+    h("path", { d: HOUSE_PATH, fill: "#f50916" }),
+    h("path", { d: BOOK_PAGES, fill: "#ffffff" }));
 }

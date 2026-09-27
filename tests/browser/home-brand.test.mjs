@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { launchBrowser } from "./cdp-browser.mjs";
 
-test("home wordmark stays compact and outlined in both themes", { timeout: 60000 }, async (t) => {
+test("home BOOKS wordmark stays compact and contrasting in both themes", { timeout: 60000 }, async (t) => {
   const browser = await launchBrowser();
   t.after(() => browser.close());
   const exceptions = [];
@@ -18,14 +18,13 @@ test("home wordmark stays compact and outlined in both themes", { timeout: 60000
       const icon = title.querySelector('svg');
       const style = getComputedStyle(icon);
       return { text: title.textContent, size: parseFloat(getComputedStyle(title).fontSize),
-        fill: style.fill, stroke: style.stroke, width: icon.getBoundingClientRect().width,
+        color: getComputedStyle(title).color, paper: getComputedStyle(document.body).backgroundColor, width: icon.getBoundingClientRect().width,
         right: title.getBoundingClientRect().right, viewport: innerWidth };
     })()`);
-    assert.equal(result.text, "Home Books");
+    assert.equal(result.text, "BOOKS");
     assert.ok(result.size >= 24 && result.size <= 28);
-    assert.equal(result.fill, "none");
-    assert.equal(result.width, 32);
-    assert.notEqual(result.stroke, "none");
+    assert.equal(result.width, 40);
+    assert.notEqual(result.color, result.paper);
     assert.ok(result.right <= result.viewport);
     await browser.screenshot(`home-brand-${theme}.png`);
   }
