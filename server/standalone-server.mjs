@@ -7,7 +7,7 @@ import { createServer as createHttpServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { createReadStream, readFileSync } from "node:fs";
 import { access, readFile, stat, mkdir, writeFile, rename, readdir, unlink } from "node:fs/promises";
-import { extname, join, normalize, resolve, dirname } from "node:path";
+import { basename, extname, join, normalize, resolve, dirname } from "node:path";
 import { homedir, networkInterfaces } from "node:os";
 import { gzipSync } from "node:zlib";
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
@@ -1262,11 +1262,67 @@ async function sendLocalBook(request, response, file, mimeType) {
   createReadStream(file).pipe(response);
 }
 
+// ---------------------------------------------------------------------------
+// Reference Room
+//
+// The Reference Room is the same app run a second time over a technical
+// library (/opt/reference-room). Home Books shows it as a second library: its
+// catalogue is served here with every id prefixed "ref-", so reading state,
+// highlights and the phone's offline shelf can never collide with a Reading
+// Room book, and its files are read straight off the Seagate like the other
+// service does (almost none of them are shared on Drive).
+// ---------------------------------------------------------------------------
+const referenceCatalogPath = process.env.REFERENCE_ROOM_CATALOG || "/opt/reference-room/current/site/catalog.json";
+const referenceRoot = resolve(process.env.REFERENCE_ROOM_LIBRARY || "/mnt/seagate/Reference Room Library");
+let reference = { mtime: 0, checkedAt: 0, buffer: null, gzip: null, etag: "", paths: new Map() };
+
+async function referenceCatalog() {
+  if (reference.buffer && Date.now() - reference.checkedAt < 60_000) return reference;
+  reference.checkedAt = Date.now();
+  let info;
+  try { info = await stat(referenceCatalogPath); } catch { return reference; }
+  if (reference.buffer && info.mtimeMs === reference.mtime) return reference;
+  try {
+    const rows = JSON.parse(await readFile(referenceCatalogPath, "utf8"));
+    const prefix = referenceRoot.endsWith("/") ? referenceRoot : `${referenceRoot}/`;
+    const paths = new Map();
+    const out = [];
+    for (const row of Array.isArray(rows) ? rows : []) {
+      if (!row?.id || typeof row.id !== "string") continue;
+      const id = `ref-${row.id}`;
+      if (row.file) {
+        const full = resolve(join(referenceRoot, row.file));
+        if (full.startsWith(prefix)) paths.set(id, full);   // no escaping the root
+      }
+      out.push({ ...row, id, library: "reference" });
+    }
+    const buffer = Buffer.from(JSON.stringify(out));
+    reference = {
+      mtime: info.mtimeMs, checkedAt: Date.now(), buffer, gzip: gzipSync(buffer, { level: 6 }),
+      etag: `"ref-${createHash("sha1").update(buffer).digest("hex").slice(0, 16)}"`, paths,
+    };
+    console.log(`Reference Room: ${out.length} titles, ${paths.size} on disk`);
+  } catch (error) { console.error("Could not read the Reference Room catalogue:", error.message); }
+  return reference;
+}
+
 async function proxyBook(request, response, url) {
   const id = decodeURIComponent(url.pathname.slice("/api/book/".length));
   if (!driveIdPattern.test(id)) { response.writeHead(400).end("Invalid book identifier"); return; }
   const format = (url.searchParams.get("format") || "EPUB").toUpperCase();
   const mimeType = bookMimeTypes[format] || "application/octet-stream";
+
+  if (id.startsWith("ref-")) {
+    const file = (await referenceCatalog()).paths.get(id);
+    if (file) {
+      // ?download=1 saves the file (slides, spreadsheets) instead of opening it.
+      if (url.searchParams.get("download")) {
+        response.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(basename(file))}`);
+      }
+      try { await sendLocalBook(request, response, file, mimeType); return; }
+      catch { if (!response.headersSent) { response.removeHeader("content-disposition"); } }
+    }
+  }
 
   // A book on this Pi never goes near Drive.
   const onDisk = await localBookPath(id);
@@ -1284,7 +1340,7 @@ async function proxyBook(request, response, url) {
   let upstream;
   let contentType;
   try {
-    ({ resp: upstream, ctype: contentType } = await fetchDriveFile(id, request.headers.range, controller.signal));
+    ({ resp: upstream, ctype: contentType } = await fetchDriveFile(id.replace(/^ref-/, ""), request.headers.range, controller.signal));
   } catch (error) {
     if (!response.headersSent) response.writeHead(502).end("The book could not be retrieved from Drive");
     return;
@@ -1571,6 +1627,20 @@ const handler = async (request, response) => {
         }
         respond(request, response, {
           buffer: catalogBuffer, gzip: catalogGzip, etag: catalogEtag,
+          type: "application/json; charset=utf-8", cacheControl: "no-cache, must-revalidate",
+        });
+        return;
+      }
+      case "/reference-catalog.json": {
+        const ref = await referenceCatalog();
+        if (!ref.buffer) { response.writeHead(503, { "cache-control": "no-store" }).end("[]"); return; }
+        if (request.headers["if-none-match"] === ref.etag) {
+          response.writeHead(304, { etag: ref.etag, "cache-control": "no-cache, must-revalidate" });
+          response.end();
+          return;
+        }
+        respond(request, response, {
+          buffer: ref.buffer, gzip: ref.gzip, etag: ref.etag,
           type: "application/json; charset=utf-8", cacheControl: "no-cache, must-revalidate",
         });
         return;

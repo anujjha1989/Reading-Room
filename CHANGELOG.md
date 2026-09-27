@@ -6,6 +6,17 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ### Added
 
+- The Reference Room is now a second library inside Home Books. In the Library
+  page's filters, the Collection filter is replaced by Library: Reading Room
+  (the default on every launch, unchanged) or Reference Room. Choosing the
+  Reference Room lists its 3,776 titles, and Category shows its folders (Cases,
+  Consulting, Danaher, HBR Articles, MBA, Test Prep and the rest). Search and
+  filters follow the chosen library. Its PDFs, EPUBs and MOBIs open in the same
+  reader, straight from the Seagate; slides, spreadsheets and documents
+  download from the Pi. Reference books you are reading appear on Continue;
+  the rest of Home stays Reading Room. Served by the Reading Room itself
+  (`/reference-catalog.json`, ids prefixed `ref-`), so it is reachable wherever
+  Home Books is, behind the same passphrase.
 - Highlights and notes: press and hold a word to select it (drag the handles to
   extend), then pick a colour or underline, add a note, copy, look it up or
   translate. Tap a highlight to recolour, edit its note or remove it. Marks now

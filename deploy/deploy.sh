@@ -100,7 +100,8 @@ fi
   node deploy/check-read-aloud-integration.mjs &&
   node deploy/check-panel-return.mjs &&
   node deploy/check-library-chrome.mjs &&
-  node deploy/check-reader-consolidation.mjs)
+  node deploy/check-reader-consolidation.mjs &&
+  node deploy/check-reference-room.mjs)
 
 echo "==> staging"
 rm -rf "$BUILD_DIR/dist/stage" && mkdir -p "$BUILD_DIR/dist/stage/assets"

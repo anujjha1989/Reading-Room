@@ -82,7 +82,13 @@ const TITLE_CORRECTIONS: Record<string, string> = {
   "11XUTNAAeI_GTCeKfmu-jKchwrYkwbB6b": "The Coming of the Third Reich",
 };
 
-function canReadHere(format: string) {
+/** Reference Room ids carry this prefix (see the server's referenceCatalog). */
+const isReference = (id: string) => id.startsWith("ref-");
+
+function canReadHere(format: string, id = "") {
+  // Reference Room files are private on Drive, so its documents can't use the
+  // Drive previewer the Reading Room's Word files open in; they download instead.
+  if (isReference(id)) return ["EPUB", "MOBI", "AZW", "AZW3", "KF8", "PDF", "CBR", "CBZ"].includes(format.toUpperCase());
   return ["EPUB", "MOBI", "AZW", "AZW3", "KF8", "PDF", "CBR", "CBZ", "DOC", "DOCX", "RTF", "TXT"].includes(format.toUpperCase());
 }
 
@@ -292,6 +298,15 @@ export default function LibraryClient() {
   const [catalogRows, setCatalogRows] = useState<RawBook[]>([]);
   const [catalogStatus, setCatalogStatus] = useState<"loading" | "ready" | "error">("loading");
   const books = useMemo(() => fromShelf(reviewBooks(asShelf(groupBooks(catalogRows)), catalogRows)), [catalogRows]);
+  // The Reference Room: a second library, fetched only when it's chosen or when
+  // a book from it is on the Continue shelf. Reading Room is the default on
+  // every launch, so the library opens exactly as it always has.
+  const [library, setLibrary] = useState<"reading" | "reference">("reading");
+  const [referenceRows, setReferenceRows] = useState<RawBook[]>([]);
+  const [referenceStatus, setReferenceStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const referenceBooks = useMemo(() => referenceRows.length ? fromShelf(reviewBooks(asShelf(groupBooks(referenceRows)), referenceRows)) : [], [referenceRows]);
+  const allBooks = useMemo(() => referenceBooks.length ? [...books, ...referenceBooks] : books, [books, referenceBooks]);
+  const libraryBooks = library === "reference" ? referenceBooks : books;
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [collection, setCollection] = useState("All collections");
@@ -394,11 +409,20 @@ export default function LibraryClient() {
     return () => controller.abort();
   }, []);
 
-  const collectionChoices = useMemo(() => countedChoices(books, (book) => book.collections), [books]);
-  const authorChoices = useMemo(() => countedChoices(books, (book) => book.author ? [book.author] : []), [books]);
-  const categories = useMemo(() => values(books, "category"), [books]);
-  const seriesChoices = useMemo(() => countedChoices(books, (book) => book.series ? [book.series] : []), [books]);
-  const formats = useMemo(() => [...new Set(books.flatMap((book) => book.formats))].sort((a, b) => FORMAT_ORDER.indexOf(a) - FORMAT_ORDER.indexOf(b)), [books]);
+  const needsReference = library === "reference" || Object.keys(savedStates).some(isReference);
+  useEffect(() => {
+    if (!needsReference || referenceStatus !== "idle") return;
+    setReferenceStatus("loading");
+    fetch("/reference-catalog.json")
+      .then((response) => { if (!response.ok) throw new Error("Reference Room unavailable"); return response.json() as Promise<RawBook[]>; })
+      .then((rows) => { setReferenceRows(rows); setReferenceStatus("ready"); })
+      .catch(() => setReferenceStatus("error"));
+  }, [needsReference, referenceStatus]);
+
+  const authorChoices = useMemo(() => countedChoices(libraryBooks, (book) => book.author ? [book.author] : []), [libraryBooks]);
+  const categories = useMemo(() => values(libraryBooks, "category"), [libraryBooks]);
+  const seriesChoices = useMemo(() => countedChoices(libraryBooks, (book) => book.series ? [book.series] : []), [libraryBooks]);
+  const formats = useMemo(() => [...new Set(libraryBooks.flatMap((book) => book.formats))].sort((a, b) => FORMAT_ORDER.indexOf(a) - FORMAT_ORDER.indexOf(b)), [libraryBooks]);
   const seriesGroups = useMemo(() => {
     const groups = new Map<string, Book[]>();
     for (const book of books) if (book.series) groups.set(book.series, [...(groups.get(book.series) || []), book]);
@@ -415,7 +439,9 @@ export default function LibraryClient() {
 
   const filtered = useMemo(() => {
     const term = normalized(deferredQuery);
-    let list = books.filter((book) => {
+    // Search and filters follow the chosen library; the personal views (My Books,
+    // Continue, Recent) span both.
+    let list = (view === "library" ? libraryBooks : allBooks).filter((book) => {
       const state = deferredSavedStates[book.id];
       return (!shelfFilter || shelfFilter.ids.has(book.id))
         && (!term || book.searchText.includes(term))
@@ -425,7 +451,7 @@ export default function LibraryClient() {
         && (series === "All series" || book.series === series)
         && (format === "All formats" || book.formats.includes(format))
         && (readingStatus === "All reading statuses" || (readingStatus === "want" ? !!state?.wantToRead : (state?.status || "unread") === readingStatus))
-        && (!readableOnly || book.copies.some((copy) => canReadHere(copy.format)));
+        && (!readableOnly || book.copies.some((copy) => canReadHere(copy.format, copy.id)));
     });
     if (view === "favorites") {
       list = list.filter((book) => {
@@ -445,10 +471,10 @@ export default function LibraryClient() {
       if (sort === "series") return (a.series || "ZZZ").localeCompare(b.series || "ZZZ", undefined, { numeric: true }) || a.title.localeCompare(b.title, undefined, { numeric: true });
       return a.normalizedTitle.localeCompare(b.normalizedTitle, undefined, { numeric: true });
     });
-  }, [author, books, category, collection, deferredQuery, favorites, format, myShelf, readableOnly, readingStatus, recent, deferredSavedStates, series, shelfFilter, sort, view]);
+  }, [allBooks, author, category, collection, deferredQuery, favorites, format, libraryBooks, myShelf, readableOnly, readingStatus, recent, deferredSavedStates, series, shelfFilter, sort, view]);
   // My Books shelves on Home: what's next, the reader's own collections, and
   // what's been read, most recently touched first.
-  const bookById = useMemo(() => new Map(books.map((book) => [book.id, book])), [books]);
+  const bookById = useMemo(() => new Map(allBooks.map((book) => [book.id, book])), [allBooks]);
   const wantBooks = useMemo(() => wantToRead.map((id) => bookById.get(id)).filter((book): book is Book => Boolean(book)), [bookById, wantToRead]);
   const finishedBooks = useMemo(() => Object.values(savedStates).filter((item) => item.status === "finished")
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).map((item) => bookById.get(item.bookId))
@@ -460,7 +486,7 @@ export default function LibraryClient() {
       .filter((book): book is Book => Boolean(book)),
   })), [bookById, savedStates, userLists]);
 
-  const continueBooks = useMemo(() => recent.filter((id) => savedStates[id]?.status === "reading").map((id) => books.find((book) => book.id === id)).filter((book): book is Book => Boolean(book)).slice(0, 10), [books, recent, savedStates]);
+  const continueBooks = useMemo(() => recent.filter((id) => savedStates[id]?.status === "reading").map((id) => bookById.get(id)).filter((book): book is Book => Boolean(book)).slice(0, 10), [bookById, recent, savedStates]);
   const recentlyAdded = useMemo(() => [...books].filter((book) => book.modified).sort((a, b) => (b.modified || "").localeCompare(a.modified || "")).slice(0, 10), [books]);
   const openedBooks = useMemo(() => fromShelf(recentlyOpened(asShelf(books), savedStates)), [books, savedStates]);
   const shelves = useMemo(
@@ -515,7 +541,7 @@ export default function LibraryClient() {
   function openBook(book: Book) {
     // More than one file: let the reader choose rather than guessing.
     if (book.copies.length > 1) { setSelected(book); return; }
-    const readableCopy = book.copies.find((copy) => canReadHere(copy.format));
+    const readableCopy = book.copies.find((copy) => canReadHere(copy.format, copy.id));
     saveState(book.id, { lastOpened: Date.now(), status: savedStates[book.id]?.status === "finished" ? "finished" : "reading", fileId: readableCopy?.id || book.copies[0]?.id, ...(readableCopy ? { wantToRead: false } : {}) });
     if (readableCopy) { setSelected(null); setSeriesFocus(null); setReader({ title: book.title, file: readableCopy, bookId: book.id, initialPosition: savedStatesRef.current[book.id]?.position || undefined }); }
     else setSelected(book);
@@ -543,7 +569,7 @@ export default function LibraryClient() {
     // pushed short menus far above their button.
     const rows = 4 + (editions && editions.length > 1 ? 1 : 0)
       + (book.copies.length > 1 ? 1 + book.copies.length : 0)
-      + (book.series ? 1 : 0) + 2;
+      + (book.series ? 1 : 0) + (isReference(book.id) ? 0 : 2);
     const W = 224, M = 8;
     const H = rows * 40 + 24;
     const ax = menuFor?.x ?? 0, ay = menuFor?.y ?? 0;
@@ -581,13 +607,16 @@ export default function LibraryClient() {
       {book.series && <button role="menuitem" onClick={act(() => setSeriesFocus(book.series!))}>
         View series
       </button>}
-      <hr />
-      <button role="menuitem" onClick={act(() => setDetailsFor({ book, focusDelete: false }))}>
-        Update Metadata…
-      </button>
-      <button role="menuitem" className="danger" onClick={act(() => setDetailsFor({ book, focusDelete: true }))}>
-        Delete…
-      </button>
+      {/* Metadata fixes and deletion edit the Reading Room catalogue only. */}
+      {!isReference(book.id) && <>
+        <hr />
+        <button role="menuitem" onClick={act(() => setDetailsFor({ book, focusDelete: false }))}>
+          Update Metadata…
+        </button>
+        <button role="menuitem" className="danger" onClick={act(() => setDetailsFor({ book, focusDelete: true }))}>
+          Delete…
+        </button>
+      </>}
     </div></>, document.body);
   }
 
@@ -621,6 +650,7 @@ export default function LibraryClient() {
     setShelfFilter(null);
     setCollection("All collections"); setAuthor("All authors"); setCategory("All categories");
     setSeries("All series"); setFormat("All formats"); setReadingStatus("All reading statuses"); setReadableOnly(false); setVisible(20);
+    setLibrary("reading");
   };
   // Opening a shelf narrows the catalogue to its books rather than navigating
   // away, so the filters and the sort control still apply.
@@ -640,14 +670,24 @@ export default function LibraryClient() {
 
   const chooseDisplayMode = (mode: DisplayMode) => { setDisplayMode(mode); localStorage.setItem("reading-room-display-mode", mode); };
   const activeFilters = [
+    library === "reference" ? "Reference Room" : "",
     shelfFilter?.title || "",
     collection !== "All collections" ? collection : "", author !== "All authors" ? author : "", category !== "All categories" ? category : "",
     series !== "All series" ? series : "", format !== "All formats" ? format : "", readingStatus !== "All reading statuses" ? ({ unread: "Unread", want: "Want to Read", reading: "In progress", finished: "Finished" } as Record<string, string>)[readingStatus] || readingStatus : "", readableOnly ? "Readable here" : "",
   ].filter(Boolean);
   const myShelfTitle = myShelf === "favorites" ? "Favorites" : myShelf === "want" ? "Want to Read" : myShelf === "finished" ? "Finished" : myShelf.slice(5);
-  const currentReaderBook = reader ? books.find((book) => book.id === reader.bookId) : undefined;
+  const currentReaderBook = reader ? bookById.get(reader.bookId) : undefined;
   const readerSeries = currentReaderBook?.series ? seriesGroups.get(currentReaderBook.series) || [] : [];
   const readerSeriesIndex = currentReaderBook ? readerSeries.findIndex((book) => book.id === currentReaderBook.id) : -1;
+
+  // Each library has its own authors, categories and formats, so a filter set
+  // in one means nothing in the other.
+  const chooseLibrary = (next: "reading" | "reference") => {
+    setLibrary(next);
+    setCollection("All collections"); setAuthor("All authors"); setCategory("All categories");
+    setSeries("All series"); setFormat("All formats"); setShelfFilter(null); setVisible(20);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  };
 
   const chooseChromeView = (next: LibraryChromeView) => {
     setQuery("");
@@ -666,7 +706,7 @@ export default function LibraryClient() {
     const all = title === "Recently added"
       ? books.filter((book) => book.modified)
       : isContinue
-        ? books.filter((book) => savedStates[book.id]?.status === "reading")
+        ? allBooks.filter((book) => savedStates[book.id]?.status === "reading")
         : items;
     const grouped = fromShelf(groupShelf(asShelf(items)));
     if (!grouped.length) return null;
@@ -785,20 +825,23 @@ export default function LibraryClient() {
     </header>
 
     <section className="hero compact-hero">
-      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{chromeView === "home" ? "Home Books" : chromeView === "favorites" || view === "favorites" ? myShelfTitle : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Library"}</h1></div>
+      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1 className={chromeView !== "home" && view === "library" && library === "reference" ? "rr-title-long" : undefined}>{chromeView === "home" ? "Home Books" : chromeView === "favorites" || view === "favorites" ? myShelfTitle : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : library === "reference" ? "Reference Room" : "Library"}</h1></div>
       <label className="search"><span>⌕</span><input value={query} onChange={(event) => { setQuery(event.target.value); setVisible(20); }} placeholder="Search title, author, series or collection…" /><kbd>{shortcutKey}</kbd></label>
       {view === "favorites" && <div className="category-chips rr-my-shelves" role="tablist" aria-label="My Books">
         {([["favorites", "Favorites", favorites.length], ["want", "Want to Read", wantToRead.length], ["finished", "Finished", finishedBooks.length]] as const)
           .map(([key, label, count]) => <button key={key} role="tab" aria-selected={myShelf === key} aria-pressed={myShelf === key} onClick={() => { setMyShelf(key); setVisible(20); }}>{label}{count ? <b>{count}</b> : null}</button>)}
         {listShelves.map((shelf) => <button key={shelf.name} role="tab" aria-selected={myShelf === `list:${shelf.name}`} aria-pressed={myShelf === `list:${shelf.name}`} onClick={() => { setMyShelf(`list:${shelf.name}`); setVisible(20); }}>{shelf.name}<b>{shelf.items.length}</b></button>)}
       </div>}
-      <div className="category-chips">
+      {library === "reference" ? <div className="category-chips">
+        {categories.map((item) => <button key={item} aria-pressed={category === item} onClick={() => { setCategory(category === item ? "All categories" : item); setVisible(20); }}>{item}</button>)}
+        <button aria-pressed={readableOnly} onClick={() => { setReadableOnly(!readableOnly); setVisible(20); }}>Readable here</button>
+      </div> : <div className="category-chips">
         <button aria-pressed={category === "Fiction"} onClick={() => { setCategory(category === "Fiction" ? "All categories" : "Fiction"); setVisible(20); }}>Fiction</button>
         <button aria-pressed={category === "Non-Fiction"} onClick={() => { setCategory(category === "Non-Fiction" ? "All categories" : "Non-Fiction"); setVisible(20); }}>Non-Fiction</button>
         <button aria-pressed={category === "Graphic Novel"} onClick={() => { setCategory(category === "Graphic Novel" ? "All categories" : "Graphic Novel"); setVisible(20); }}>Graphic Novels</button>
         <button aria-pressed={category === "Script"} onClick={() => { setCategory(category === "Script" ? "All categories" : "Script"); setVisible(20); }}>Scripts</button>
         <button aria-pressed={readableOnly} onClick={() => { setReadableOnly(!readableOnly); setVisible(20); }}>Readable here</button>
-      </div>
+      </div>}
     </section>
 
     {view === "library" && !query && !activeFilters.length && <section className="discovery">
@@ -815,7 +858,7 @@ export default function LibraryClient() {
     <section className="catalog">
       <div className="catalog-toolbar"><button className="mobile-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>Filters {activeFilters.length ? `(${activeFilters.length})` : ""}</button><label className="sort-control"><span>Sort</span><select value={sort} onChange={(event) => chooseSort(event.target.value as SortMode)}><option value="title">Title</option><option value="author">Author</option><option value="series">Series</option><option value="added">Recently added</option><option value="opened">Recently opened</option></select></label></div>
       <div className={`filters expanded-filters ${filtersOpen ? "open" : ""}`}>
-        <SearchableFilter label="Collection" value={collection} allLabel="All collections" choices={collectionChoices} onChange={(next) => { setCollection(next); setVisible(20); }} />
+        <label><span>Library</span><select value={library} onChange={(event) => chooseLibrary(event.target.value === "reference" ? "reference" : "reading")}><option value="reading">Reading Room</option><option value="reference">Reference Room</option></select></label>
         <SearchableFilter label="Author" value={author} allLabel="All authors" choices={authorChoices} onChange={(next) => { setAuthor(next); setVisible(20); }} />
         <label><span>Category</span><select value={category} onChange={(event) => { setCategory(event.target.value); setVisible(20); }}><option>All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
         <SearchableFilter label="Series" value={series} allLabel="All series" choices={seriesChoices} onChange={(next) => { setSeries(next); setVisible(20); }} />
@@ -827,13 +870,16 @@ export default function LibraryClient() {
       {activeFilters.length > 0 && <div className="active-filters">{activeFilters.map((item) => <span key={item}>{item}</span>)}<button onClick={clearFilters}>Clear all</button></div>}
       <div className="results"><p><strong>{filtered.length.toLocaleString()}</strong> unique titles</p><div className="display-switch" role="group" aria-label="Book display"><button className={displayMode === "thumbnails" ? "active" : ""} aria-pressed={displayMode === "thumbnails"} onClick={() => chooseDisplayMode("thumbnails")}><span aria-hidden="true">▦</span> Thumbnails</button><button className={displayMode === "list" ? "active" : ""} aria-pressed={displayMode === "list"} onClick={() => chooseDisplayMode("list")}><span aria-hidden="true">☷</span> List</button></div></div>
 
-      {catalogStatus === "loading" ? <div className="empty"><b>Opening the library…</b><p>Preparing the latest catalogue.</p></div>
+      {view === "library" && library === "reference" && referenceStatus !== "ready" ? (referenceStatus === "error"
+        ? <div className="empty"><b>The Reference Room could not be loaded</b><p>Check the Pi is on, then choose it again.</p><button onClick={() => setReferenceStatus("idle")}>Try again</button></div>
+        : <div className="empty"><b>Opening the Reference Room…</b><p>Preparing its catalogue.</p></div>)
+      : catalogStatus === "loading" ? <div className="empty"><b>Opening the library…</b><p>Preparing the latest catalogue.</p></div>
       : catalogStatus === "error" ? <div className="empty"><b>The catalogue could not be loaded</b><p>Please refresh the page and try again.</p></div>
       : filtered.length ? <div className={`grid ${displayMode === "list" ? "list-view" : "thumbnail-view"}`} ref={gridRef}>{filtered.slice(0, visible).map((book, index) => {
         const palette = palettes[hashCode(book.id) % palettes.length];
         const state = savedStates[book.id];
         return <article className="book" key={book.id}>
-          <button className="cover" aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`} style={{ "--cover": palette[0], "--ink": palette[1] } as React.CSSProperties} onClick={() => openBook(book)}><img src={coverUrl(book)} alt="" loading="lazy" onLoad={(event) => event.currentTarget.parentElement?.classList.add("has-cover")} onError={(event) => { event.currentTarget.hidden = true; }} /><span className="cover-copy">{book.series && <small>{book.series}</small>}<strong>{book.title}</strong>{book.author && <em>{book.author}</em>}</span>{state?.progressLabel && <span className="cover-progress">{state.progressLabel}</span>}</button>
+          <button className={isReference(book.id) ? "cover rr-drawn" : "cover"} aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`} style={{ "--cover": palette[0], "--ink": palette[1] } as React.CSSProperties} onClick={() => openBook(book)}><img src={coverUrl(book)} alt="" loading="lazy" onLoad={(event) => event.currentTarget.parentElement?.classList.add("has-cover")} onError={(event) => { event.currentTarget.hidden = true; }} /><span className="cover-copy">{book.series && <small>{book.series}</small>}<strong>{book.title}</strong>{book.author && <em>{book.author}</em>}</span>{state?.progressLabel && <span className="cover-progress">{state.progressLabel}</span>}</button>
           {/* The ⋯ lives in the author row rather than a block below it: that is
               the only way it is guaranteed to sit on the author line whatever
               the title wraps to. The title reserves two lines so the author -
@@ -848,7 +894,9 @@ export default function LibraryClient() {
 
     {seriesFocus && <div className="modal-backdrop" onMouseDown={() => setSeriesFocus(null)} role="presentation"><section className="modal series-modal" role="dialog" aria-modal="true" aria-labelledby="series-title" onMouseDown={(event) => event.stopPropagation()}><button autoFocus className="close" onClick={() => setSeriesFocus(null)} aria-label="Close">×</button><p className="eyebrow">READ IN ORDER</p><h2 id="series-title">{seriesFocus}</h2><p className="modal-author">{seriesGroups.get(seriesFocus)?.length || 0} titles in this series</p><div className="series-list">{(seriesGroups.get(seriesFocus) || []).map((book, index) => <button key={book.id} onClick={() => openBook(book)}><b>{String(index + 1).padStart(2, "0")}</b><span><strong>{book.title}</strong><small>{book.author || book.formats.join(" · ")}{savedStates[book.id]?.progressLabel ? ` · ${savedStates[book.id].progressLabel}` : ""}</small></span><em>Read →</em></button>)}</div></section></div>}
 
-    {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)} role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="book-title" onMouseDown={(event) => event.stopPropagation()}><button autoFocus className="close" onClick={() => setSelected(null)} aria-label="Close">×</button><p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p><h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}{selected.series ? ` · ${selected.series}` : ""}</p><div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format) && <button onClick={() => openCopy(selected, copy)}>Read here</button>}<a href={["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? driveDownloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? "Download" : "Drive"} ↗</a></div></div>)}</div><p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p></section></div>}
+    {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)} role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="book-title" onMouseDown={(event) => event.stopPropagation()}><button autoFocus className="close" onClick={() => setSelected(null)} aria-label="Close">×</button><p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p><h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}{selected.series ? ` · ${selected.series}` : ""}</p><div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format, copy.id) && <button onClick={() => openCopy(selected, copy)}>Read here</button>}{isReference(copy.id)
+            ? <a href={`/api/book/${encodeURIComponent(copy.id)}?format=${encodeURIComponent(copy.format)}&download=1`} download>Download ↓</a>
+            : <a href={["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? driveDownloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? "Download" : "Drive"} ↗</a>}</div></div>)}</div><p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p></section></div>}
 
     {reader && <BookReader title={reader.title} file={reader.file} author={currentReaderBook?.author || undefined} coverUrl={currentReaderBook ? coverUrl(currentReaderBook) : undefined} highlights={savedStates[reader.bookId]?.highlights || []} onHighlightsChange={handleHighlightsChange} initialPosition={reader.initialPosition} bookmarks={savedStates[reader.bookId]?.bookmarks || []} onBookmarksChange={handleBookmarksChange} onLocationChange={handleReaderLocation} seriesNavigation={{ previous: readerSeriesIndex > 0 ? readerSeries[readerSeriesIndex - 1]?.title : undefined, next: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? readerSeries[readerSeriesIndex + 1]?.title : undefined, onPrevious: readerSeriesIndex > 0 ? () => openBook(readerSeries[readerSeriesIndex - 1]) : undefined, onNext: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? () => openBook(readerSeries[readerSeriesIndex + 1]) : undefined }} onClose={() => setReader(null)} />}
     <LibraryChrome view={chromeView} displayMode={displayMode} sort={sort} filtersOpen={filtersOpen} hidden={Boolean(reader || selected || seriesFocus || editionsFor)} onViewChange={chooseChromeView} onDisplayModeChange={chooseDisplayMode} onSortChange={chooseSort} onFiltersOpenChange={setFiltersOpen} />

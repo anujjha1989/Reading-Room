@@ -96,7 +96,8 @@ function readerUrl(id: string, format: string) {
   return `/api/book/${encodeURIComponent(id)}?format=${encodeURIComponent(format)}`;
 }
 
-function previewUrl(id: string, sourceUrl: string) {
+function previewUrl(rawId: string, sourceUrl: string) {
+  const id = rawId.replace(/^ref-/, "");   // Reference Room ids are prefixed Drive ids
   if (sourceUrl.includes("docs.google.com/document")) return `https://docs.google.com/document/d/${id}/preview`;
   return `https://drive.google.com/file/d/${id}/preview`;
 }
