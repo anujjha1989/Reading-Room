@@ -10,6 +10,7 @@ test("home BOOKS wordmark stays compact and contrasting in both themes", { timeo
   await browser.goto(process.env.READING_ROOM_BASE_URL || "http://anujrpi.local:4311");
   await browser.waitFor(`!!document.querySelector('.rr-library-dock')`);
   await browser.waitFor(`!!document.querySelector('.home-books-mark')`);
+  await browser.waitFor(`document.documentElement.scrollHeight > innerHeight + 500`);
   for (const theme of ["light", "dark"]) {
     const result = await browser.evaluate(`(async () => {
       document.documentElement.dataset.rrTheme = '${theme}';
@@ -40,6 +41,7 @@ test("home BOOKS wordmark stays compact and contrasting in both themes", { timeo
     assert.match(frosted.blur, /blur\(22px\)/);
     assert.match(frosted.buttonBlur, /blur\(18px\)/);
     assert.notEqual(frosted.buttonColor, frosted.background);
+    await browser.screenshot(`home-brand-scrolled-${theme}.png`);
     await browser.evaluate(`window.scrollTo(0, 0)`);
     await browser.waitFor(`!document.documentElement.classList.contains('rr-header-scrolled')`);
     await browser.screenshot(`home-brand-${theme}.png`);
