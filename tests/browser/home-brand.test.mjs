@@ -48,6 +48,19 @@ test("home BOOKS wordmark stays compact and contrasting in both themes", { timeo
     await browser.waitFor(`!document.documentElement.classList.contains('rr-header-scrolled')`);
     await browser.screenshot(`home-brand-${theme}.png`);
   }
+  await browser.evaluate(`document.querySelector('.rr-library-dock button[data-view="Library"]').click()`);
+  await browser.waitFor(`document.documentElement.dataset.rrLibraryView === 'library'`);
+  const libraryIcons = await browser.evaluate(`['#rr-filter-btn', '#rr-sort-btn', '#rr-settings-link'].map((selector) => {
+    const button = document.querySelector(selector), icon = button.querySelector('svg');
+    const a = button.getBoundingClientRect(), b = icon.getBoundingClientRect();
+    return { size: [a.width, a.height], offset: [
+      (b.left + b.width / 2) - (a.left + a.width / 2),
+      (b.top + b.height / 2) - (a.top + a.height / 2)] };
+  })`);
+  for (const icon of libraryIcons) {
+    assert.deepEqual(icon.size, [44, 44]);
+    assert.ok(icon.offset.every((value) => Math.abs(value) < 0.6));
+  }
   assert.deepEqual(exceptions, [], "initial hydration must not throw");
   await browser.evaluate(`document.querySelector('#rr-settings-link').click()`);
   await browser.waitFor(`!![...document.querySelectorAll('#rr-settings-overlay strong')].find(e => e.textContent === 'About')`);

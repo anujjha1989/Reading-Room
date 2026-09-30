@@ -37,7 +37,7 @@ test("reader glass controls have centered vector icons", { timeout: 60000 }, asy
     };
     return { close: measure('.rr-close-btn'), menu: measure('.rr-react-sheet-trigger') };
   })()`);
-  await browser.screenshot("reader-glass-dark.png");
+  await browser.screenshot("reader-glass-light.png");
   for (const [name, control] of Object.entries(controls)) {
     assert.ok(control, `${name} is present`);
     assert.deepEqual(control.size, [46, 46]);
@@ -48,4 +48,30 @@ test("reader glass controls have centered vector icons", { timeout: 60000 }, asy
   }
   await browser.evaluate(`document.querySelector('.rr-react-sheet-trigger').click()`);
   await browser.waitFor(`document.querySelector('.rr-react-sheet-trigger')?.getAttribute('aria-expanded') === 'true'`);
+  await browser.evaluate(`(() => {
+    const sheet = document.querySelector('section[role="dialog"][data-book-theme]');
+    const text = [...sheet.querySelectorAll('button')].find((button) =>
+      [...button.querySelectorAll('span')].some((span) => span.textContent.trim() === 'Text'));
+    text?.click();
+  })()`);
+  await browser.waitFor(`!!document.querySelector('section[role="dialog"][data-book-theme] button[title="Dark"]')`);
+  await browser.evaluate(`document.querySelector('section[role="dialog"][data-book-theme] button[title="Dark"]').click()`);
+  await browser.waitFor(`document.documentElement.classList.contains('rr-reader-dark')`);
+  await browser.evaluate(`document.querySelector('.rr-react-sheet-trigger').click()`);
+  await browser.waitFor(`document.querySelector('.rr-react-sheet-trigger')?.getAttribute('aria-expanded') === 'false'`);
+  const darkControls = await browser.evaluate(`(() =>
+    ['.rr-close-btn', '.rr-react-sheet-trigger'].map((selector) => {
+      const button = document.querySelector(selector), icon = button.querySelector('svg');
+      const a = button.getBoundingClientRect(), b = icon.getBoundingClientRect();
+      return { blur: getComputedStyle(button).backdropFilter,
+        surface: getComputedStyle(button).backgroundImage,
+        offset: [(b.left + b.width / 2) - (a.left + a.width / 2),
+          (b.top + b.height / 2) - (a.top + a.height / 2)] };
+    }))()`);
+  for (const control of darkControls) {
+    assert.match(control.blur, /blur\(26px\)/);
+    assert.match(control.surface, /linear-gradient/);
+    assert.ok(control.offset.every((value) => Math.abs(value) < 0.6));
+  }
+  await browser.screenshot("reader-glass-dark.png");
 });
