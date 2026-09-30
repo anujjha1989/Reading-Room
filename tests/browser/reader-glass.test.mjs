@@ -22,6 +22,7 @@ test("reader glass controls have centered vector icons", { timeout: 60000 }, asy
     }
   })()`);
   await browser.waitFor(`!!document.querySelector('.reader-shell .epub-stage')`, { attempts: 80 });
+  await browser.waitFor(`!document.querySelector('.reader-message')`, { attempts: 120 });
   const controls = await browser.evaluate(`(() => {
     const measure = (selector) => {
       const button = document.querySelector(selector);
@@ -36,6 +37,7 @@ test("reader glass controls have centered vector icons", { timeout: 60000 }, asy
     };
     return { close: measure('.rr-close-btn'), menu: measure('.rr-react-sheet-trigger') };
   })()`);
+  await browser.screenshot("reader-glass-dark.png");
   for (const [name, control] of Object.entries(controls)) {
     assert.ok(control, `${name} is present`);
     assert.deepEqual(control.size, [46, 46]);
@@ -44,7 +46,6 @@ test("reader glass controls have centered vector icons", { timeout: 60000 }, asy
     assert.match(control.surface, /linear-gradient/);
     assert.match(control.blur, /blur\(26px\)/);
   }
-  await browser.screenshot("reader-glass-dark.png");
   await browser.evaluate(`document.querySelector('.rr-react-sheet-trigger').click()`);
   await browser.waitFor(`document.querySelector('.rr-react-sheet-trigger')?.getAttribute('aria-expanded') === 'true'`);
 });
