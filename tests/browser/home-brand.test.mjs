@@ -35,11 +35,13 @@ test("home BOOKS wordmark stays compact and contrasting in both themes", { timeo
       return { background: getComputedStyle(header).backgroundColor,
         blur: getComputedStyle(header).backdropFilter,
         buttonBlur: getComputedStyle(gear).backdropFilter,
+        buttonSurface: getComputedStyle(gear).backgroundImage,
         buttonColor: getComputedStyle(gear).color };
     })()`);
     assert.match(frosted.background, /(?:rgba|color\()/);
     assert.match(frosted.blur, /blur\(22px\)/);
-    assert.match(frosted.buttonBlur, /blur\(18px\)/);
+    assert.match(frosted.buttonBlur, /blur\(22px\)/);
+    assert.match(frosted.buttonSurface, /linear-gradient/);
     assert.notEqual(frosted.buttonColor, frosted.background);
     await browser.screenshot(`home-brand-scrolled-${theme}.png`);
     await browser.evaluate(`window.scrollTo(0, 0)`);

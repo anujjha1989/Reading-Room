@@ -1385,7 +1385,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
 
       {readingSheetHost ? createPortal(<>
-        <button type="button" className="rr-close-btn" aria-label="Close book" onClick={onClose}>×</button>
+        <button type="button" className="rr-close-btn" aria-label="Close book" onClick={onClose}><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M5 5l14 14M19 5L5 19" /></svg></button>
         <ReadAloudTransport api={readAloud} />
         {isReflowable && <ReaderAnnotations adapter={annotationAdapter} highlights={highlights}
           onChange={(next) => onHighlightsChange?.(next)} title={displayTitle} author={author} host={readingSheetHost} />}
@@ -1396,7 +1396,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
             event.stopPropagation();
             if (Date.now() - menuTouchAtRef.current < 700) return;
             setReactSheetOpen((open) => !open);
-          }}>≡</button>
+          }}><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M5 6.5h14M5 12h14M5 17.5h14" /></svg></button>
         <ReadingSheet
           open={reactSheetOpen}
           onClose={() => setReactSheetOpen(false)}
