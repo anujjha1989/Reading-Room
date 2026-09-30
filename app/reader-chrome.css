@@ -1032,6 +1032,13 @@ html.rr-library-visible main > .hero {
   z-index: 128;
   padding: calc(14px + env(safe-area-inset-top)) max(20px, calc((100vw - 1200px)/2)) 14px;
   background: var(--paper);
+  transition: background-color .22s ease, box-shadow .22s ease;
+}
+html.rr-library-visible.rr-header-scrolled main > .hero {
+  background: color-mix(in srgb, var(--paper) 80%, transparent);
+  -webkit-backdrop-filter: saturate(1.45) blur(22px);
+  backdrop-filter: saturate(1.45) blur(22px);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 10%, transparent);
 }
 html.rr-library-visible main > .hero h1 {
   font-size: 32px;
@@ -2056,8 +2063,12 @@ html.rr-books-controls .rr-close-btn { animation: none !important; }
 html.rr-library-visible #rr-settings-link,
 html.rr-library-visible #rr-filter-btn,
 html.rr-library-visible #rr-sort-btn {
-  background: rgba(120, 120, 128, .20) !important;
+  background: rgba(120, 120, 128, .17) !important;
   color: #1c1c1e !important;
+  border: 1px solid rgba(255, 255, 255, .36) !important;
+  -webkit-backdrop-filter: saturate(1.35) blur(18px) !important;
+  backdrop-filter: saturate(1.35) blur(18px) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .24), 0 2px 9px rgba(0, 0, 0, .07);
 }
 html.rr-library-visible #rr-settings-link svg,
 html.rr-library-visible #rr-filter-btn svg,
@@ -2074,14 +2085,16 @@ html.rr-library-visible #rr-settings-link svg {
   html:not([data-rr-theme="light"]).rr-library-visible #rr-sort-btn {
     /* A lighter fill and a full-strength glyph: on black, a 20% grey disc with a
        dimmed icon disappears. */
-    background: rgba(142, 142, 147, .30) !important;
+    background: rgba(142, 142, 147, .26) !important;
+    border-color: rgba(255, 255, 255, .18) !important;
     color: #ffffff !important;
   }
 }
 html[data-rr-theme="dark"].rr-library-visible #rr-settings-link,
 html[data-rr-theme="dark"].rr-library-visible #rr-filter-btn,
 html[data-rr-theme="dark"].rr-library-visible #rr-sort-btn {
-  background: rgba(142, 142, 147, .30) !important;
+  background: rgba(142, 142, 147, .26) !important;
+  border-color: rgba(255, 255, 255, .18) !important;
   color: #ffffff !important;
 }
 

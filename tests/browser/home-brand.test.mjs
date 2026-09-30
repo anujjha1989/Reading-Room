@@ -26,6 +26,22 @@ test("home BOOKS wordmark stays compact and contrasting in both themes", { timeo
     assert.equal(result.width, 40);
     assert.notEqual(result.color, result.paper);
     assert.ok(result.right <= result.viewport);
+    await browser.evaluate(`window.scrollTo(0, 500)`);
+    await browser.waitFor(`document.documentElement.classList.contains('rr-header-scrolled')`);
+    const frosted = await browser.evaluate(`(() => {
+      const header = document.querySelector('main > .hero');
+      const gear = document.querySelector('#rr-settings-link');
+      return { background: getComputedStyle(header).backgroundColor,
+        blur: getComputedStyle(header).backdropFilter,
+        buttonBlur: getComputedStyle(gear).backdropFilter,
+        buttonColor: getComputedStyle(gear).color };
+    })()`);
+    assert.match(frosted.background, /(?:rgba|color\()/);
+    assert.match(frosted.blur, /blur\(22px\)/);
+    assert.match(frosted.buttonBlur, /blur\(18px\)/);
+    assert.notEqual(frosted.buttonColor, frosted.background);
+    await browser.evaluate(`window.scrollTo(0, 0)`);
+    await browser.waitFor(`!document.documentElement.classList.contains('rr-header-scrolled')`);
     await browser.screenshot(`home-brand-${theme}.png`);
   }
   assert.deepEqual(exceptions, [], "initial hydration must not throw");

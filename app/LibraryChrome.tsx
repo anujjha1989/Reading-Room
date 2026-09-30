@@ -71,6 +71,25 @@ export default function LibraryChrome(props: Props) {
   }, [props.hidden, props.view, props.filtersOpen, sortOpen]);
 
   useEffect(() => {
+    const root = document.documentElement;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      root.classList.toggle("rr-header-scrolled", !props.hidden && window.scrollY > 4);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+      root.classList.remove("rr-header-scrolled");
+    };
+  }, [props.hidden]);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       if (settingsMounted) return; // SettingsPanel owns nested Back/Escape.
