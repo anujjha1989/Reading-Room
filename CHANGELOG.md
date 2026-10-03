@@ -2,7 +2,7 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
-## Pending chapter-end narration fix
+## v185 — 2026-10-03
 
 ### Fixed
 
@@ -12,6 +12,15 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
   stall/rewind in Demons and Druids. Explicit reader jumps reset chapter selection.
 - Added an actual-book regression test with accelerated audio callbacks; it
   fails on v184 and passes with the chapter-owned narration adapter.
+
+### Deployment
+
+- Source `16f9e59`, previous v184. Fresh SSD build, all static release gates,
+  supported installer and complete rollback capture passed.
+- Public HTTPS v185 and client bytes verified against the build. Twelve focused
+  browser checks passed on the public origin, including ordered actual-book
+  narration in Scroll/Pages, pause and explicit chapter jumps. Physical iPhone
+  playback and lock-screen audio are not claimed by these accelerated tests.
 
 ## v184 — 2026-10-03
 

@@ -1,5 +1,10 @@
 # EPUB narration chapter boundaries
 
+Released as v185, source `16f9e59`, tag `deploy-v185`, following v184. The
+supported installer captured the previous release before installation and
+verified the restarted server and asset types. Authenticated public HTTPS
+checks confirmed version 185 and byte-for-byte client identity with the build.
+
 ## Reproduced fault
 
 The Demons and Druids EPUB preloads several sections in continuous scroll.
@@ -41,3 +46,7 @@ narration cases passed again with explicit chapter-jump assertions added.
 The production build passes. Whole-project typechecking still reports the
 pre-existing Cloudflare worker environment types, with no errors in the changed
 reader/narration modules.
+
+Post-deployment: the same 12 focused browser checks passed on
+`https://anujrpi.tail549492.ts.net:8443`, including pause and chapter-jump
+assertions in both narration modes. The design and native app source are unchanged.
