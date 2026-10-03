@@ -2,6 +2,23 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v184 — 2026-10-03
+
+### Changed
+
+- Horizontal Home shelves use an Apple Books-style grey-to-black band in dark
+  mode and a gentle grey-to-white band in light mode, including Continue.
+- Replaced the competing historical shelf backgrounds with shared theme tokens;
+  covers, type, spacing and interaction behavior are unchanged.
+
+### Deployment
+
+- Source `82d6e85`, previous v183. Fresh SSD build, supported no-build installer,
+  complete rollback snapshot and all static release checks passed.
+- Visually reviewed phone-size light/dark output. Public HTTPS tests passed for
+  shelf gradients in light/dark/system themes, layout stability, menus, Home
+  header/settings and multi-file native summary message/dismissal behavior.
+
 ## v183 — 2026-10-03
 
 ### Fixed
@@ -45,11 +62,6 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
   EPUB.js's normal bounded chapter unloading.
 
 ## Unreleased
-
-### Changed
-
-- Horizontal Home shelves use an Apple Books-style grey-to-black band in dark
-  mode and a gentle grey-to-white band in light mode, including Continue.
 
 ### Added
 
