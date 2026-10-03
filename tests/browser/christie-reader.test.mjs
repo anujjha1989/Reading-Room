@@ -23,12 +23,18 @@ const findRendition = `(() => {
 test("Christie EPUB saved-place recovery and continuous scrolling", { timeout: 150000 }, async t => {
   const browser = await launchBrowser();
   t.after(() => browser.close());
+  await browser.send("Network.enable");
+  // Keep fixture catalogue/state interception deterministic on HTTPS too;
+  // otherwise the installed offline worker can fetch outside this page target.
+  await browser.send("Network.setBypassServiceWorker", { bypass: true });
   const errors = [];
+  const intercepted = [];
   browser.on("Runtime.exceptionThrown", ({ exceptionDetails }) => errors.push(exceptionDetails.exception?.description || exceptionDetails.text));
   // Real collection bytes and production bundle; isolated catalogue/state so
   // this regression test never overwrites the user's actual reading progress.
   browser.on("Fetch.requestPaused", async ({ requestId, request }) => {
     const route = new URL(request.url).pathname;
+    intercepted.push(route);
     const payload = route === "/catalog.json" ? collections.map(([id, title]) => ({
       id, title, author: "Agatha Christie", format: "EPUB", source: "Local",
       titleCorrected: true, authorCorrected: true, path: "Books", url: `/api/book/${id}`,
@@ -38,12 +44,28 @@ test("Christie EPUB saved-place recovery and continuous scrolling", { timeout: 1
       body: Buffer.from(JSON.stringify(payload)).toString("base64") });
   });
   await browser.send("Fetch.enable", { patterns: [
-    { urlPattern: "*/catalog.json" }, { urlPattern: "*/api/library-state" },
+    { urlPattern: "*/catalog.json*" }, { urlPattern: "*/api/library-state*" },
   ] });
+  const fixture = collections.map(([id, title]) => ({ id, title, author: "Agatha Christie", format: "EPUB", source: "Local", titleCorrected: true, authorCorrected: true, path: "Books", url: `/api/book/${id}` }));
+  // A worker-controlled HTTPS catalogue may not pass through page-target CDP
+  // interception. Stub only catalogue/state at the page's fetch boundary too.
+  await browser.send("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
+    const original = window.fetch;
+    window.fetch = function(input, options) {
+      const path = new URL(typeof input === 'string' ? input : input.url, location.href).pathname;
+      if (path === '/catalog.json') return Promise.resolve(new Response(${JSON.stringify(JSON.stringify(fixture))}, {headers:{'Content-Type':'application/json'}}));
+      if (path === '/api/library-state') return Promise.resolve(new Response(JSON.stringify(options?.method === 'POST' ? {ok:true} : {states:[]}), {headers:{'Content-Type':'application/json'}}));
+      return original.call(this, input, options);
+    };
+  })();` });
   await browser.goto(base);
   await browser.waitFor(`!!document.querySelector('.rr-library-dock')`);
   await browser.evaluate(`document.querySelector('.rr-library-dock button[data-view="Library"]').click()`);
-  await browser.waitFor(`document.querySelectorAll('.book').length === 2`);
+  try { await browser.waitFor(`document.querySelectorAll('.book').length === 2`); }
+  catch (error) {
+    t.diagnostic(JSON.stringify({ intercepted, errors, page: await browser.evaluate(`({url:location.href,count:document.querySelectorAll('.book').length,view:document.documentElement.dataset.rrLibraryView, titles:[...document.querySelectorAll('.book-caption > strong')].slice(0,3).map(e=>e.textContent), status:document.querySelector('.catalog .note')?.textContent})`) }));
+    throw error;
+  }
 
   for (const mode of ["scroll", "pages"]) {
     for (const [id, title] of collections) {

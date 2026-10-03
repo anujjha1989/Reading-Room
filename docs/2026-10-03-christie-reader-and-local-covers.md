@@ -1,5 +1,14 @@
 # Christie reader and local cover release
 
+Released as **v182**, source commit `e25c5b7`, tag `deploy-v182`.
+Installer checks passed on LAN and tailnet. Additional authenticated checks on
+`https://anujrpi.tail549492.ts.net:8443` confirmed version 182, Settings, JPEG
+cover delivery, compact Home branding/glass controls and both Christie EPUBs'
+Scroll/Pages recovery, visual scroll deltas and hierarchical themed contents.
+Test catalogue and reading state were isolated from the user's saved progress.
+The live cover extractor checksum matches the committed source. Both configured
+library sources are local. The deployment manifest remains unmodified.
+
 ## Source changes
 
 - Home's wordmark is `Books`, retaining the current icon and theme styling.

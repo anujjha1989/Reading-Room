@@ -2,6 +2,32 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v182 — 2026-10-03
+
+### Fixed
+
+- Collection contents now open as a book list with each book's chapters in its
+  own submenu, including the generated Christie contents pages.
+- Missing library cover art retains its title instead of a blank rectangle.
+- Cover extraction reads local imports without Google Drive and selects a
+  merged EPUB's declared collection cover rather than a constituent cover.
+- Local-only full scans no longer contact Google Drive; new local imports start
+  cover extraction after scanning. Reader error messages and download links now
+  point to Home Books rather than Drive.
+- Prevented continuous EPUB scrolling from skipping chapters when new sections
+  load; the browser no longer duplicates the reader's position compensation.
+- Invalid saved EPUB positions now recover at the same chapter instead of
+  leaving a readable book stuck on Loading.
+- Height-only viewport changes no longer reapply an unchanged spread layout.
+- Anthony Bourdain's Complete Works has the established navy/gold collection
+  cover and the correct author credit.
+
+### Changed
+
+- Home's wordmark now reads “Books”; its icon, size, and theme styling are unchanged.
+- Removed the continuous manager's trim override so large collections retain
+  EPUB.js's normal bounded chapter unloading.
+
 ## Unreleased
 
 ### Added
@@ -46,21 +72,6 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ### Fixed
 
-- Collection contents now open as a book list with each book's chapters in its
-  own submenu, including the generated Christie contents pages.
-- Missing library cover art retains its title instead of a blank rectangle.
-- Cover extraction reads local imports without Google Drive and selects a
-  merged EPUB's declared collection cover rather than a constituent cover.
-- Local-only full scans no longer contact Google Drive; new local imports start
-  cover extraction after scanning. Reader error messages and download links now
-  point to Home Books rather than Drive.
-
-- Prevented continuous EPUB scrolling from skipping chapters when new sections
-  load; the browser no longer duplicates the reader's position compensation.
-- Invalid saved EPUB positions now recover at the same chapter instead of
-  leaving a readable book stuck on Loading.
-- Height-only viewport changes no longer reapply an unchanged spread layout.
-
 - A card's ⋯ menu opened once per shelf the book was on, stacking copies.
 
 - Contents now marks the book or chapter you are reading and opens scrolled to
@@ -79,10 +90,6 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
   can resume the existing audio element instead of requiring the book to reopen.
 
 ### Changed
-
-- Home's wordmark now reads “Books”; its icon, size, and theme styling are unchanged.
-- Removed the continuous manager's trim override so large collections retain
-  EPUB.js's normal bounded chapter unloading.
 
 - New Home Books brand: one book outline drawn by a shared component
   (`HomeBooksMark`, `bookBrand.js`) is the Home heading's mark and, rendered by
