@@ -1,4 +1,5 @@
 import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudController";
+import { getEpubNarrationAdapter, visibleEpubNarrationTarget } from "./epubNarration";
 
 type NarrationDocument = Document & {
   __rrSteering?: boolean;
@@ -204,8 +205,22 @@ type TestWindow = Window & typeof globalThis & {
         };
       }
     }
-    // epub.js keeps one iframe per rendered view and swaps them on a section
-    // change; take the biggest one that actually has content on screen.
+    const adapter = getEpubNarrationAdapter();
+    if (adapter) {
+      const targets = adapter.targets();
+      // Keep the sentence queue attached to its chapter while adjacent frames
+      // mount/unmount. A newly loaded taller chapter must not steal narration.
+      const queuedDoc = queue[cursor]?.range.startContainer.ownerDocument
+        ?? queue[queue.length - 1]?.range.startContainer.ownerDocument;
+      const target = playing && queueDoc && queuedDoc
+        ? targets.find(item => item.doc === queuedDoc) ?? visibleEpubNarrationTarget(targets, headerBottom(), window.innerHeight)
+        : visibleEpubNarrationTarget(targets, headerBottom(), window.innerHeight);
+      if (!target) return null;
+      return { doc: target.doc as NarrationDocument, frame: target.frame, mode: readingMode(),
+        visible: range => visibleInHost(target.frame, range), turn: turnWithFooter,
+        reveal: range => revealInFrame(target.doc as NarrationDocument, target.frame, range) };
+    }
+    // Compatibility path when no reader-owned adapter is registered.
     var frames = document.querySelectorAll<HTMLIFrameElement>(".epub-viewer iframe");
     var best: NarrationDocument | null = null, bestFrame: HTMLIFrameElement | null = null, bestArea = 0;
     for (var i = 0; i < frames.length; i += 1) {
@@ -213,7 +228,7 @@ type TestWindow = Window & typeof globalThis & {
       try { doc = frames[i].contentDocument; } catch (e) { doc = null; }
       if (!doc || !doc.body || !doc.body.textContent.trim()) continue;
       var box = frames[i].getBoundingClientRect();
-      var area = box.width * box.height;
+      var area = box.width * Math.max(0, Math.min(window.innerHeight, box.bottom) - Math.max(headerBottom(), box.top));
       if (area > bestArea) { bestArea = area; best = doc; bestFrame = frames[i]; }
     }
     if (best) {
@@ -857,6 +872,21 @@ type TestWindow = Window & typeof globalThis & {
   }
 
   async function advanceSection(state: ReaderState, mine: number) {
+    const adapter = getEpubNarrationAdapter();
+    if (adapter && state.frame) {
+      try {
+        const next = await adapter.advance(state.doc);
+        if (!playing || paused || mine !== epoch) return;
+        if (!next) { stop(); return; }
+        ensureQueue(next.doc as NarrationDocument);
+        cursor = 0;
+        prepareStartupClip(next.doc as NarrationDocument, cursor);
+        void step(mine);
+      } catch {
+        if (playing && mine === epoch) { playing = false; paused = true; render(); }
+      }
+      return;
+    }
     var before = signature(state.doc);
     state.turn();
     // A new section means a new document, but the engines take their time

@@ -2,6 +2,17 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## Pending chapter-end narration fix
+
+### Fixed
+
+- EPUB Read Aloud stays with the narrated chapter and advances in spine order
+  at its end, rather than choosing the tallest preloaded iframe or using a
+  page-down button as chapter navigation. This fixes the reproduced chapter-end
+  stall/rewind in Demons and Druids. Explicit reader jumps reset chapter selection.
+- Added an actual-book regression test with accelerated audio callbacks; it
+  fails on v184 and passes with the chapter-owned narration adapter.
+
 ## v184 — 2026-10-03
 
 ### Changed

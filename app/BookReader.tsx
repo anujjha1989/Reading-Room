@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import ReadingSheet, { type SheetTocItem } from "./ReadingSheet";
 import { useReadAloud } from "./useReadAloud";
 import "./readAloudEngine";
+import { registerEpubNarrationAdapter } from "./epubNarration";
 import { mountReaderInteractions } from "./readerChromeBridge.js";
 import "./bookFontScale.js";
 import ReadAloudTransport from "./ReadAloudTransport";
@@ -576,6 +577,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
     if (!isEpub || !viewerRef.current || !readerModeReady) return;
     const controller = new AbortController();
     let disposed = false;
+    let unregisterNarration: (() => void) | undefined;
 
     async function openEpub() {
       try {
@@ -688,6 +690,24 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         cfiCompareRef.current = (a, b) => { try { return new EpubCFI().compare(a, b); } catch { return a.localeCompare(b); } };
         type EpubContents = { sectionIndex: number; document: Document; cfiFromRange: (range: Range) => string };
         const epubContents = () => (rendition.getContents() as unknown as EpubContents[]).filter((item) => item?.document?.body);
+        const narrationTargets = () => epubContents().flatMap(item => {
+          const frame = item.document.defaultView?.frameElement as HTMLIFrameElement | null;
+          return frame ? [{ doc: item.document, frame, index: item.sectionIndex }] : [];
+        });
+        unregisterNarration = registerEpubNarrationAdapter({
+          targets: narrationTargets,
+          advance: async doc => {
+            const current = narrationTargets().find(target => target.doc === doc);
+            if (!current || disposed) return null;
+            const spine = book.spine as unknown as { get: (index: number) => { index: number; href: string; linear?: string } | null };
+            let section = spine.get(current.index + 1);
+            while (section?.linear === "no") section = spine.get(section.index + 1);
+            if (!section) return null;
+            await rendition.display(section.href);
+            if (disposed) return null;
+            return narrationTargets().find(target => target.index === section!.index) ?? null;
+          },
+        });
         const epubTarget = (item: EpubContents): AnnotationTarget => ({
           doc: item.document,
           frame: (item.document.defaultView?.frameElement as HTMLIFrameElement | null) ?? null,
@@ -760,6 +780,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
     return () => {
       disposed = true;
       controller.abort();
+      unregisterNarration?.();
       const rendition = renditionRef.current;
       const book = bookRef.current;
       renditionRef.current = null;
