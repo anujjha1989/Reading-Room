@@ -2,6 +2,22 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v183 — 2026-10-03
+
+### Fixed
+
+- Multi-file books open their native summary using catalogue IDs directly,
+  independent of Google Drive or download link formats.
+- Book-details and series Close buttons have theme-aware contrast, a 44-point
+  touch target, safe-area spacing and remain available while scrolling.
+
+### Deployment
+
+- Source `8ca3496`, previous v182; fresh SSD build installed through the
+  supported no-build staging path. Static release gates and asset MIME checks
+  passed, as did rendered browser checks on the public HTTPS origin and a
+  native iOS simulator summary/dismissal check.
+
 ## v182 — 2026-10-03
 
 ### Fixed
@@ -29,13 +45,6 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
   EPUB.js's normal bounded chapter unloading.
 
 ## Unreleased
-
-### Fixed
-
-- Multi-file books open their native summary using catalogue IDs directly,
-  independent of Google Drive or download link formats.
-- Book-details and series Close buttons have theme-aware contrast, a 44-point
-  touch target, safe-area spacing and remain available while scrolling.
 
 ### Added
 

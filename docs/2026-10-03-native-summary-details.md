@@ -27,3 +27,8 @@ Candidate verification:
 Rollback is the normal complete previous-release snapshot. Manual physical
 iPhone confirmation remains with the user; simulator is representative coverage,
 not a claim that every real-device scenario has been tested.
+
+Released as v183 from 8ca3496. All static deployment gates and live asset checks
+passed. On authenticated public HTTPS :8443, the summary-action and home-brand
+tests passed in both themes without browser exceptions. Native runtime/source
+is unchanged; iOS regression test source is recorded separately at 5d6090f.
