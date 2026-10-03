@@ -90,11 +90,16 @@ NODE
   cp "$SCOPED" "$FILTERED"
   fi
 else
-  status running "Listing Drive…"
-  rclone lsjson --recursive --files-only \
-    --tpslimit 8 --retries 5 --low-level-retries 20 --retries-sleep 20s \
-    reading-room-drive: > "$MANIFEST.new"
-  mv "$MANIFEST.new" "$MANIFEST"
+  HAS_DRIVE=$(node -p "try{require('$SETTINGS').sources.some(s=>s.enabled!==false && s.kind!=='local')?'yes':'no'}catch(e){'yes'}")
+  if [ "$HAS_DRIVE" = yes ]; then
+    status running "Listing Drive…"
+    rclone lsjson --recursive --files-only \
+      --tpslimit 8 --retries 5 --low-level-retries 20 --retries-sleep 20s \
+      reading-room-drive: > "$MANIFEST.new"
+    mv "$MANIFEST.new" "$MANIFEST"
+  else
+    echo '[]' > "$MANIFEST"
+  fi
 fi
 
 if [ "$SCAN_MODE" != "incremental" ]; then
@@ -218,3 +223,9 @@ added=$(node -p "
 sudo -n /usr/local/sbin/reading-room-clear-request
 status ready "$([ "$SCAN_MODE" = incremental ] && echo "Added $((after-before)) new book(s)." || echo "Scan complete.")" "{\"before\":$before,\"after\":$after,\"mode\":\"$SCAN_MODE\"}"
 echo "catalogue: $before -> $after"
+# Extract newly imported local covers without delaying the scan result or
+# relying on a Google Drive lookup/the next periodic cover-cache run.
+if [ -f /opt/reading-room/tools/rr-cover-extract.py ]; then
+  nohup python3 /opt/reading-room/tools/rr-cover-extract.py --local \
+    > "$DIR/local-cover-extract.log" 2>&1 < /dev/null &
+fi

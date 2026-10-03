@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { launchBrowser } from "./cdp-browser.mjs";
 
-test("home BOOKS wordmark stays compact and contrasting in both themes", { timeout: 60000 }, async (t) => {
+test("home Books wordmark stays compact and contrasting in both themes", { timeout: 60000 }, async (t) => {
   const browser = await launchBrowser();
   t.after(() => browser.close());
   const exceptions = [];
@@ -22,7 +22,7 @@ test("home BOOKS wordmark stays compact and contrasting in both themes", { timeo
         color: getComputedStyle(title).color, paper: getComputedStyle(document.body).backgroundColor, width: icon.getBoundingClientRect().width,
         right: title.getBoundingClientRect().right, viewport: innerWidth };
     })()`);
-    assert.equal(result.text, "BOOKS");
+    assert.equal(result.text, "Books");
     assert.ok(result.size >= 24 && result.size <= 28);
     assert.equal(result.width, 40);
     assert.notEqual(result.color, result.paper);

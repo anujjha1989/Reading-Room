@@ -10,7 +10,6 @@ import HomeBooksMark from "./HomeBooksMark";
 import type { Highlight } from "./annotations";
 import "./library-lists.css";
 import { installHaptics } from "./haptics";
-import { driveDownloadUrl } from "./drive";
 import { cardTitle, completeLabel, continueProgress, coverOptions, groupShelf, homeShelves, recentlyOpened, reviewBooks, type ShelfBook } from "./homeShelves";
 
 type RawBook = {
@@ -829,7 +828,7 @@ export default function LibraryClient() {
     </header>
 
     <section className="hero compact-hero">
-      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{chromeView === "home" && <HomeBooksMark />}{chromeView === "home" ? "BOOKS" : chromeView === "favorites" || view === "favorites" ? myShelfTitle : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Library"}</h1></div>
+      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{chromeView === "home" && <HomeBooksMark />}{chromeView === "home" ? "Books" : chromeView === "favorites" || view === "favorites" ? myShelfTitle : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Library"}</h1></div>
       <label className="search"><span>⌕</span><input value={query} onChange={(event) => { setQuery(event.target.value); setVisible(20); }} placeholder="Search title, author, series or collection…" /><kbd>{shortcutKey}</kbd></label>
       {view === "favorites" && <div className="category-chips rr-my-shelves" role="tablist" aria-label="My Books">
         {([["favorites", "Favorites", favorites.length], ["want", "Want to Read", wantToRead.length], ["finished", "Finished", finishedBooks.length]] as const)
@@ -900,7 +899,7 @@ export default function LibraryClient() {
 
     {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)} role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="book-title" onMouseDown={(event) => event.stopPropagation()}><button autoFocus className="close" onClick={() => setSelected(null)} aria-label="Close">×</button><p className="eyebrow">{selected.category || "BOOK"} · {selected.collections.join(" · ") || selected.source}</p><h2 id="book-title">{selected.title}</h2><p className="modal-author">{selected.author || "Author not listed"}{selected.series ? ` · ${selected.series}` : ""}</p><div className="availability"><p>Available files</p>{selected.copies.map((copy) => <div className="file-row" key={copy.id}><span><b>{copy.format}</b><small>{copy.path || copy.source}</small></span><div>{canReadHere(copy.format, copy.id) && <button onClick={() => openCopy(selected, copy)}>Read here</button>}{isReference(copy.id)
             ? <a href={`/api/book/${encodeURIComponent(copy.id)}?format=${encodeURIComponent(copy.format)}&download=1`} download>Download ↓</a>
-            : <a href={["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? driveDownloadUrl(copy.id) : copy.url} target="_blank" rel="noreferrer">{["MOBI", "AZW", "AZW3", "KF8"].includes(copy.format) ? "Download" : "Drive"} ↗</a>}</div></div>)}</div><p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p></section></div>}
+            : <a href={`/api/book/${encodeURIComponent(copy.id)}?format=${encodeURIComponent(copy.format)}&download=1`} download>Download ↓</a>}</div></div>)}</div><p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p></section></div>}
 
     {reader && <BookReader title={reader.title} file={reader.file} author={currentReaderBook?.author || undefined} coverUrl={currentReaderBook ? coverUrl(currentReaderBook) : undefined} highlights={savedStates[reader.bookId]?.highlights || []} onHighlightsChange={handleHighlightsChange} initialPosition={reader.initialPosition} bookmarks={savedStates[reader.bookId]?.bookmarks || []} onBookmarksChange={handleBookmarksChange} onLocationChange={handleReaderLocation} seriesNavigation={{ previous: readerSeriesIndex > 0 ? readerSeries[readerSeriesIndex - 1]?.title : undefined, next: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? readerSeries[readerSeriesIndex + 1]?.title : undefined, onPrevious: readerSeriesIndex > 0 ? () => openBook(readerSeries[readerSeriesIndex - 1]) : undefined, onNext: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? () => openBook(readerSeries[readerSeriesIndex + 1]) : undefined }} onClose={() => setReader(null)} />}
     <LibraryChrome view={chromeView} displayMode={displayMode} sort={sort} filtersOpen={filtersOpen} hidden={Boolean(reader || selected || seriesFocus || editionsFor)} onViewChange={chooseChromeView} onDisplayModeChange={chooseDisplayMode} onSortChange={chooseSort} onFiltersOpenChange={setFiltersOpen} />

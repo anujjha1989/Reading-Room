@@ -7,6 +7,9 @@ test("reader glass controls have centered vector icons", { timeout: 60000 }, asy
   t.after(() => browser.close());
   await browser.goto(process.env.READING_ROOM_BASE_URL || "http://anujrpi.local:4311");
   await browser.waitFor(`document.querySelectorAll('.book').length > 0`, { attempts: 120 });
+  await browser.evaluate(`document.querySelector('.rr-library-dock button[data-view="Library"]').click()`);
+  await browser.evaluate(`(() => { const input = document.querySelector('.search input'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(input, 'William Trevor'); input.dispatchEvent(new Event('input', {bubbles:true})); })()`);
+  await browser.waitFor(`[...document.querySelectorAll('.book .cover')].some(b => /William Trevor/i.test(b.getAttribute('aria-label') || ''))`);
   await browser.evaluate(`(async () => {
     const target = [...document.querySelectorAll('.shelf-book, .book .cover')]
       .find((button) => /William Trevor/i.test(button.getAttribute('title') || button.getAttribute('aria-label') || button.textContent));

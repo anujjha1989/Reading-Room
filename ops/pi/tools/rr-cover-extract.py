@@ -25,7 +25,8 @@ Open Library.
 Resumable: an existing output file, or a recorded permanent failure, is
 skipped.  Safe to re-run, safe to kill at any point.
 """
-import io, json, os, re, struct, sys, threading, time, zipfile, zlib
+import io, json, os, posixpath, re, struct, sys, threading, time, zipfile, zlib
+import xml.etree.ElementTree as ET
 import urllib.request, urllib.error
 from concurrent.futures import ThreadPoolExecutor
 
@@ -35,6 +36,8 @@ CATALOG   = "/opt/reading-room/current/site/catalog.json"
 OUT_DIR   = "/mnt/seagate/ReadingRoom/covers"
 STATE     = "/mnt/seagate/ReadingRoom/covers/.extract-state.json"
 LOG       = "/mnt/seagate/ReadingRoom/covers/.extract.log"
+LOCAL_FILES = "/mnt/seagate/ReadingRoom/local-files.json"
+local_files = {}
 UA        = "Mozilla/5.0 (compatible; ReadingRoomCoverBot/1)"
 WORKERS   = 6
 TARGET_W  = 400
@@ -166,7 +169,27 @@ def pick_zip_name(names_sizes, is_comic):
 
 def zip_cover_local(data, is_comic):
     zf = zipfile.ZipFile(io.BytesIO(data))
-    pick = pick_zip_name([(i.filename, i.file_size) for i in zf.infolist()], is_comic)
+    return zip_cover_archive(zf, is_comic)
+
+
+def zip_cover_archive(zf, is_comic):
+    # A merged collection includes many original cover images. Its package's
+    # declared cover, not the largest constituent book image, is authoritative.
+    pick = None
+    if not is_comic:
+        try:
+            container = ET.fromstring(zf.read("META-INF/container.xml"))
+            root = container.find(".//{*}rootfile").get("full-path")
+            package = ET.fromstring(zf.read(root))
+            cover_meta = package.find(".//{*}meta[@name='cover']")
+            cover_id = cover_meta.get("content") if cover_meta is not None else None
+            for item in package.findall(".//{*}manifest/{*}item"):
+                if "cover-image" in item.get("properties", "").split() or item.get("id") == cover_id:
+                    candidate = posixpath.normpath(posixpath.join(posixpath.dirname(root), item.get("href", "")))
+                    if candidate in zf.namelist(): pick = candidate; break
+        except (KeyError, ET.ParseError, AttributeError):
+            pass
+    pick = pick or pick_zip_name([(i.filename, i.file_size) for i in zf.infolist()], is_comic)
     if not pick:
         raise RuntimeError("no image entries")
     return zf.read(pick)
@@ -280,11 +303,20 @@ def handle(book):
     fid = book["id"]
     fmt = (book.get("format") or "").upper()
     dest = os.path.join(OUT_DIR, fid + ".jpg")
-    if os.path.exists(dest) or state.get(fid) == "fail":
+    local_path = local_files.get(fid)
+    if os.path.exists(dest) or (state.get(fid) == "fail" and not local_path):
         counts["skip"] += 1
         return
     try:
-        if fmt in ZIP_FORMATS:
+        if fid.startswith("L") and not local_path:
+            raise Transient("local file mapping not available yet")
+        if local_path and fmt in ZIP_FORMATS:
+            with zipfile.ZipFile(local_path) as archive:
+                data = zip_cover_archive(archive, fmt == "CBZ")
+        elif local_path and fmt in MOBI_FORMATS:
+            with open(local_path, "rb") as source:
+                data = mobi_cover_local(source.read())
+        elif fmt in ZIP_FORMATS:
             is_comic = fmt == "CBZ"
             whole = None
             if not is_comic:                     # ebooks: usually ~1MB, one request
@@ -300,6 +332,8 @@ def handle(book):
             counts["skip"] += 1
             return
         save(fid, data)
+        with state_lock:
+            state.pop(fid, None)
         counts["ok"] += 1
         if counts["ok"] % 25 == 0:
             rate = counts["ok"] / max(1e-9, (time.time() - t0) / 3600)
@@ -324,15 +358,21 @@ def handle(book):
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
-    global state
+    global state, local_files
+    if os.path.exists(LOCAL_FILES):
+        local_files = json.load(open(LOCAL_FILES))
     if os.path.exists(STATE):
         try: state = json.load(open(STATE))
         except Exception: state = {}
 
     books = json.load(open(CATALOG))
     only = set(a.upper() for a in sys.argv[1:] if a.isalpha())
+    selected_ids = {a for a in sys.argv[1:] if a.startswith("--id=")}
+    selected_ids = {a.split("=", 1)[1] for a in selected_ids}
     todo = [b for b in books
-            if (b.get("format") or "").upper() in (only or (ZIP_FORMATS | MOBI_FORMATS))]
+            if (b.get("format") or "").upper() in (only or (ZIP_FORMATS | MOBI_FORMATS))
+            and (not selected_ids or b["id"] in selected_ids)
+            and ("--local" not in sys.argv or b["id"] in local_files)]
     # Cheapest and most numerous first, so the visible win lands early.
     order = {"EPUB": 0, "MOBI": 1, "CBZ": 2, "AZW3": 3, "AZW": 4}
     todo.sort(key=lambda b: order.get((b.get("format") or "").upper(), 9))

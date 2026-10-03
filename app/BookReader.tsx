@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { createPortal } from "react-dom";
-import { driveDownloadUrl } from "./drive";
 import ReadingSheet, { type SheetTocItem } from "./ReadingSheet";
 import { useReadAloud } from "./useReadAloud";
 import "./readAloudEngine";
@@ -17,6 +16,8 @@ import { colorFill, type Highlight } from "./annotations";
 import { recordReading, timeLeft, type TimeLeft } from "./readingPace";
 import { restartReadAloudFromView } from "./readAloudController";
 import ComicReader, { type ComicReaderHandle } from "./ComicReader";
+import { resolveEpubSavedPosition } from "./epubSavedPosition";
+import { loadReaderToc } from "./readerToc";
 
 export type ReaderFile = {
   id: string;
@@ -56,22 +57,6 @@ type EpubSearchSection = {
   find: (query: string) => Array<{ cfi: string; excerpt: string }>;
   unload: () => void;
 };
-type ContinuousManager = {
-  trim: () => Promise<unknown>;
-};
-
-function stabilizeContinuousScroll(rendition: Rendition) {
-  const manager = (rendition as Rendition & { manager?: ContinuousManager }).manager;
-  if (!manager) return;
-
-  // Keep EPUB.js's own update routine: it unloads distant iframe contents while
-  // preserving their measured placeholder, which is essential for very large
-  // merged volumes. The previous override retained every live chapter iframe;
-  // William Trevor's ten-book EPUB eventually accumulated enough layout work
-  // to make scrolling visibly stutter. Only suppress `trim`, which removes the
-  // placeholders themselves and can change scrollTop at a chapter boundary.
-  manager.trim = () => Promise.resolve();
-}
 type FoliateView = HTMLElement & {
   book?: { toc?: TocItem[]; sections?: FoliateSection[]; metadata?: { title?: string } };
   renderer?: { setAttribute: (name: string, value: string) => void; setStyles: (styles: string) => void };
@@ -329,6 +314,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
   const marginRef = useRef(4);
   const [status, setStatus] = useState(isBookReader ? "Loading the book…" : "");
   const [toc, setToc] = useState<TocEntry[]>([]);
+  const [tocTree, setTocTree] = useState<TocItem[]>([]);
   // Where the reader is, as the book's own href, so Contents can mark it.
   const [locationHref, setLocationHref] = useState("");
   const [fontSize, setFontSize] = useState(100);
@@ -597,7 +583,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         const response = await fetch(readerUrl(file.id, file.format), { signal: controller.signal });
         if (!response.ok) throw new Error("The book could not be downloaded");
         const data = await response.arrayBuffer();
-        const { default: ePub } = await import("epubjs");
+        const { default: ePub, EpubCFI: EpubPosition } = await import("epubjs");
         if (disposed || !viewerRef.current) return;
 
         const book = ePub(data);
@@ -625,7 +611,6 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         };
         const rendition = book.renderTo(viewerRef.current, renditionOptions);
         renditionRef.current = rendition;
-        if (mode === "scroll") stabilizeContinuousScroll(rendition);
         rendition.spread(mode === "scroll" || mobile ? "none" : "auto", 980);
         rendition.themes.default(epubStyles(themeRef.current, lineHeightRef.current, marginRef.current, mode !== "scroll", typographyRef.current));
         // The saved size, not a hardcoded 100%: this runs after the size has
@@ -634,8 +619,16 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         rendition.themes.fontSize(`${fontSizeRef.current}%`);
 
         const saved = localStorage.getItem(`reading-room-position-${file.id}`) || initialPosition || undefined;
+        // EPUB.js leaves display() pending after some invalid-CFI errors. Check
+        // the actual HTML first, preserving the chapter if its offset is stale.
+        const target = await resolveEpubSavedPosition(book, saved, (cfi, doc) => new EpubPosition(cfi).toRange(doc));
+        if (disposed) return;
+        if (target !== saved) {
+          if (target) localStorage.setItem(`reading-room-position-${file.id}`, target);
+          else localStorage.removeItem(`reading-room-position-${file.id}`);
+        }
         try {
-          await rendition.display(saved);
+          await rendition.display(target);
         } catch {
           if (disposed) return;
           localStorage.removeItem(`reading-room-position-${file.id}`);
@@ -754,11 +747,12 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         // Do not throw merely because they have no table of contents: the book
         // body is already open and can be read normally.
         const navigation = await book.loaded?.navigation;
-        if (!disposed) setToc(navigation ? flattenToc(navigation.toc) : []);
+        const entries = navigation ? await loadReaderToc(book, navigation.toc, title) : [];
+        if (!disposed) { setTocTree(entries); setToc(flattenToc(entries)); }
         setStatus("");
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        setStatus("This EPUB could not be opened here. You can still download it from Drive.");
+        setStatus("This EPUB could not be opened here. You can still download the file from Home Books.");
       }
     }
 
@@ -786,7 +780,13 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
   useEffect(() => {
     if (!isEpub || !readerModeReady) return;
     const media = window.matchMedia("(max-width: 700px)");
-    const updateSpread = () => renditionRef.current?.spread(readingModeRef.current === "scroll" || isMobileViewport() ? "none" : "auto", 980);
+    const updateSpread = () => {
+      // Height-only changes (Safari chrome, keyboard) do not change spreads.
+      // Reapplying the same layout resizes every loaded continuous chapter.
+      const rendition = renditionRef.current;
+      const spread = readingModeRef.current === "scroll" || isMobileViewport() ? "none" : "auto";
+      if (rendition && rendition.settings.spread !== spread) rendition.spread(spread, 980);
+    };
     updateSpread();
     media.addEventListener("change", updateSpread);
     window.addEventListener("resize", updateSpread);
@@ -923,7 +923,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
 
         const saved = localStorage.getItem(`reading-room-position-${file.id}`) || initialPosition || undefined;
         await view.init({ lastLocation: saved, showTextStart: true });
-        if (!disposed) setToc(flattenToc(view.book?.toc || []));
+        if (!disposed) { setTocTree(view.book?.toc || []); setToc(flattenToc(view.book?.toc || [])); }
         setStatus("");
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -1253,11 +1253,12 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
     tocSpine.forEach((at, index) => { if (at >= 0 && at <= here && at > bestAt) { best = index; bestAt = at; } });
     return best;
   }, [locationHref, toc, tocSpine, isEpub]);
-  const sheetToc: SheetTocItem[] = toc.map((item, index) => ({
-    label: `${"— ".repeat(item.depth)}${item.label}`,
-    value: item.href,
-    current: index === currentTocIndex,
-  }));
+  const toSheetToc = (items: TocItem[]): SheetTocItem[] => items.map(item => {
+    const children = toSheetToc(item.subitems || []);
+    return { label: item.label, value: item.href, children,
+      current: item.href === toc[currentTocIndex]?.href || children.some(child => child.current) };
+  });
+  const sheetToc = toSheetToc(tocTree);
   const chapterName = currentTocIndex >= 0 ? (toc[currentTocIndex]?.label ?? "").trim() : "";
   chapterLabelRef.current = chapterName;
   currentTocIndexRef.current = currentTocIndex;
@@ -1351,7 +1352,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
           {(isReflowable || isPdf) && <button className={panel === "search" ? "active" : ""} onClick={() => setPanel((current) => current === "search" ? null : "search")} aria-label="Search inside book">⌕ <span className="reader-action-label">Search</span></button>}
           {isBookReader && <button className={panel === "bookmarks" ? "active" : ""} onClick={() => setPanel((current) => current === "bookmarks" ? null : "bookmarks")} aria-label={`Bookmarks${bookmarks.length ? `, ${bookmarks.length} saved` : ""}`}>▮ <span className="reader-action-label">Bookmarks{bookmarks.length ? ` ${bookmarks.length}` : ""}</span></button>}
           <button onClick={toggleFullscreen} aria-label="Toggle full screen">⛶</button>
-          <a href={file.url} target="_blank" rel="noreferrer">Open in Drive ↗</a>
+          <a href={`${readerUrl(file.id, file.format)}&download=1`} download>Download file ↓</a>
           <button className="reader-close" onClick={onClose} aria-label="Close reader">×</button>
         </div>
       </header>
@@ -1380,7 +1381,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
       </aside>, readingSheetHost) : null}
 
       {isBookReader ? <>
-        <div className="epub-stage" onTouchStart={(event) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={endSwipe}>{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{isComic && readingMode && <ComicReader ref={comicReaderRef} fileId={file.id} format={file.format} mode={readingMode} direction={mangaMode ? "rtl" : "ltr"} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={driveDownloadUrl(file.id)}>Download {format}</a>}</div>}</div>
+        <div className="epub-stage" onTouchStart={(event) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={endSwipe}>{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{isComic && readingMode && <ComicReader ref={comicReaderRef} fileId={file.id} format={file.format} mode={readingMode} direction={mangaMode ? "rtl" : "ltr"} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={`${readerUrl(file.id, file.format)}&download=1`} download>Download {format}</a>}</div>}</div>
         <footer className="reader-footer"><button onClick={previous}>{readingMode === "scroll" ? "↑ Up" : "← Previous"}</button><span>{footerLabel || (readingMode === "scroll" ? "Continuous scroll" : "Use the arrow keys to turn pages")}</span><button onClick={next}>{readingMode === "scroll" ? "Down ↓" : "Next →"}</button></footer>
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
 

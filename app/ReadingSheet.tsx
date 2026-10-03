@@ -37,7 +37,7 @@ export type SheetMode = "pages" | "scroll";
 export type PageTurn = "none" | "slide";
 
 /** A chapter in the book's table of contents. */
-export type SheetTocItem = { label: string; value: string; current?: boolean };
+export type SheetTocItem = { label: string; value: string; current?: boolean; children?: SheetTocItem[] };
 
 /**
  * Read Aloud's public surface. BookReader adapts the engine so this component
@@ -166,12 +166,12 @@ const Icon = ({ name }: { name: string }) => {
   );
 };
 
-function SheetHeader({ title, onBack }: { title: string; onBack: () => void }) {
+function SheetHeader({ title, onBack, backLabel = "Back to reading menu" }: { title: string; onBack: () => void; backLabel?: string }) {
   return (
     <header className={styles.header}>
       <strong>{title}</strong>
       <button type="button" className={styles.headerButton}
-        onClick={onBack} aria-label="Back to reading menu">
+        onClick={onBack} aria-label={backLabel}>
         <Icon name="back" />
       </button>
     </header>
@@ -209,6 +209,7 @@ function SheetToggle({ label, on, onChange }: {
 export default function ReadingSheet(props: ReadingSheetProps) {
   const { open, onClose, theme, onThemeChange } = props;
   const [view, setView] = useState<View>("menu");
+  const [tocPath, setTocPath] = useState<SheetTocItem[]>([]);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [present, setPresent] = useState(open);
   const panelRef = useRef<HTMLElement | null>(null);
@@ -220,7 +221,7 @@ export default function ReadingSheet(props: ReadingSheetProps) {
     if (view !== "contents" || !list || !entry) return;
     const offset = entry.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
     list.scrollTop = Math.max(0, offset - list.clientHeight / 3);
-  }, [view]);
+  }, [view, tocPath]);
 
   // Keep the sheet mounted while it follows the same spring path back to the
   // hamburger. Unmounting immediately made every close abrupt even when the
@@ -240,6 +241,7 @@ export default function ReadingSheet(props: ReadingSheetProps) {
   // root without an effect that synchronously sets state after render.
   const close = useCallback(() => {
     setView("menu");
+    setTocPath([]);
     setDirection("forward");
     onClose();
   }, [onClose]);
@@ -252,16 +254,18 @@ export default function ReadingSheet(props: ReadingSheetProps) {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
-      if (view === "menu") close(); else go("menu");
+      if (view === "contents" && tocPath.length) { setDirection("back"); setTocPath(path => path.slice(0, -1)); }
+      else if (view === "menu") close(); else go("menu");
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [open, view, close, go]);
+  }, [open, view, tocPath, close, go]);
 
   if (!present) return null;
 
   const reflowable = props.mode !== undefined;
   const aloud = props.readAloud;
+  const tocParent = tocPath.at(-1);
 
   return (
     <section
@@ -305,21 +309,27 @@ export default function ReadingSheet(props: ReadingSheetProps) {
       )}
 
       {view === "contents" && (
-        <>
-          <SheetHeader title="Contents" onBack={() => go("menu")} />
+        <div key={tocParent?.value || "contents-root"} className={styles.contentsPanel}>
+          <SheetHeader title={tocParent?.label || "Contents"}
+            backLabel={tocParent ? "Back to books" : "Back to reading menu"}
+            onBack={() => { if (tocParent) { setDirection("back"); setTocPath(path => path.slice(0, -1)); } else go("menu"); }} />
           <div className={styles.scroller} ref={contentsScroller}>
-            {props.toc?.map((item) => (
+            {tocParent && <SheetRow label="Begin reading" icon="play"
+              onClick={() => { props.onTocSelect?.(tocParent.value); close(); }} />}
+            {(tocParent?.children || props.toc)?.map((item) => (
               <button key={item.value} type="button"
                 className={[styles.row, styles.tocRow, item.current && styles.current]
                   .filter(Boolean).join(" ")}
                 aria-current={item.current ? "location" : undefined}
                 ref={item.current ? currentEntry : undefined}
-                onClick={() => { props.onTocSelect?.(item.value); close(); }}>
+                onClick={() => { if (item.children?.length) { setDirection("forward"); setTocPath(path => [...path, item]); }
+                  else { props.onTocSelect?.(item.value); close(); } }}>
                 <span className={styles.rowLabel}>{item.label}</span>
+                {!!item.children?.length && <Icon name="chevron" />}
               </button>
             ))}
           </div>
-        </>
+        </div>
       )}
 
       {view === "text" && (

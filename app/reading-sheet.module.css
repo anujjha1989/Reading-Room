@@ -401,6 +401,9 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
+
+.contentsPanel { display: flex; flex-direction: column; min-height: 0; gap: var(--gap); }
+.contentsPanel .header { flex-shrink: 0; }
 .tocRow { min-height: 40px; font-size: 14px; }
 .tocRow .rowLabel {
   white-space: normal;

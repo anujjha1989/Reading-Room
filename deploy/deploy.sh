@@ -121,6 +121,7 @@ for name in "${PUBLIC_FILES[@]}"; do
 done
 cp server/standalone-server.mjs server/rr-settings.mjs server/rr-tts.mjs "$BUILD_DIR/dist/stage/"
 cp ops/pi/lib/rr-catalog-rebuild.sh "$BUILD_DIR/dist/stage/"
+cp ops/pi/tools/rr-cover-extract.py "$BUILD_DIR/dist/stage/"
 
 echo "==> uploading"
 "${SSH[@]}" "$PI" "rm -rf ~/rr-deploy/stage && mkdir -p ~/rr-deploy/stage"
@@ -146,7 +147,7 @@ mkdir -p "$ROLLBACK"
   \$([ -f /opt/reading-room/current/site/settings.html ] && echo settings.html) \
   \$(for name in favicon.svg home-books-icon.svg icon-192.png icon-512.png apple-touch-icon.png manifest.webmanifest; do \
       [ -f /opt/reading-room/current/site/\$name ] && echo \$name; \
-    done) -C /usr/local/lib/reading-room rr-catalog-rebuild.sh" \
+    done) -C /usr/local/lib/reading-room rr-catalog-rebuild.sh -C /opt/reading-room/tools rr-cover-extract.py" \
   > "$ROLLBACK/site-html.tar.gz"
 # cat, not cp: cp on this SMB mount leaves an ._ AppleDouble sidecar behind.
 cat deploy/reading-room-deploy > "$ROLLBACK/reading-room-deploy"

@@ -140,7 +140,7 @@ const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId
         onStatus("");
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        onStatus("This PDF could not be opened here. You can still open it in Drive.");
+        onStatus("This PDF could not be opened here. You can still download the file from Home Books.");
       }
     }
 

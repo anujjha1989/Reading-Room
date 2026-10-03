@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -138,6 +138,10 @@ export async function launchBrowser({ port = 9000 + Math.floor(Math.random() * 1
     waitFor,
     screenshot,
     async goto(url) {
+      if (process.env.READING_ROOM_COOKIE_FILE) {
+        const cookie = JSON.parse(await readFile(process.env.READING_ROOM_COOKIE_FILE, "utf8"));
+        await send("Network.setCookie", { ...cookie, url });
+      }
       await send("Page.navigate", { url });
       await waitFor(`document.readyState === 'complete'`, { attempts: 120 });
     },

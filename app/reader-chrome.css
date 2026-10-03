@@ -729,10 +729,13 @@ html .catalog .thumbnail-view .book-caption > small {
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 
-/* Clean cover artwork: no text overlay, no padding in thumbnail view.
- * No-cover books show a plain colored rectangle; all text lives in .book-caption below. */
-html .catalog .thumbnail-view .cover { padding:0; }
-html .catalog .thumbnail-view .cover-copy { display:none; }
+/* Real artwork stays clean. Missing artwork keeps its source-owned title
+ * treatment rather than showing an anonymous coloured rectangle. */
+html .catalog .thumbnail-view .cover.has-cover { padding:0; }
+html .catalog .thumbnail-view .has-cover .cover-copy { display:none; }
+html .catalog .thumbnail-view .cover:not(.has-cover) .cover-copy {
+  margin:auto 0; color:var(--ink); text-shadow:none; text-align:center;
+}
 /* Clean gradient — only for has-cover, and only in list-view (where cover is tiny) */
 html .catalog .thumbnail-view .has-cover::after { opacity:0; }
 /* Progress badge: move from top-right pill to a slim bottom-edge strip. */

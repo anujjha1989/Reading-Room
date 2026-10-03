@@ -244,7 +244,7 @@ t(Boolean(warmDelay) && Number(warmDelay) <= 100,
 
 // 22. Search and Bookmarks are subviews: their affordance goes back to the
 //     reading menu instead of dismissing an apparently stuck modal.
-t(/aria-label="Back to reading menu"/.test(tsx)
+t(/backLabel = "Back to reading menu"/.test(tsx) && /aria-label=\{backLabel\}/.test(tsx)
   && /aria-label="Back to reading menu"/.test(reader)
   && /backToReadingMenu/.test(reader),
   "Search and Bookmarks expose the shared Back path");
