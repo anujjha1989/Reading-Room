@@ -46,6 +46,11 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+### Changed
+
+- Horizontal Home shelves use an Apple Books-style grey-to-black band in dark
+  mode and a gentle grey-to-white band in light mode, including Continue.
+
 ### Added
 
 - Haptic feedback: a light tap on every button in the library, the reader, its

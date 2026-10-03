@@ -263,11 +263,9 @@ html .hero .category-chips button { flex-shrink:0; border:0; background:var(--pa
 html main > .discovery { order:2; max-width:1248px; padding:0 24px 32px; border:0; }
 html .discovery .smart-shelf {
   margin:0 -24px; padding:24px 24px 20px; border-bottom:1px solid var(--line);
-  background:var(--paper);
+  background:linear-gradient(180deg,var(--shelf-top) 0%,var(--shelf-bottom) 100%);
   overflow:hidden;
 }
-html .discovery .smart-shelf:nth-child(3n+2) { background:var(--paper); }
-html .discovery .smart-shelf:nth-child(3n) { background:var(--paper); }
 html .shelf-heading { align-items:center; margin-bottom:16px; gap:0; }
 html .shelf-heading span { display:none; }
 html .shelf-heading > div { display:flex; align-items:center; min-width:0; gap:1px; }
@@ -399,9 +397,6 @@ html:not([data-rr-theme="light"]) main > :is(.topbar, html:not([data-rr-theme="l
 html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book { background:transparent; color:var(--ink); }
 html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book:nth-child(3n+2) { background:transparent; }
 html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book:nth-child(3n) { background:transparent; }
-html:not([data-rr-theme="light"]) .discovery .smart-shelf { background:linear-gradient(180deg,#000 0%,#000 22%,#101823 100%); }
-html:not([data-rr-theme="light"]) .discovery .smart-shelf:nth-child(3n+2) { background:linear-gradient(180deg,#000 0%,#000 22%,#1b1211 100%); }
-html:not([data-rr-theme="light"]) .discovery .smart-shelf:nth-child(3n) { background:linear-gradient(180deg,#000 0%,#000 22%,#101914 100%); }
 html:not([data-rr-theme="light"]) .rr-library-dock { background:rgba(48,48,50,.94); border-color:#ffffff30; }
 html:not([data-rr-theme="light"]) .rr-library-dock button[aria-current="page"] { background:#5b5b60; color:#fff; }
 }
@@ -504,9 +499,6 @@ html[data-rr-theme="dark"] main > :is(.topbar, html[data-rr-theme="dark"] .hero,
 html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book { background:transparent; color:var(--ink); }
 html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book:nth-child(3n+2) { background:transparent; }
 html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book:nth-child(3n) { background:transparent; }
-html[data-rr-theme="dark"] .discovery .smart-shelf { background:linear-gradient(180deg,#000 0%,#000 22%,#101823 100%); }
-html[data-rr-theme="dark"] .discovery .smart-shelf:nth-child(3n+2) { background:linear-gradient(180deg,#000 0%,#000 22%,#1b1211 100%); }
-html[data-rr-theme="dark"] .discovery .smart-shelf:nth-child(3n) { background:linear-gradient(180deg,#000 0%,#000 22%,#101914 100%); }
 html[data-rr-theme="dark"] .rr-library-dock { background:rgba(48,48,50,.94); border-color:#ffffff30; }
 html[data-rr-theme="dark"] .rr-library-dock button[aria-current="page"] { background:#5b5b60; color:#fff; }
 html[data-rr-theme="dark"] .rr-library-dock { background:none; border:0; }
@@ -514,31 +506,12 @@ html[data-rr-theme="dark"] .rr-library-dock::before { background:rgba(48,48,50,.
 html[data-rr-theme="dark"] .rr-library-dock button[data-view="Search"] { background:#184c41; color:#c4ffea; }
 html[data-rr-theme="dark"] .rr-library-dock button[data-view="Search"][aria-current="page"] { background:#286957; color:#fff; }
 
+/* One neutral band for every horizontal shelf, including Continue. */
+html .discovery { --shelf-top:#ededf0; --shelf-bottom:#fff; }
 @media (prefers-color-scheme:dark) {
-
-/* ---- Apple Books shelf bands (dark) ---------------------------------- *
- * Sampled from the app: #1e1e1e at the top of each band, pure black at the
- * bottom, and no per-shelf tinting. Applies to both the system-dark and the
- * explicitly-chosen dark theme.
- * ---------------------------------------------------------------------- */
-html:not([data-rr-theme="light"]) .discovery .smart-shelf,
-html:not([data-rr-theme="light"]) .discovery .smart-shelf:nth-child(3n+2),
-html:not([data-rr-theme="light"]) .discovery .smart-shelf:nth-child(3n) {
-  background: linear-gradient(180deg, #1e1e1e 0%, #000 100%);
+  html:not([data-rr-theme="light"]) .discovery { --shelf-top:#1e1e1e; --shelf-bottom:#000; }
 }
-
-}
-
-/* ---- Apple Books shelf bands (dark) ---------------------------------- *
- * Sampled from the app: #1e1e1e at the top of each band, pure black at the
- * bottom, and no per-shelf tinting. Applies to both the system-dark and the
- * explicitly-chosen dark theme.
- * ---------------------------------------------------------------------- */
-html[data-rr-theme="dark"] .discovery .smart-shelf,
-html[data-rr-theme="dark"] .discovery .smart-shelf:nth-child(3n+2),
-html[data-rr-theme="dark"] .discovery .smart-shelf:nth-child(3n) {
-  background: linear-gradient(180deg, #1e1e1e 0%, #000 100%);
-}
+html[data-rr-theme="dark"] .discovery { --shelf-top:#1e1e1e; --shelf-bottom:#000; }
 
 /* ---- Settings entry point -------------------------------------------- */
 html #rr-settings-link {
@@ -1157,11 +1130,8 @@ html.rr-library-visible #rr-settings-link {
 /* Match the h1's optical centre: the title box is 42px tall, the gear 42px. */
 html.rr-library-visible #rr-settings-link svg { width: 23px; height: 23px; }
 
-/* --- flat shelves, no per-shelf gradient -------------------------------- */
-html[data-rr-library-view="home"] .discovery .smart-shelf,
-html[data-rr-library-view="home"] .discovery .smart-shelf:nth-child(3n+2),
-html[data-rr-library-view="home"] .discovery .smart-shelf:nth-child(3n) {
-  background: transparent !important;
+/* --- full-width shelf bands -------------------------------------------- */
+html[data-rr-library-view="home"] .discovery .smart-shelf {
   border-bottom: 0;
   margin: 0 -20px;
   padding: 4px 20px 30px;
@@ -1217,19 +1187,6 @@ html[data-rr-library-view="home"] .shelf-book > small {
 /* Continue cards carry a progress line, so they run a little taller. */
 html[data-rr-library-view="home"] .rr-continue-shelf .shelf-strip {
   grid-auto-columns: 132px;
-}
-
-/* --- a subtle section wash, not three cycling tints ---------------------- */
-html[data-rr-library-view="home"] .discovery .smart-shelf,
-html[data-rr-library-view="home"] .discovery .smart-shelf:nth-child(3n+2),
-html[data-rr-library-view="home"] .discovery .smart-shelf:nth-child(3n) {
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--ink) 4%, var(--paper)) 0%,
-    var(--paper) 78%) !important;
-}
-/* Continue sits directly under the header and reads better untinted. */
-html[data-rr-library-view="home"] .discovery .rr-continue-shelf {
-  background: var(--paper) !important;
 }
 
 /* --- Continue as horizontal tiles ---------------------------------------- */
