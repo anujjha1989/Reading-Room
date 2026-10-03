@@ -12,6 +12,17 @@ function handler(name: string): Handler | undefined {
   return (window as WebKitWindow).webkit?.messageHandlers?.[name];
 }
 
+export const hasNativeSummary = () => Boolean(handler("rrSummary"));
+
+/** Pass stable catalogue identifiers, never infer them from download URLs. */
+export function readSummary(book: { title: string; author?: string; category?: string; copies: { id: string; format: string }[] }) {
+  const native = handler("rrSummary");
+  if (!native || !book.copies.length) return false;
+  native.postMessage({ title: book.title, author: book.author || "", category: book.category || "",
+    copies: book.copies.map(({ id, format }) => ({ id, format })) });
+  return true;
+}
+
 /** The iPhone app's native look-up (dictionary, Translate, "who is this?"). */
 export const hasNativeLookUp = () => Boolean(handler("rrLookUp"));
 

@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export async function summaryPreview({ port = 0, host = "127.0.0.1" } = {}) {
+export async function summaryPreview({ port = 0, host = "127.0.0.1", catalogRows } = {}) {
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const snapshot = { active: { id: "A", title: "First test book", author: "Home Books", writer: "This iPhone", status: "Writing…" }, waiting: [
     { id: "B", title: "Second test book", author: "Home Books", writer: "This iPhone", status: "Queued · 1" },
@@ -25,7 +25,7 @@ export async function summaryPreview({ port = 0, host = "127.0.0.1" } = {}) {
         }
         json = snapshot;
       } else if (path === "/api/settings/state") json = { sources: [], dropFolder: "", status: { state: "idle" }, gaps: { total: 0, withCover: 0, noCover: 0, noAuthor: 0, poorTitle: 0 }, catalogueModified: null };
-      else if (path === "/catalog.json") json = [
+      else if (path === "/catalog.json") json = catalogRows || [
         { id: "test-novel-one", title: "A Long Test Novel Title That Wraps Across Lines", author: "Test Author", category: "Fiction", format: "EPUB", source: "Local", url: "/api/book/test-novel-one", modified: "2026-10-01" },
         { id: "test-novel-two", title: "Second Test Novel", author: "Other Author", category: "Fiction", format: "EPUB", source: "Local", url: "/api/book/test-novel-two", modified: "2026-10-02" },
       ];

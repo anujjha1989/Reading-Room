@@ -30,6 +30,13 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+### Fixed
+
+- Multi-file books open their native summary using catalogue IDs directly,
+  independent of Google Drive or download link formats.
+- Book-details and series Close buttons have theme-aware contrast, a 44-point
+  touch target, safe-area spacing and remain available while scrolling.
+
 ### Added
 
 - Haptic feedback: a light tap on every button in the library, the reader, its

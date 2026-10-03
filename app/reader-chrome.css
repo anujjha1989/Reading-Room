@@ -390,7 +390,7 @@ html.rr-library-visible body { padding-bottom:0; }
   html .catalog .list-view .book-tools { min-width:0; }
   html .catalog .list-view .book { gap:12px; }
   html .catalog .expanded-filters.open { grid-template-columns:1fr; }
-  html .modal-backdrop .modal { padding:28px; }
+  html .modal-backdrop .modal { padding:calc(28px + env(safe-area-inset-top)) 28px calc(28px + env(safe-area-inset-bottom)); }
 }
 @media (prefers-color-scheme:dark) {
 html:not([data-rr-theme="light"]).rr-library-visible body { background:#000; }
