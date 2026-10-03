@@ -1,0 +1,50 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { launchBrowser } from "./cdp-browser.mjs";
+import { summaryPreview } from "./summary-settings-preview.mjs";
+
+test("native summary Settings: selection, removal, clear, writer and both themes", { timeout: 60000 }, async t => {
+  const preview = await summaryPreview(); t.after(() => preview.close());
+  const browser = await launchBrowser(); t.after(() => browser.close());
+  const errors = [];
+  browser.on("Runtime.exceptionThrown", e => errors.push(e.exceptionDetails.text));
+  await browser.send("Emulation.setUserAgentOverride", { userAgent: "Mozilla/5.0 ReadingRoomApp/1" });
+  await browser.goto(preview.url);
+  await browser.waitFor(`!!document.querySelector('#rr-settings-link')`);
+  await browser.evaluate(`document.querySelector('#rr-settings-link').click()`);
+  const click = async title => browser.evaluate(`(() => { const b = [...document.querySelectorAll('#rr-settings-overlay button')].find(b => b.querySelector('strong')?.textContent === ${JSON.stringify(title)} || b.textContent === ${JSON.stringify(title)}); if (!b) throw Error('Missing button: ' + ${JSON.stringify(title)}); b.click(); })()`);
+  await browser.waitFor(`[...document.querySelectorAll('strong')].some(e => e.textContent === 'Summaries')`);
+  await click("Summaries");
+  for (const theme of ["light", "dark"]) {
+    await browser.evaluate(`document.documentElement.dataset.rrTheme = '${theme}'`);
+    await browser.waitFor(`document.querySelector('#rr-settings-overlay h1')?.textContent === 'Summaries'`);
+    const layout = await browser.evaluate(`(() => { const p = document.querySelector('#rr-settings-overlay'); return { ink: getComputedStyle(p).color, paper: getComputedStyle(p).backgroundColor, fits: p.scrollWidth <= innerWidth }; })()`);
+    assert.notEqual(layout.ink, layout.paper); assert.ok(layout.fits);
+    await browser.screenshot(`summary-settings-${theme}.png`);
+  }
+  await browser.evaluate(`window.confirm = () => false`);
+  await click("Second test book"); await click("Remove Selected (1)");
+  assert.equal(preview.snapshot.waiting.length, 2, "Cancelled confirmation must not remove anything");
+  await browser.evaluate(`window.confirm = () => true`);
+  await click("Remove Selected (1)");
+  await browser.waitFor(`![...document.querySelectorAll('strong')].some(e => e.textContent === 'Second test book')`);
+  assert.deepEqual(preview.snapshot.waiting.map(i => i.id), ["C"]);
+  assert.equal(preview.snapshot.active.id, "A");
+  await click("Claude"); await browser.waitFor(`document.querySelector('#rr-settings-overlay [aria-pressed="true"] strong')?.textContent === 'Claude'`);
+  assert.equal(preview.snapshot.writer, "claude");
+  await click("This iPhone");
+  await browser.waitFor(`[...document.querySelectorAll('#rr-settings-overlay button')].some(b => b.textContent === 'Clear Waiting Queue' && !b.disabled)`);
+  await click("Clear Waiting Queue");
+  await browser.waitFor(`[...document.querySelectorAll('strong')].some(e => e.textContent === 'Your queue is empty')`);
+  assert.equal(preview.snapshot.active.id, "A");
+  await browser.evaluate(`document.querySelector('button[aria-label="Back"]').click()`);
+  await browser.waitFor(`document.querySelector('#rr-settings-overlay h1')?.textContent === 'Settings'`);
+  await browser.evaluate(`document.querySelector('button[aria-label="Close settings"]').click()`);
+  await browser.waitFor(`!document.querySelector('#rr-settings-overlay')`);
+  assert.deepEqual(errors, [], "No hydration or UI exceptions");
+  await browser.send("Emulation.setUserAgentOverride", { userAgent: "Mozilla/5.0" });
+  await browser.goto(preview.url); await browser.waitFor(`!!document.querySelector('#rr-settings-link')`);
+  await browser.evaluate(`document.querySelector('#rr-settings-link').click()`);
+  await browser.waitFor(`[...document.querySelectorAll('strong')].some(e => e.textContent === 'About')`);
+  assert.equal(await browser.evaluate(`[...document.querySelectorAll('strong')].some(e => e.textContent === 'Summaries')`), false, "Browser must not expose a phone-only queue");
+});

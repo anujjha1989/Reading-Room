@@ -1519,8 +1519,8 @@ html[data-rr-theme="dark"] .rr-card-menu {
 html[data-rr-theme="dark"] .rr-card-menu button.danger { color: #ff6b6b; }
 
 /* --- library card: title 2 lines, then the byline row -------------------- */
-html .catalog .book-caption { display: grid; }
-html .catalog .book-caption > strong {
+html .catalog .thumbnail-view .book-caption { display: grid; }
+html .catalog .thumbnail-view .book-caption > strong {
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
   overflow: hidden;
   min-height: 2.6em;          /* always two lines, so authors align */
@@ -1537,7 +1537,8 @@ html .rr-byline > small {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* In the row, so no absolute positioning and nothing to drift. */
-html .rr-byline .rr-card-more {
+html .rr-byline .rr-card-more,
+html .catalog .list-view .book > .rr-card-more {
   position: static !important;
   flex: 0 0 auto;
   width: 26px !important; height: 22px !important;

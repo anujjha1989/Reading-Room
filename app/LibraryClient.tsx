@@ -15,6 +15,7 @@ import { cardTitle, completeLabel, continueProgress, coverOptions, groupShelf, h
 
 type RawBook = {
   id: string; title: string; originalTitle?: string; author?: string; series?: string; incomplete?: boolean; workKey?: string;
+  titleCorrected?: boolean; authorCorrected?: boolean;
   format: string; source: string; collection?: string; category?: string; collections?: string[];
   path?: string; url: string; size?: number; modified?: string;
 };
@@ -146,7 +147,7 @@ function metadataFor(row: RawBook) {
   }
   const category = /nonfiction/i.test(row.category || "") ? "Non-Fiction" : row.category || "General";
   const series = cleanTitle(row.series || "");
-  return { title: title || "Untitled", author, category, series };
+  return { title: row.titleCorrected ? row.title : title || "Untitled", author: row.authorCorrected ? row.author || "" : author, category, series };
 }
 
 function authorAliases(authors: string[]) {
@@ -179,7 +180,7 @@ function groupBooks(rows: RawBook[]): Book[] {
   const prepared = rows.map((row) => ({ row, metadata: metadataFor(row) }));
   const aliases = authorAliases(prepared.map(({ metadata }) => metadata.author));
   for (const { row, metadata: rawMetadata } of prepared) {
-    const metadata = { ...rawMetadata, author: aliases.get(rawMetadata.author) || rawMetadata.author };
+    const metadata = { ...rawMetadata, author: row.authorCorrected ? rawMetadata.author : aliases.get(rawMetadata.author) || rawMetadata.author };
     const isScript = /(^|\/)scripts?(\/|$)|screenplay|black list/i.test(`${row.source}/${row.path || ""}`);
     const isComic = /^(?:CBR|CBZ)$/i.test(row.format);
     const titleKey = normalized(metadata.title);
@@ -775,7 +776,7 @@ export default function LibraryClient() {
       book={detailsFor.book}
       focusDelete={detailsFor.focusDelete}
       onClose={() => setDetailsFor(null)}
-      onSaved={(updated) => setCatalogRows((rows) => rows.map((row) => row.id === updated.id ? { ...row, title: updated.title, author: updated.author } : row))}
+      onSaved={(updated) => setCatalogRows((rows) => rows.map((row) => row.id === updated.id ? { ...row, ...updated } : row))}
       onDeleted={(id) => setCatalogRows((rows) => rows.filter((row) => row.id !== id))}
     />, document.body)}
     {editionsFor && <div className="modal-backdrop"><section className="modal rr-editions" role="dialog" aria-modal="true" aria-label={shelfTitle(editionsFor)}>
@@ -881,14 +882,14 @@ export default function LibraryClient() {
       : filtered.length ? <div className={`grid ${displayMode === "list" ? "list-view" : "thumbnail-view"}`} ref={gridRef}>{filtered.slice(0, visible).map((book, index) => {
         const palette = palettes[hashCode(book.id) % palettes.length];
         const state = savedStates[book.id];
+        const moreButton = <button className="rr-card-more" aria-label={`Options for ${book.title}`} aria-haspopup="menu" aria-expanded={menuFor?.id === book.id} onClick={(event) => { event.stopPropagation(); const r = event.currentTarget.getBoundingClientRect(); setMenuFor(menuFor?.id === book.id ? null : { id: book.id, x: r.right, y: r.bottom }); }}>⋯</button>;
         return <article className="book" key={book.id}>
           <button className={isReference(book.id) ? "cover rr-drawn" : "cover"} aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`} style={{ "--cover": palette[0], "--ink": palette[1] } as React.CSSProperties} onClick={() => openBook(book)}><img src={coverUrl(book)} alt="" loading="lazy" onLoad={(event) => event.currentTarget.parentElement?.classList.add("has-cover")} onError={(event) => { event.currentTarget.hidden = true; }} /><span className="cover-copy">{book.series && <small>{book.series}</small>}<strong>{book.title}</strong>{book.author && <em>{book.author}</em>}</span>{state?.progressLabel && <span className="cover-progress">{state.progressLabel}</span>}</button>
           {/* The ⋯ lives in the author row rather than a block below it: that is
               the only way it is guaranteed to sit on the author line whatever
               the title wraps to. The title reserves two lines so the author -
               and therefore the ⋯ - lands at the same height on every card. */}
-          <div className="book-caption"><strong>{book.title}</strong><span className="rr-byline"><small>{book.author || "Author unknown"}</small><button className="rr-card-more" aria-label={`Options for ${book.title}`} aria-haspopup="menu" aria-expanded={menuFor?.id === book.id} onClick={(event) => { event.stopPropagation(); const r = event.currentTarget.getBoundingClientRect(); setMenuFor(menuFor?.id === book.id ? null : { id: book.id, x: r.right, y: r.bottom }); }}>⋯</button></span></div>
-          <div className="list-copy"><button onClick={() => openBook(book)} aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`}><small>{book.series || book.category || "Book"}</small><strong>{book.title}</strong><em>{book.author || "Author not listed"}</em>{state?.progressLabel && <span>{state.progressLabel}</span>}</button></div>
+          {displayMode === "thumbnails" ? <div className="book-caption"><strong>{book.title}</strong><span className="rr-byline"><small>{book.author || "Author unknown"}</small>{moreButton}</span></div> : <><div className="list-copy"><button onClick={() => openBook(book)} aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`}><small>{book.series || book.category || "Book"}</small><strong>{book.title}</strong><em>{book.author || "Author not listed"}</em>{state?.progressLabel && <span>{state.progressLabel}</span>}</button></div>{moreButton}</>}
           {menuFor?.id === book.id && !menuFor.where && <BookMenu book={book} />}
         </article>;
       })}</div> : <div className="empty"><b>No books found</b><p>Try clearing one or more filters.</p><button onClick={() => { setQuery(""); clearFilters(); }}>Reset search</button></div>}

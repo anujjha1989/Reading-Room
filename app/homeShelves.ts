@@ -14,6 +14,8 @@ export type ShelfBook = {
   id: string;
   title: string;
   originalTitle?: string;
+  titleCorrected?: boolean;
+  authorCorrected?: boolean;
   author?: string;
   series?: string;
   category?: string;
@@ -48,7 +50,7 @@ export function shelfKey(text: string | undefined) {
 
 // Corrects presentation after grouping, so that existing book IDs — and
 // therefore favourites, bookmarks and reading progress — are preserved.
-export function reviewBooks<T extends ShelfBook>(books: T[], rawRows: { id: string; title?: string; author?: string; path?: string }[]): T[] {
+export function reviewBooks<T extends ShelfBook>(books: T[], rawRows: { id: string; title?: string; author?: string; path?: string; titleCorrected?: boolean; authorCorrected?: boolean }[]): T[] {
   const rawById = new Map((rawRows || []).map((b) => [b.id, b]));
 
   // "Favorite Authors / <name>" folders tell us which strings are author names.
@@ -156,6 +158,9 @@ export function reviewBooks<T extends ShelfBook>(books: T[], rawRows: { id: stri
       author = "Metadata needs review";
     }
 
+    // Reader corrections outrank inferred folder names and metadata repairs.
+    if (raw.titleCorrected) title = raw.title || book.title;
+    if (raw.authorCorrected) author = raw.author || "";
     return {
       ...book,
       title,
@@ -253,6 +258,7 @@ export function completeLabel(book: ShelfBook): string {
 }
 
 export function cardTitle(book: ShelfBook): string {
+  if (book.titleCorrected) return book.title;
   if (book.rrShelfLabel) return book.rrEditions && !book.rrGroupTitle ? completeLabel(book) : book.rrShelfLabel;
   return /\bcomplete works\b/i.test(book.title) ? completeLabel(book) : book.title;
 }

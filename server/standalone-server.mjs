@@ -530,8 +530,8 @@ function rebuildCatalog() {
   const merged = catalog.filter((b) => !hiddenIds[b.id]).map((b) => {
     const t = titleFixes[b.id];
     const a = authorFixes[b.id];
-    if ((!t || t === b.title) && (!a || a === b.author)) return b;
-    return { ...b, ...(t ? { title: t } : {}), ...(a ? { author: a } : {}) };
+    if (!t && !a) return b;
+    return { ...b, ...(t ? { title: t, titleCorrected: true } : {}), ...(a ? { author: a, authorCorrected: true } : {}) };
   });
   catalogBuffer = Buffer.from(JSON.stringify(merged));
   catalogGzip = gzipSync(catalogBuffer, { level: 6 });
@@ -654,6 +654,8 @@ async function metaFix(request, response) {
       ok: true, id,
       title: titleFixes[id] || (book && book.title) || "",
       author: authorFixes[id] || (book && book.author) || "",
+      titleCorrected: Boolean(titleFixes[id]),
+      authorCorrected: Boolean(authorFixes[id]),
     }));
 }
 

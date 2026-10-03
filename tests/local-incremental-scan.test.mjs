@@ -1,0 +1,36 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+
+test("local incremental scan imports the drop folder and preserves old mappings and IDs", async t => {
+  const dir = await mkdtemp(join(tmpdir(), "hb-local-scan-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const root = join(dir, "Books"), drop = join(root, "Archive/New Imports");
+  await mkdir(drop, { recursive: true });
+  await writeFile(join(drop, "The Complete Works of Anthony Bourdain.epub"), "test");
+  await writeFile(join(drop, "._The Complete Works of Anthony Bourdain.epub"), "sidecar");
+  await writeFile(join(root, "Outside.epub"), "test");
+  const settings = join(dir, "settings.json"), manifest = join(dir, "manifest.json"), map = join(dir, "map.json");
+  await writeFile(settings, JSON.stringify({ sources: [{ kind: "local", name: "Books", path: root, enabled: true }] }));
+  await writeFile(manifest, "[]"); await writeFile(map, JSON.stringify({ existing: "/existing/book.epub" }));
+  const shell = await readFile(new URL("../ops/pi/lib/rr-catalog-rebuild.sh", import.meta.url), "utf8");
+  const block = shell.split('node - "$SETTINGS" "$FILTERED" "$LOCALMAP" "$SCAN_MODE" "$DROP" <<\'NODE\'\n')[1].split("\nNODE")[0];
+  const scan = () => execFileSync(process.execPath, ["--input-type=module", "-", settings, manifest, map, "incremental", "Books/Archive/New Imports"], { input: block });
+  scan();
+  const rows = JSON.parse(await readFile(manifest, "utf8"));
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].Path, /Anthony Bourdain/);
+  assert.equal(JSON.parse(await readFile(map, "utf8")).existing, "/existing/book.epub");
+  const catalog = join(dir, "catalog.json"), next = join(dir, "next.json"), summary = join(dir, "summary.json");
+  await writeFile(catalog, "[]");
+  const scanner = new URL("../ops/pi/lib/drive-scan.mjs", import.meta.url);
+  execFileSync(process.execPath, [scanner.pathname, catalog, manifest, next, summary]);
+  assert.equal(JSON.parse(await readFile(summary, "utf8")).added, 1);
+  await writeFile(catalog, await readFile(next)); await writeFile(manifest, "[]"); scan();
+  execFileSync(process.execPath, [scanner.pathname, catalog, manifest, next, summary]);
+  assert.equal(JSON.parse(await readFile(summary, "utf8")).added, 0, "A repeated scan cannot duplicate the book");
+  assert.equal(JSON.parse(await readFile(next, "utf8"))[0].id, rows[0].ID);
+});

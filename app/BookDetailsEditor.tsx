@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type BookDetails = { id: string; title: string; author?: string };
+type BookDetails = { id: string; title: string; author?: string; titleCorrected?: boolean; authorCorrected?: boolean };
 type Props = {
   book: BookDetails;
   focusDelete: boolean;
@@ -47,7 +47,7 @@ export default function BookDetailsEditor({ book, focusDelete, onClose, onSaved,
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || `${action} failed (${response.status})`);
       if (action === "delete") onDeleted(book.id);
-      else onSaved({ id: book.id, title: result.title, author: result.author });
+      else onSaved({ id: book.id, title: result.title, author: result.author, titleCorrected: result.titleCorrected, authorCorrected: result.authorCorrected });
       onClose();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save changes");

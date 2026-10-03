@@ -44,6 +44,12 @@ if ! "${SSH[@]}" "$PI" "grep -q 'PUBLIC_FILES=' /usr/local/sbin/reading-room-dep
 fi
 
 # Build and stage on the Mac SSD. The repo lives on an SMB mount, where many
+if ! "${SSH[@]}" "$PI" "grep -q 'STAGE/rr-catalog-rebuild.sh' /usr/local/sbin/reading-room-deploy"; then
+  echo "FAILED: install the current deployment helper before releasing scanner changes." >&2
+  exit 1
+fi
+
+# Build and stage on the Mac SSD. The repo lives on an SMB mount, where many
 # small generated-file writes dominate release time. Only source is synced;
 # node_modules and dist stay local between releases.
 BUILD_DIR="${HOME}/Library/Caches/home-books-build"
@@ -114,6 +120,7 @@ for name in "${PUBLIC_FILES[@]}"; do
   cp "public/$name" "$BUILD_DIR/dist/stage/$name"
 done
 cp server/standalone-server.mjs server/rr-settings.mjs server/rr-tts.mjs "$BUILD_DIR/dist/stage/"
+cp ops/pi/lib/rr-catalog-rebuild.sh "$BUILD_DIR/dist/stage/"
 
 echo "==> uploading"
 "${SSH[@]}" "$PI" "rm -rf ~/rr-deploy/stage && mkdir -p ~/rr-deploy/stage"
@@ -139,7 +146,7 @@ mkdir -p "$ROLLBACK"
   \$([ -f /opt/reading-room/current/site/settings.html ] && echo settings.html) \
   \$(for name in favicon.svg home-books-icon.svg icon-192.png icon-512.png apple-touch-icon.png manifest.webmanifest; do \
       [ -f /opt/reading-room/current/site/\$name ] && echo \$name; \
-    done)" \
+    done) -C /usr/local/lib/reading-room rr-catalog-rebuild.sh" \
   > "$ROLLBACK/site-html.tar.gz"
 # cat, not cp: cp on this SMB mount leaves an ._ AppleDouble sidecar behind.
 cat deploy/reading-room-deploy > "$ROLLBACK/reading-room-deploy"
@@ -172,6 +179,10 @@ for server_file in standalone-server.mjs rr-settings.mjs rr-tts.mjs; do
   remote_hash=$("${SSH[@]}" "$PI" "sha256sum /opt/reading-room/current/$server_file | cut -d' ' -f1")
   [ "$local_hash" = "$remote_hash" ] || fail "$server_file did not reach the live release"
 done
+
+local_hash=$(shasum -a 256 ops/pi/lib/rr-catalog-rebuild.sh | awk '{print $1}')
+remote_hash=$("${SSH[@]}" "$PI" "sha256sum /usr/local/lib/reading-room/rr-catalog-rebuild.sh | cut -d' ' -f1")
+[ "$local_hash" = "$remote_hash" ] || fail "catalogue scanner did not reach the live release"
 
 echo "==> verifying"
 sleep 3

@@ -14,7 +14,10 @@ type SettingsState = {
 };
 type GapBook = { id: string; title: string; author: string; format: string };
 type GapResult = { count: number; items: GapBook[] };
-type Page = "root" | "sources" | "source" | "add" | "maintenance" | "drop" | "gaps" | "gap-list" | "theme" | "about";
+type Page = "root" | "sources" | "source" | "add" | "maintenance" | "drop" | "gaps" | "gap-list" | "theme" | "about" | "summaries";
+type SummaryQueueItem = { id: string; title: string; author: string; writer: string; status: string };
+type SummarySettings = { active: SummaryQueueItem | null; waiting: SummaryQueueItem[]; writer: "iphone" | "claude"; claudeAvailable: boolean };
+const summarySettingsPath = "/api/app/summaries";
 type Theme = "system" | "light" | "dark";
 
 const number = (n: number) => n.toLocaleString();
@@ -68,6 +71,33 @@ export default function SettingsPanel({ version, closing, onClose, onRefresh, on
   const [toast, setToast] = useState("");
   const previousScan = useRef<string | null>(null);
   const overlay = useRef<HTMLDivElement>(null);
+  const [summaries, setSummaries] = useState<SummarySettings | null>(null);
+  const [summaryError, setSummaryError] = useState("");
+  const [selectedSummaries, setSelectedSummaries] = useState<string[]>([]);
+  const summaryRevision = useRef(0);
+  const nativeApp = typeof window !== "undefined" && window.location.hostname === "127.0.0.1" && /ReadingRoomApp\//.test(navigator.userAgent);
+  const selectedWaiting = summaries?.waiting.filter((item) => selectedSummaries.includes(item.id)) ?? [];
+
+  // Detect the native capability without adding controls to the public website.
+  // Refresh only while this page is visible, with no overlapping polling requests.
+  useEffect(() => {
+    if (!nativeApp) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const refreshSummaries = async () => {
+      const revision = summaryRevision.current;
+      try {
+        const next = await api<SummarySettings>(summarySettingsPath, { signal: controller.signal, cache: "no-store" });
+        if (!controller.signal.aborted && revision === summaryRevision.current) { setSummaries(next); setSummaryError(""); }
+      } catch (cause) {
+        if (!controller.signal.aborted && page === "summaries") setSummaryError(cause instanceof Error ? cause.message : "Could not read the queue");
+      } finally {
+        if (!controller.signal.aborted && page === "summaries") timer = setTimeout(() => { void refreshSummaries(); }, 2000);
+      }
+    };
+    void refreshSummaries();
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [nativeApp, page]);
 
   const reload = useCallback(async () => {
     try { setState(await api<SettingsState>("/api/settings/state")); setError(""); }
@@ -127,6 +157,13 @@ export default function SettingsPanel({ version, closing, onClose, onRefresh, on
     try { value === "system" ? localStorage.removeItem("reading-room-theme") : localStorage.setItem("reading-room-theme", value); } catch { /* private mode */ }
     setTheme(value); onThemeChange(value); setToast(`Appearance: ${themeLabels[value]}`);
   };
+  const changeSummaries = (body: object, message: string) => {
+    summaryRevision.current += 1;
+    void mutate(() => api<SummarySettings>(summarySettingsPath, post(body)), (next) => {
+      summaryRevision.current += 1;
+      setSummaries(next); setSummaryError(""); setSelectedSummaries([]);
+    }, message);
+  };
   const scanLine = () => {
     if (!state) return "";
     if (state.status?.state === "running") return state.status.message || "Scan in progress…";
@@ -136,7 +173,7 @@ export default function SettingsPanel({ version, closing, onClose, onRefresh, on
     return `${number(state.gaps.total)} books · catalogue updated ${when}${counts}`;
   };
 
-  const titles: Record<Page, string> = { root: "Settings", sources: "Library sources", source: source?.name || "Source", add: "Add a folder", maintenance: "Library maintenance", drop: "Drop folder", gaps: "Metadata & artwork", "gap-list": gap?.title || "Books", theme: "Appearance", about: "About" };
+  const titles: Record<Page, string> = { root: "Settings", sources: "Library sources", source: source?.name || "Source", add: "Add a folder", maintenance: "Library maintenance", drop: "Drop folder", gaps: "Metadata & artwork", "gap-list": gap?.title || "Books", theme: "Appearance", about: "About", summaries: "Summaries" };
   const action = (label: string, onClick: () => void, secondary = false, disabled = false) => <button type="button" className={secondary ? "rr-settings-secondary" : "rr-settings-primary"} onClick={onClick} disabled={busy || disabled}>{label}</button>;
 
   return <div ref={overlay} id="rr-settings-overlay" className={`rr-settings${closing ? " rr-settings-closing" : ""}`} role="dialog" aria-modal="true" aria-label="Library settings">
@@ -152,8 +189,31 @@ export default function SettingsPanel({ version, closing, onClose, onRefresh, on
           <Row icon="refresh" title="Library maintenance" sub={state.status?.state === "running" ? state.status.message || "Scan in progress" : state.status?.state === "failed" ? state.status.message || "Last scan failed" : `${number(state.gaps.total)} books · ${number(state.gaps.withCover)} with artwork`} onClick={() => setPage("maintenance")} />
           <Row icon="chart" title="Metadata & artwork" sub={`${number(state.gaps.noCover)} without artwork · ${number(state.gaps.noAuthor)} without an author`} onClick={() => setPage("gaps")} />
           <Row icon="sun" title="Appearance" sub={themeLabels[theme]} onClick={() => setPage("theme")} />
+          {nativeApp && summaries && <Row icon="book" title="Summaries" sub={`${summaries.active ? "Writing · " : ""}${summaries.waiting.length} waiting`} onClick={() => setPage("summaries")} />}
           <Row icon="info" title="About" sub="How this works" onClick={() => setPage("about")} />
         </Group><div className="rr-settings-actions">{action("Refresh Library", onRefresh)}</div></>}
+        {page === "summaries" && <>
+          {summaryError && <p className="rr-settings-footer" role="alert">{summaryError}</p>}
+          {!summaries ? <p className="rr-settings-footer">Loading summaries…</p> : <>
+            <Group label="WRITTEN BY" footer="Applies to new requests. Books already queued keep their chosen writer. Claude uses your API key and may incur charges; configure its key and model in iOS Settings → Home Books.">
+              <Row icon="book" title="This iPhone" sub="Apple Intelligence · free & private" value={summaries.writer === "iphone" ? "✓" : undefined} pressed={summaries.writer === "iphone"} disabled={busy} onClick={() => changeSummaries({ action: "writer", writer: "iphone" }, "Default writer saved")} />
+              <Row icon="book" title="Claude" sub={summaries.claudeAvailable ? "Uses your saved API key" : "Add an API key in iOS Settings → Home Books"} value={summaries.writer === "claude" ? "✓" : undefined} pressed={summaries.writer === "claude"} disabled={busy || !summaries.claudeAvailable} onClick={() => changeSummaries({ action: "writer", writer: "claude" }, "Default writer saved")} />
+            </Group>
+            <Group label="CURRENT SUMMARY" footer="Keep Home Books open while generating with Apple Intelligence. Stopping preserves its notes so you can continue later.">
+              {summaries.active ? <><Row icon="book" title={summaries.active.title} sub={[summaries.active.author, summaries.active.writer].filter(Boolean).join(" · ")} value={summaries.active.status} />
+                <Row title="Stop current summary" danger disabled={busy || summaries.active.status === "Stopping…"} onClick={() => { if (window.confirm("Stop the current summary? Its notes will be kept. The next queued book will start automatically.")) changeSummaries({ action: "stop", id: summaries.active!.id }, "Stopping summary"); }} /></> : <Row title="Nothing being written" sub="Choose a book's Summary to start or queue it" />}
+            </Group>
+            <Group label={`WAITING QUEUE · ${summaries.waiting.length}`} footer="Titles run in this order, one at a time. Removing a request never deletes a saved summary or stops the current one.">
+              {summaries.waiting.length ? summaries.waiting.map((item) => <Row key={item.id} icon="book" title={item.title} sub={[item.author, item.writer, item.status].filter(Boolean).join(" · ")} value={selectedSummaries.includes(item.id) ? "✓" : "Select"} pressed={selectedSummaries.includes(item.id)} disabled={busy} onClick={() => setSelectedSummaries((old) => old.includes(item.id) ? old.filter((id) => id !== item.id) : [...old, item.id])} />) : <Row title="Your queue is empty" sub="Collections still let you choose individual books or Queue All" />}
+            </Group>
+            {summaries.waiting.length > 0 && <div className="rr-settings-actions">
+              {action(`Remove Selected${selectedWaiting.length ? ` (${selectedWaiting.length})` : ""}`, () => {
+                if (window.confirm(`Remove ${selectedWaiting.length} selected request${selectedWaiting.length === 1 ? "" : "s"} from the queue? Saved summaries will be kept.`)) changeSummaries({ action: "remove", ids: selectedWaiting.map((item) => item.id) }, "Selected requests removed");
+              }, false, selectedWaiting.length === 0)}
+              {action("Clear Waiting Queue", () => { if (window.confirm("Clear all waiting requests? The current summary will continue and saved summaries will be kept.")) changeSummaries({ action: "clearWaiting" }, "Waiting queue cleared"); }, true)}
+            </div>}
+          </>}
+        </>}
         {page === "sources" && <Group label="FOLDERS" footer={<>Folders are paths inside your Drive. Pausing or removing one only stops it being indexed — nothing in Drive is touched.</>}>
           {state.sources.map((item) => <Row key={item.id} icon="folder" title={item.name} sub={item.path} value={item.enabled ? "Indexed" : "Paused"} onClick={() => { setSourceId(item.id); setPage("source"); }} />)}
           <Row icon="plus" title="Add a folder" onClick={() => { setPath(""); setName(""); setPage("add"); }} />

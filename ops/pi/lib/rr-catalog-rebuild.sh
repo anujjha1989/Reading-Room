@@ -64,6 +64,17 @@ if [ "$SCAN_MODE" = "incremental" ]; then
   # Only the drop folder. rclone reports paths relative to the subpath it was
   # given, so they are re-prefixed to full catalogue paths before scanning.
   status running "Checking $DROP…"
+  LOCAL_DROP=$(node --input-type=module - "$SETTINGS" "$DROP" <<'NODE'
+import fs from "node:fs";
+const [, , settingsPath, drop] = process.argv;
+const sources = JSON.parse(fs.readFileSync(settingsPath, "utf8")).sources || [];
+console.log(sources.some(s => s.kind === "local" && s.enabled !== false &&
+  (drop === s.name || drop.startsWith(s.name + "/"))) ? "yes" : "no");
+NODE
+)
+  if [ "$LOCAL_DROP" = yes ]; then
+    echo '[]' > "$FILTERED"
+  else
   rclone lsjson --recursive --files-only \
     --tpslimit 8 --retries 5 --low-level-retries 20 --retries-sleep 20s \
     "reading-room-drive:$DROP" > "$SCOPED.raw"
@@ -77,6 +88,7 @@ fs.writeFileSync(out, JSON.stringify(rows));
 console.log(`drop folder: ${rows.length} files`);
 NODE
   cp "$SCOPED" "$FILTERED"
+  fi
 else
   status running "Listing Drive…"
   rclone lsjson --recursive --files-only \
@@ -108,29 +120,22 @@ console.log(`manifest: ${manifest.length} files, ${keep.length} within sources`)
 NODE
 fi
 
-if [ "$SCAN_MODE" = "incremental" ]; then
-  # Append to the live catalogue: drive-scan.mjs skips IDs it already knows.
-  status running "Adding new books…"
-  node /usr/local/lib/reading-room/drive-scan.mjs "$CATALOG" "$FILTERED" "$NEXT" "$SUMMARY"
-  if [ "$(node -p "require('$SUMMARY').added")" = "0" ]; then
-    status ready "No new books in $DROP." '{"added":0}'
-    echo "nothing new"
-    exit 0
-  fi
-else
-  # Fold in any source that is a folder on this Pi rather than in Drive.
+# Fold in local sources for both full and incremental scans.
 status running "Reading local folders…"
-node - "$SETTINGS" "$FILTERED" "$LOCALMAP" <<'NODE'
+node - "$SETTINGS" "$FILTERED" "$LOCALMAP" "$SCAN_MODE" "$DROP" <<'NODE'
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
-const [, , settingsPath, manifestPath, mapPath] = process.argv;
+const [, , settingsPath, manifestPath, mapPath, mode, drop] = process.argv;
 const SUPPORTED = new Set(["EPUB","PDF","MOBI","AZW","AZW3","CBR","CBZ","DOC","DOCX","RTF","TXT","FDX"]);
 let sources = [];
 try { sources = (JSON.parse(fs.readFileSync(settingsPath,"utf8")).sources||[]) } catch {}
 const local = sources.filter(s => s.kind === "local" && s.enabled !== false);
 const rows = JSON.parse(fs.readFileSync(manifestPath,"utf8"));
-const map = {};
+let map = {};
+if (mode === "incremental") {
+  try { map = JSON.parse(fs.readFileSync(mapPath, "utf8")) } catch {}
+}
 for (const src of local) {
   const root = String(src.path||"").replace(/\/+$/,"");
   if (!root || !fs.existsSync(root)) { console.log(`local source missing: ${root}`); continue; }
@@ -162,7 +167,14 @@ for (const src of local) {
       n++;
     }
   };
-  walk(root);
+  let scanRoot = root;
+  if (mode === "incremental") {
+    if (drop !== label && !drop.startsWith(label + "/")) continue;
+    scanRoot = path.resolve(root, drop.slice(label.length).replace(/^\/+/, ""));
+    if (scanRoot !== root && !scanRoot.startsWith(root + path.sep)) throw new Error("Drop folder escapes source");
+    if (!fs.existsSync(scanRoot)) throw new Error(`Drop folder missing: ${scanRoot}`);
+  }
+  walk(scanRoot);
   console.log(`local source ${label}: ${n} files`);
 }
 fs.writeFileSync(manifestPath, JSON.stringify(rows));
@@ -170,6 +182,16 @@ fs.writeFileSync(mapPath, JSON.stringify(map));
 console.log(`local files served from disk: ${Object.keys(map).length}`);
 NODE
 
+if [ "$SCAN_MODE" = "incremental" ]; then
+  # Append using stable path-derived IDs; retain all existing local mappings.
+  status running "Adding new books…"
+  node /usr/local/lib/reading-room/drive-scan.mjs "$CATALOG" "$FILTERED" "$NEXT" "$SUMMARY"
+  if [ "$(node -p "require('$SUMMARY').added")" = "0" ]; then
+    status ready "No new books in $DROP." '{"added":0}'
+    echo "nothing new"
+    exit 0
+  fi
+else
 echo "[]" > "$EMPTY"
   status running "Rebuilding the catalogue…"
   node /usr/local/lib/reading-room/drive-scan.mjs "$EMPTY" "$FILTERED" "$NEXT" "$SUMMARY"

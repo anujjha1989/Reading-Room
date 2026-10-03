@@ -20,6 +20,11 @@ RELEASE=/opt/reading-room/current
 SERVER_FILES=(standalone-server.mjs rr-settings.mjs rr-tts.mjs)
 PUBLIC_FILES=(favicon.svg home-books-icon.svg icon-192.png icon-512.png apple-touch-icon.png manifest.webmanifest)
 
+# Validate the source-owned scanner before installing any release files.
+if [ -f "$STAGE/rr-catalog-rebuild.sh" ]; then
+  bash -n "$STAGE/rr-catalog-rebuild.sh"
+fi
+
 [ -d "$STAGE/assets" ] || { echo "reading-room-deploy: no staged assets" >&2; exit 1; }
 [ -f "$STAGE/index.html" ] || { echo "reading-room-deploy: no staged index.html" >&2; exit 1; }
 [ -d "$SITE/assets" ] || { echo "reading-room-deploy: $SITE/assets missing" >&2; exit 1; }
@@ -64,6 +69,9 @@ if [ "$server_count" -eq "${#SERVER_FILES[@]}" ]; then
     /usr/bin/node --check "$STAGE/$name" >/dev/null
     install -o root -g reading-room -m 0644 "$STAGE/$name" "$RELEASE/$name"
   done
+fi
+if [ -f "$STAGE/rr-catalog-rebuild.sh" ]; then
+  install -o root -g root -m 0755 "$STAGE/rr-catalog-rebuild.sh" /usr/local/lib/reading-room/rr-catalog-rebuild.sh
 fi
 
 chown root:root "$SITE"/index.html
