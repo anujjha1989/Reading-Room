@@ -12,7 +12,9 @@ test("Home Books critical mobile flows", { timeout: 120_000 }, async (suite) => 
     consoleProblems.push(exceptionDetails.exception?.description || exceptionDetails.text);
   });
   browser.on("Log.entryAdded", ({ entry }) => {
-    if (entry.level === "error") consoleProblems.push(entry.text);
+    // A missing optional cover deliberately falls back to the drawn cover.
+    const missingCover = entry.text.includes('404') && /\/api\/cover\?/.test(entry.url || '');
+    if (entry.level === "error" && !missingCover) consoleProblems.push(`${entry.text} ${entry.url || ''}`);
   });
 
   await suite.test("library renders and core menus respond", async () => {
@@ -238,7 +240,7 @@ test("Home Books critical mobile flows", { timeout: 120_000 }, async (suite) => 
       const tile = (label) => [...sheet().querySelectorAll('button')].find((button) =>
         [...button.querySelectorAll('span')].some((span) => span.textContent.trim() === label));
       const panels = {};
-      for (const [label, aria, key] of [['Search', 'Search inside book', 'search'], ['Marks', 'Bookmarks', 'bookmarks']]) {
+      for (const [label, aria, key] of [['Search', 'Search inside book', 'search'], ['Marks', 'Bookmarks and highlights', 'bookmarks']]) {
         tile(label)?.click();
         let panel = null;
         for (let n = 0; n < 20 && !panel; n += 1) { await wait(50); panel = document.querySelector('aside[aria-label="' + aria + '"]'); }
