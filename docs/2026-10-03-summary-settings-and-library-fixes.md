@@ -5,7 +5,7 @@ Source: `868b5b3` (application changes in `ca1a744`).
 - Saved title and author corrections take precedence over inferred folder metadata and shelf labels.
 - Section lists render one metadata block and one menu button.
 - Incremental scans read the configured local drop folder and preserve existing local-file mappings and path-derived IDs. The Anthony Bourdain collection was imported successfully: 9608 → 9609 catalogue entries.
-- The web Settings page supports the native summary queue API. The iPhone update is committed separately at `3f95572`, with its device release pending the free-development signing slot constraint.
+- The web Settings page supports the native summary queue API. The iPhone update at `3f95572` is installed as build 7 after the physical-device queue tests passed in light and dark. The user approved removing the temporary Home TV test runner to free the signing slot; the Home Books runner was also removed after testing. Both apps remain installed.
 
 Validation: six focused checks passed (rendered Settings/list/title-save flows, metadata precedence, local import and repeat-scan deduplication), native simulator Settings checks passed, and all nine live mobile browser checks passed. The authenticated public HTTPS origin on port 8443 passed rendered Settings checks in both themes. Asset and scanner hashes were verified by the deployment pipeline.
 
