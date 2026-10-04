@@ -46,6 +46,12 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
   both origins: no visible destructions, unloaded visible placeholders or sampled
   resting-paragraph shifts. Physical touch checks are recorded separately;
   this is not a claim of perfect scrolling on every device or book.
+- Physical iPhone 17 Pro checks passed: reader chip alignment, Close, 30 native
+  fast forward/reverse swipes in After Rain and three pixel-identical resting
+  book-text screenshot pairs. Home shelf spacing/progress was visually checked;
+  the tested book's original reading record was restored and verified. An
+  initial accessibility-anchor test defect was corrected, not patched in app
+  code. Native test details are in the iOS repo's `docs/web-v191-physical-check.md`.
 
 ## v190 — 2026-10-04
 
