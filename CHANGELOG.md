@@ -6,6 +6,16 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 - Handle image-only EPUB covers whose text CFI cannot resolve: show reading
   page 1 instead of hiding the chip. Added cover checks in both browser engines.
+- Complete release checks passed: 36 root tests and 34 mandatory browser checks;
+  full asset/server hashes, MIME checks, hydration, Settings and both themes on
+  LAN and authenticated public HTTPS. A read-only real Trevor/After Rain audit
+  crossed sections 194–196 with increasing/decreasing whole-book pages and no
+  runtime errors. The real image-only opening cover reports page 1.
+- Physical iPhone check passed: 30 forward/backward/forward native swipes,
+  direction-correct book pages, three pixel-identical resting-text pairs,
+  unchanged chip geometry and independent Close. The original reading record
+  was restored and verified; native test details are recorded in
+  `docs/web-v193-physical-check.md` in the iOS repository.
 
 ## v192 — 2026-10-04
 

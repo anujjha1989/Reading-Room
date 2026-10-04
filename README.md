@@ -50,6 +50,18 @@ Install Playwright in the test environment, or set `HOME_BOOKS_PLAYWRIGHT` to it
 module path; `READING_ROOM_CHROME` optionally selects an installed Chrome binary.
 The other browser audits accept `READING_ROOM_BASE_URL` and may target the Pi.
 
+### EPUB reading pages
+
+The footer shows continuous whole-book **reading pages**, each representing
+1,500 text characters. These are not a printed edition's page numbers or a
+count of screenfuls. They remain stable across section boundaries, font sizes,
+reading modes and reopening; a Complete Works file has one continuous count.
+`epubPageIndex.ts` lazily counts preceding detached archive documents, yields
+between them and cancels on close. It never loads/unloads live reader sections
+or adjusts scrolling. Optional cached lengths are invalidated by the archive's
+text/manifest CRCs; no book text is stored in this cache. Opening does not wait
+for indexing. Image-only opening covers show page 1.
+
 ## Deployment
 
 The Mac builds the app and deploys to the Pi using `deploy/deploy.sh`. The
