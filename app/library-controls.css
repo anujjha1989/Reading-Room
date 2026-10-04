@@ -16,9 +16,27 @@
 }
 .rr-card-more:active { opacity: .5; transform: scale(.94); }
 .rr-byline .rr-card-more, .catalog .list-view .book > .rr-card-more { position: relative; right: auto; bottom: auto; }
-.rr-shelf-cell .rr-shelf-author { padding-right: 35px; }
-html[data-rr-library-view="home"] .rr-continue-shelf .rr-card-more { top: 50%; bottom: auto; right: 3px; transform: translateY(-50%); }
-html[data-rr-library-view="home"] .rr-continue-shelf .rr-card-more::before { inset: 7px; border-radius: 50%; }
+/* Share row tracks across sibling buttons: the menu owns the author row,
+   never an offset guessed from the card's foot or title height. */
+html .rr-shelf-cell {
+  display: grid; grid-template-columns: minmax(0,1fr) 44px;
+  grid-template-rows: auto auto 44px auto; column-gap: 6px;
+}
+html .rr-shelf-cell .shelf-book {
+  grid-column: 1 / -1; grid-row: 1 / span 4;
+  grid-template-columns: subgrid; grid-template-rows: subgrid;
+}
+html .rr-shelf-cell .shelf-book > .shelf-cover { grid-column: 1 / -1; grid-row: 1; }
+html .rr-shelf-cell .shelf-book > strong { grid-column: 1 / -1; grid-row: 2; min-width: 0; }
+html .rr-shelf-cell .shelf-book > .rr-shelf-author {
+  grid-column: 1; grid-row: 3; align-self: center;
+  min-width: 0; padding-right: 0; margin-top: 0;
+}
+html .rr-shelf-cell .shelf-book > .rr-continue-meta { grid-column: 1 / -1; grid-row: 4; }
+html .rr-shelf-cell > .rr-card-more {
+  position: relative; grid-column: 2; grid-row: 3; align-self: center;
+  right: auto; bottom: auto;
+}
 .rr-card-menu {
   position: fixed; width: 224px; max-height: min(70vh,340px); overflow-y: auto;
   z-index: 400; padding: 6px; border-radius: 14px; text-align: left;

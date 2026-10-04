@@ -1218,7 +1218,6 @@ html .book, html .book-tools { position: relative; }
 /* Near the right edge a fixed offset would overflow; flip to the left instead. */
 
 /* --- ⋯ under the cover, right-aligned with the caption ------------------- */
-html .rr-shelf-cell { display: grid; }
 /* Shelf card: the caption is the last two lines, so anchor to the cell's foot
    and lift by the caption height to land beside the title. */
 /* Continue tile: vertically centred on the tile, inside its padding. */
@@ -1246,7 +1245,6 @@ html .catalog .book { position: relative; }
 
 /* Author lines end before the button so the covered text is never the start of
    a word: 34px of padding is the button plus its glow. */
-html .rr-shelf-cell .shelf-book > small:not(.rr-continue-meta) { padding-right: 34px; }
 html .catalog .book-caption small { padding-right: 34px; display: block; }
 
 /* --- the portalled menu -------------------------------------------------- */
@@ -1276,7 +1274,6 @@ html .rr-shelf-cell .shelf-book > strong {
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
   overflow: hidden; min-height: 2.6em;
 }
-html .rr-shelf-cell .rr-shelf-author { padding-right: 30px; }
 /* The author line is the last row of the shelf button, so the ⋯ aligns to the
    cell's foot. Continue has a progress line after it, so it is offset. */
 
