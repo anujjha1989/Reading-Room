@@ -16,7 +16,7 @@ fi
 PI=anujjha1989@anujrpi.local
 SSH=(ssh -i "$HOME/.ssh/id_ed25519_anujrpi_codex" -o BatchMode=yes -o IdentitiesOnly=yes)
 DEPLOY_HISTORY_DIR=${READING_ROOM_DEPLOY_HISTORY:-/Volumes/Seagate/ReadingRoom/deployment-history}
-PUBLIC_ORIGIN=${READING_ROOM_PUBLIC_ORIGIN:-https://anujrpi.tail549492.ts.net:8443}
+PUBLIC_ORIGIN=${READING_ROOM_PUBLIC_ORIGIN:-https://anujrpi.tail549492.ts.net}
 if [ -z "${READING_ROOM_CURL_COOKIE_FILE:-}" ] || [ ! -f "$READING_ROOM_CURL_COOKIE_FILE" ] || [ -z "${READING_ROOM_COOKIE_FILE:-}" ] || [ ! -f "$READING_ROOM_COOKIE_FILE" ]; then
   echo "FAILED: an authenticated public release check needs private curl and browser session files." >&2
   exit 1
@@ -31,7 +31,11 @@ rm "$HISTORY_PROBE"
 # tracked deployment counter and is routinely dirty after a successful deploy;
 # ignore that one file when deciding whether a tag can honestly describe the
 # source that is about to be installed.
-PREVIOUS_VERSION=$(cat overrides/VERSION)
+SOURCE_VERSION=$(cat overrides/VERSION)
+# A failed pre-install run may already have advanced the source counter. Rollback
+# must verify the version captured from the live release, not that counter.
+PREVIOUS_VERSION=$(curl -fsS --max-time 15 http://anujrpi.local:4311/ | sed -n 's/.*name="rr-app-version" content="\([0-9]*\)".*/\1/p' | head -1)
+[[ "$PREVIOUS_VERSION" =~ ^[0-9]+$ ]] || { echo "FAILED: cannot identify the live rollback version" >&2; exit 1; }
 DEPLOY_COMMIT=$(git rev-parse HEAD)
 DEPLOY_BRANCH=$(git branch --show-current)
 SOURCE_CHANGES=$(git status --porcelain --untracked-files=normal | sed '/ overrides\/VERSION$/d')
@@ -45,7 +49,7 @@ DEPLOY_MODE=full-build
 # Each deploy gets a new version. Asset filenames are content hashed, but the
 # override bundle is not, and /assets/book-art is served immutable for a year,
 # so a new name is the only way a change reaches a phone that has been there.
-VERSION=$(( PREVIOUS_VERSION + 1 ))
+VERSION=$(( (SOURCE_VERSION > PREVIOUS_VERSION ? SOURCE_VERSION : PREVIOUS_VERSION) + 1 ))
 
 # Refuse to publish a client that expects new server behaviour through an old
 # helper that silently ignores the staged server modules. This preflight turns
