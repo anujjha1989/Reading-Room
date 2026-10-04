@@ -59,6 +59,47 @@ type EpubSearchSection = {
   find: (query: string) => Array<{ cfi: string; excerpt: string }>;
   unload: () => void;
 };
+type ContinuousManager = {
+  trim: () => Promise<unknown>;
+  views?: {
+    all: () => unknown[];
+    displayed: () => unknown[];
+    indexOf: (view: unknown) => number;
+  };
+  erase?: (view: unknown, above?: unknown[]) => void;
+};
+
+function stabilizeContinuousScroll(rendition: Rendition) {
+  const manager = (rendition as Rendition & { manager?: ContinuousManager }).manager;
+  if (!manager?.views || !manager.erase) return;
+
+  // EPUB.js trims every view except the one immediately before and after the
+  // viewport. On iOS, removing several measured iframes at a section boundary
+  // can race the browser's scroll update: the next frame remains readable, but
+  // scrollTop is restored against the old document height and the reader jumps
+  // or briefly shows a blank frame. Keep a small measured window instead. The
+  // iframe contents are still unloaded by update(); only the cheap placeholders
+  // remain, so large merged books do not accumulate live layout work.
+  const keep = 2;
+  manager.trim = () => {
+    const displayed = manager.views?.displayed() ?? [];
+    if (!displayed.length) return Promise.resolve();
+    const views = manager.views?.all() ?? [];
+    const first = manager.views?.indexOf(displayed[0]) ?? -1;
+    const last = manager.views?.indexOf(displayed[displayed.length - 1]) ?? -1;
+    if (first < 0 || last < 0) return Promise.resolve();
+    const above = views.slice(0, first);
+    const below = views.slice(last + 1);
+    const removeAbove = Math.max(0, above.length - keep);
+    for (let index = 0; index < removeAbove; index += 1) {
+      manager.erase?.(above[index], above);
+    }
+    for (let index = keep; index < below.length; index += 1) {
+      manager.erase?.(below[index]);
+    }
+    return Promise.resolve();
+  };
+}
 type FoliateView = HTMLElement & {
   book?: { toc?: TocItem[]; sections?: FoliateSection[]; metadata?: { title?: string } };
   renderer?: { setAttribute: (name: string, value: string) => void; setStyles: (styles: string) => void };
@@ -619,6 +660,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         };
         const rendition = book.renderTo(viewerRef.current, renditionOptions);
         renditionRef.current = rendition;
+        if (mode === "scroll") stabilizeContinuousScroll(rendition);
         rendition.spread(mode === "scroll" || mobile ? "none" : "auto", 980);
         rendition.themes.default(epubStyles(themeRef.current, lineHeightRef.current, marginRef.current, mode !== "scroll", typographyRef.current));
         // The saved size, not a hardcoded 100%: this runs after the size has
