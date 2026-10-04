@@ -2,6 +2,11 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v193 — 2026-10-04
+
+- Handle image-only EPUB covers whose text CFI cannot resolve: show reading
+  page 1 instead of hiding the chip. Added cover checks in both browser engines.
+
 ## v192 — 2026-10-04
 
 - EPUB page chip now uses continuous whole-book reading pages (1,500 text

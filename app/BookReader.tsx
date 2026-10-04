@@ -715,15 +715,21 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
             const ratios = [...textRatioRef.current.values()];
             const ratio = ratios.length ? ratios.reduce((a, b) => a + b, 0) / ratios.length : 0.6;
             let read = 0;
-            const range = (rendition as unknown as { getRange: (cfi: string) => Range | null }).getRange(location.start.cfi);
+            let range: Range | null = null;
+            try { range = (rendition as unknown as { getRange: (cfi: string) => Range | null }).getRange(location.start.cfi); }
+            catch { /* image-only covers can have no text range */ }
+            let pageOffset: number | null = total === 0 ? 0 : null;
             if (range && range.startContainer.ownerDocument === doc) {
               const before = doc.createRange();
               before.setStart(doc.body, 0);
               before.setEnd(range.startContainer, range.startOffset);
               read = before.toString().length;
+              pageOffset = read;
+            }
+            if (pageOffset !== null) {
               pageIndex.remember(index, total);
               const request = pageRequest;
-              void pageIndex.pageAt(index, read).then(page => {
+              void pageIndex.pageAt(index, pageOffset).then(page => {
                 if (disposed || request !== pageRequest) return;
                 setCurrentPage(page);
                 try {

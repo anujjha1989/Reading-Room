@@ -58,3 +58,19 @@ for (const engine of ['chromium', 'webkit']) for (const mode of ['scroll', 'page
     assert.deepEqual(errors, []);
   });
 }
+
+for (const engine of ['chromium', 'webkit']) test(`${engine}: image-only opening cover displays page one without a text CFI`, { timeout: 30_000 }, async t => {
+  const preview = await reliabilityPreview(); t.after(() => preview.close());
+  const browser = await pw[engine].launch(engine === 'chromium' && process.env.READING_ROOM_CHROME ? { executablePath: process.env.READING_ROOM_CHROME } : {});
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 393, height: 852 }, isMobile: true, serviceWorkers: 'block' });
+  const fixture = await narrationEpub({ imageOnlyFirst: true });
+  await page.route('**/catalog.json', r => r.fulfill({ json: [{ id: 'cover-pages', title: 'Cover pages', format: 'EPUB', source: 'Local' }] }));
+  await page.route('**/api/library-state', r => r.fulfill({ json: { states: [] } }));
+  await page.route('**/api/book/**', r => r.fulfill({ contentType: 'application/epub+zip', body: fixture }));
+  await page.goto(preview.url);
+  await page.locator('.rr-library-dock button[data-view="Library"]').click();
+  await page.locator('.book .cover').click();
+  await page.locator('.rr-page-number').waitFor();
+  assert.equal(await page.locator('.rr-page-number').textContent(), '1');
+});
