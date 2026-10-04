@@ -59,10 +59,10 @@ claim every historical CSS/bridge or long-session audit is finished.
     All four library dialog paths now use the shared focus hook. Candidate phone
     screenshots inspected in both themes/engines; native queue interactions also
     pass on the physical phone. Wider manual inspection remains.
-11. **Release/security — in progress.** Origin/JSON mutation guards with tests;
+11. **Release/security — implemented and release-verified.** Origin/JSON mutation guards with tests;
     deploy script requires authenticated public checks, typecheck, units, browser
-    tests and post-install smoke checks. Remaining: installer upgrade, authenticated
-    integration checks and long-session observation. Complete v186 assets/server
+    tests and post-install smoke checks. Longer operational observation remains.
+    Complete v186 assets/server
     hashes, LAN/public MIME and branding hashes, rendered hydration, menus/Settings
     in both themes and release provenance all passed. Complete previous release and
     flat rollback inputs are backed up; rollback checks both origins after restore.
