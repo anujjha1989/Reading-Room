@@ -2,6 +2,16 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v196 — 2026-10-04
+
+- Added crisp, theme-aware one-pixel dividers between home shelf bands. Kept
+  the approved grey/background/grey gradients and shelf geometry unchanged.
+- Passed 39 root tests, 34 browser regression checks and the dedicated
+  light/dark/system shelf test. Verified all eight live shelf dividers,
+  unchanged gradients and menu open/close on LAN and public HTTPS in both
+  themes, with no runtime errors. Asset, hydration, Settings and voice gates
+  passed. No physical iPhone test was performed for this CSS-only release.
+
 ## v195 — 2026-10-04
 
 - Added 28 English Kokoro voices alongside all existing Piper and native iPhone
