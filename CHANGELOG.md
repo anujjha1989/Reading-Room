@@ -2,6 +2,22 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v195 — 2026-10-04
+
+- Added 28 English Kokoro voices alongside all existing Piper and native iPhone
+  voices through the shared narration catalogue used by reading and summaries.
+  Generation stays local on the Pi, with no paid API or Mac dependency.
+- Reused the persistent-worker architecture, playback cache and priority queue.
+  Kokoro has one bounded worker shared across its voices; the existing two Piper
+  workers are unchanged. Added a pinned, reproducible Pi runtime installer.
+- Optimized Pi runtime generated sampled narration at 1.8–1.9 times real time;
+  model loading took about 2.5 seconds. Start at normal playback speed: high
+  speeds or heavy server load can still exhaust the prefetch buffer.
+- Passed 39 root tests and 34 browser regression checks, live Piper/Kokoro WAV
+  and cached-range checks on LAN and public HTTPS, and real public-site Kokoro
+  playback/pause/resume in both themes. Hydration, Settings and release asset
+  checks passed. Physical iPhone playback was not independently retested.
+
 ## v194 — 2026-10-04
 
 - Home shelf bands now fade grey → black/white at the midpoint → grey, matching
