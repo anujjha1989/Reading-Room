@@ -1415,8 +1415,8 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
   }, [isReflowable, chapterName, displayTitle, author, coverUrl]);
 
   // Reading and listening are one place in the book. While the voice reads, the
-  // saved place follows the sentence being spoken; pausing or stopping leaves
-  // the page on it, and waking the screen brings the page back to it.
+  // saved place follows the sentence being spoken. Pause saves without moving
+  // the view; returning to the spoken sentence is an explicit reader action.
   // Previous/next track on the Lock Screen move by chapter and carry on reading.
   useEffect(() => {
     if (!isReflowable) return;
@@ -1436,13 +1436,14 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         const cfi = adapter && target && detail.range ? adapter.cfiFor(target, detail.range) : null;
         if (cfi) lastCfi = cfi;
         if (Date.now() - savedAt > 5000) { savedAt = Date.now(); save(); }
+      } else if (detail.kind === "return") {
+        if (lastCfi) annotationAdapterRef.current?.go(lastCfi);
       } else if (detail.kind === "paused" || detail.kind === "stopped") {
         const wasNarrating = narratingRef.current;
         narratingRef.current = false;
         paceRef.current = null;
         if (!wasNarrating || !lastCfi) return;
         save();
-        annotationAdapterRef.current?.go(lastCfi);
         if (detail.kind === "stopped") lastCfi = null;
       }
     };

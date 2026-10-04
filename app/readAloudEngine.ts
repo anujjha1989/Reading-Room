@@ -795,7 +795,7 @@ type TestWindow = Window & typeof globalThis & {
   // listening leaves the book open where the voice was (on this device and the
   // next), and waking the screen brings the page back to it.
   var lastSpoken: { doc: NarrationDocument; range: Range } | null = null;
-  function announce(kind: "sentence" | "playing" | "paused" | "stopped", doc?: NarrationDocument, range?: Range) {
+  function announce(kind: "sentence" | "playing" | "paused" | "stopped" | "return", doc?: NarrationDocument, range?: Range) {
     if (doc && range) lastSpoken = { doc: doc, range: range };
     try {
       window.dispatchEvent(new CustomEvent("rr-narration", {
@@ -1469,6 +1469,17 @@ type TestWindow = Window & typeof globalThis & {
     skip: skipSentence,
     restartFromView: restartFromView,
     adjustSleep: adjustSleepTime,
+    clearSleep: function () { clearSleepTimer(); render(); },
+    returnToCurrent: function () {
+      if (!playing || !lastSpoken) return;
+      manualScrollUntil = 0;
+      // The reader's saved CFI survives unloaded EPUB chapters; it owns navigation.
+      if (getEpubNarrationAdapter()) announce("return");
+      else {
+        const state = reader();
+        if (state && state.doc === lastSpoken.doc) state.reveal(lastSpoken.range);
+      }
+    },
     setRate: setRate,
     setVoice: setVoice,
   });

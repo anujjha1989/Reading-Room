@@ -57,6 +57,8 @@ export type ReadAloudApi = {
   skip: () => void;
   previous: () => void;
   adjustSleep: (minutes: number) => void;
+  clearSleep: () => void;
+  returnToCurrent: () => void;
   setRate: (rate: number) => void;
   setVoice: (value: string) => void;
 };

@@ -18,6 +18,8 @@ export type ReadAloudEngine = {
   skip: (direction: -1 | 1) => void;
   restartFromView?: () => void;
   adjustSleep: (minutes: number) => void;
+  clearSleep: () => void;
+  returnToCurrent: () => void;
   setRate: (rate: number) => void;
   setVoice: (value: string) => void;
 };
@@ -84,6 +86,8 @@ export const readAloudActions = {
   skip: () => engine?.skip(1),
   previous: () => engine?.skip(-1),
   adjustSleep: (minutes: number) => engine?.adjustSleep(minutes),
+  clearSleep: () => engine?.clearSleep(),
+  returnToCurrent: () => engine?.returnToCurrent(),
   setRate: (rate: number) => engine?.setRate(rate),
   setVoice: (value: string) => engine?.setVoice(value),
 };
