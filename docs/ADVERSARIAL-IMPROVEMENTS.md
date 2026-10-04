@@ -3,7 +3,9 @@
 This is an implementation checkpoint, not a release-completion claim.
 Canonical web source: this repository. Native source:
 `/Users/anuj-mac/Developer/readingroom-ios-src`. SSD build staging is disposable.
-No candidate has been committed or deployed as of this checkpoint (4 October 2026).
+Release v186 was deployed on 4 October 2026 from web commit `b6bcca5`, with native
+build 8 from `892cdb6` installed and launched on the connected iPhone. This does not
+claim every historical CSS/bridge or long-session audit is finished.
 
 ## Accepted workstreams and evidence
 
@@ -12,7 +14,9 @@ No candidate has been committed or deployed as of this checkpoint (4 October 202
    include Christie collections, real Demons and Druids chapter boundaries,
    branding, glass controls, shelves, title corrections and native Summary buttons.
    Twelve distinct native simulator cases pass with the correct server fixture.
-   Remaining: long-session observation, released public route and physical device.
+   The live authenticated public route opens real EPUB/MOBI covers, chapters and
+   Close in both engines. Three physical-iPhone library/queue cases pass, including
+   both themes. Remaining: long-session observation and a full manual device matrix.
 2. **Narration reliability — in progress.** EPUB Previous crosses into the previous
    chapter's last sentence. Failed audio pauses at the same sentence with Retry.
    Empty-section traversal is bounded; EPUB/MOBI chapter boundaries and paused mode
@@ -53,14 +57,20 @@ No candidate has been committed or deployed as of this checkpoint (4 October 202
 10. **Accessibility/polish — in progress.** Theme-aware ticks, touch targets,
     Settings/editor focus isolation, fallback-cover text and corrected metadata.
     All four library dialog paths now use the shared focus hook. Candidate phone
-    screenshots inspected in both themes/engines. Remaining: physical inspection.
+    screenshots inspected in both themes/engines; native queue interactions also
+    pass on the physical phone. Wider manual inspection remains.
 11. **Release/security — in progress.** Origin/JSON mutation guards with tests;
     deploy script requires authenticated public checks, typecheck, units, browser
     tests and post-install smoke checks. Remaining: installer upgrade, authenticated
-    integration checks, complete-candidate review, provenance, deployment and rollback
-    verification. The upgraded restricted helper is installed and checksum verified;
+    integration checks and long-session observation. Complete v186 assets/server
+    hashes, LAN/public MIME and branding hashes, rendered hydration, menus/Settings
+    in both themes and release provenance all passed. Complete previous release and
+    flat rollback inputs are backed up; rollback checks both origins after restore.
+    The upgraded restricted helper is installed and checksum verified;
     its previous version is backed up. Current authenticated public v185 smoke
-    passes both engines/themes. Failed/unavailable required checks block release.
+    and released v186 smoke passes both engines/themes. Failed/unavailable required
+    checks block release. Live Piper WAV/Range checks pass (984 ms cold, 529 ms
+    second clip); cross-origin mutation is refused without changing library data.
 12. **Storage — read-only check complete; relocation not done.** Pi currently
     exposes its SD root and two NTFS external drives, not an SSD mount. Do not move
     the library or claim SSD gains without confirming suitable hardware.
@@ -71,8 +81,9 @@ After restoring simulator audio, six queue/settings cases passed. Five of six
 details/library/playback cases passed against the local Summary fixture; the Pi
 voice case correctly failed because that fixture does not serve real voices.
 That case passed when rerun against the actual Pi. Thus twelve distinct native
-cases passed; no failed required test was waived. Build 8 has a successful signed
-Release build but is not installed yet; signed build 7 is retained for recovery.
+cases passed; no failed required test was waived. Physical-device Library and two
+Summary Settings cases subsequently passed against v186. Build 8's signed Release
+was then installed in place and launched; signed build 7 is retained for recovery.
 Explicit Summary sentence navigation reveals near the top; ordinary playback
 waits for the edge. Details-close waits for actual native and web dismissal.
 
@@ -90,3 +101,12 @@ The native Summary-injection removal depends on the new source-owned web buttons
 Never install that native candidate against the old web release. Release and verify
 the compatible complete web candidate first, then the native app, with recovery
 artifacts retained. No production-only edits or generated-bundle patches.
+
+Release record: `/Volumes/Seagate/ReadingRoom/deployment-history/v186.json`.
+Complete rollback: `/Volumes/Seagate/ReadingRoom/deployment-backups/20261004-120938-before-v186`.
+Physical result: `/Users/anuj-mac/Library/Caches/home-books-ios-device-audit/Logs/Test/Test-ReadingRoom-2026.10.04_12-11-06-+0530.xcresult`.
+
+Two preliminary ad-hoc public-reader assertions were corrected: an image-only
+cover has no text, and Demons and Druids labels its opening TOC entry Prologue,
+not Chapter 1. Corrected real-cover/TOC/chapter/Close checks passed in both engines;
+no application failure or required gate was waived.
