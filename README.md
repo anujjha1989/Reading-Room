@@ -90,6 +90,38 @@ pre-install failure, not a partial server/client release.
 Deployment tags use `deploy-vN`. The deployed version also appears in the
 application's About page.
 
+## Additional local narration voices
+
+Piper remains available and remains the default. Kokoro adds 28 English voices
+to the same `/api/tts/voices` catalogue, so both the web reader and the iOS
+summary player use their existing voice menus and playback controls. It runs
+locally on the Pi; there are no hosted API fees and no additional public port.
+
+The source-owned `server/kokoro-worker.py` uses the pinned `kokoro-pi` runtime
+and an optimized Kokoro v1.0 model. One persistent worker shares its model
+across voices, limits inference to two CPU threads, and releases itself after
+two idle minutes. Kokoro has its own single-lane priority/deduplication queue;
+Piper keeps its existing two lanes. Both use the existing bounded WAV cache.
+
+Provision once with `sudo bash ops/pi/install-kokoro.sh` on the Pi. This creates
+`/opt/reading-room/kokoro` from `ops/pi/kokoro-requirements.txt`, downloads
+checksum-verified upstream weights and builds/validates optimized models.
+Alternatively pass a previously validated model-build directory as the first
+argument. Voices stay hidden until the installer verifies the model and writes
+`READY`. Runtime dependencies/models are reproducible installation artefacts,
+not another editable source. Keep them separate from the book library.
+
+On the user's Pi 5, paragraph tests with Heart, Emma and George generated audio
+at approximately 1.8–1.9× playback speed using two CPU threads. First use also
+loads the model (~2.5 seconds); cache hits avoid synthesis. Very high playback
+speeds, multiple listeners or other heavy Pi workloads can exhaust that margin.
+Keep Piper available for those cases. Voice quality remains a listening judgment,
+not a claim of parity with commercial narrators.
+
+Upstream attribution: [Kokoro model (Apache-2.0)](https://huggingface.co/hexgrad/Kokoro-82M),
+[kokoro-onnx (MIT)](https://github.com/thewh1teagle/kokoro-onnx),
+[kokoro-pi (MIT)](https://github.com/zreecespieces/kokoro-pi).
+
 ## Not stored in Git
 
 - books, scripts and other copyrighted library files;

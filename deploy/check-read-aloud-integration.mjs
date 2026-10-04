@@ -46,10 +46,13 @@ check(/if \(!ok\) \{[\s\S]{0,400}?void step\(mine\)/.test(engine),
 check(/LOAD_TIMEOUT\s*=\s*25000/.test(engine)
   && /armStallWatchdog\(text, mine, LOAD_TIMEOUT\)/.test(engine),
   "uncached audio gets a synthesis window before stall recovery");
-check(/synthesis\.acquire\(key/.test(ttsServer)
+check(/kokoroSynthesis : synthesis\)\.acquire\(key/.test(ttsServer)
   && /jobs\.get\(key\)/.test(synthesisQueue)
   && /await lease.promise/.test(ttsServer),
   "playback joins an in-progress prefetch instead of synthesising the clip twice");
+check(/createKokoroPool\(\{ size: 1 \}\)/.test(ttsServer)
+  && /kokoroSynthesis = createSynthesisQueue\(\{ concurrency: 1/.test(ttsServer),
+  "Kokoro keeps one model and one CPU-bounded synthesis lane");
 check(/function warmAhead\(start: number, count: number\)/.test(engine)
   && /warmAhead\(cursor \+ 1, 6\)/.test(engine)
   && /warmAhead\(at \+ 1, 6\)/.test(engine)

@@ -17,7 +17,7 @@ umask 022
 STAGE=/home/anujjha1989/rr-deploy/stage
 SITE=/opt/reading-room/current/site
 RELEASE=/opt/reading-room/current
-SERVER_FILES=(standalone-server.mjs rr-settings.mjs rr-tts.mjs synthesis-queue.mjs piper-pool.mjs wav-cache.mjs request-guard.mjs)
+SERVER_FILES=(standalone-server.mjs rr-settings.mjs rr-tts.mjs synthesis-queue.mjs piper-pool.mjs wav-cache.mjs request-guard.mjs voice-worker-pool.mjs kokoro.mjs)
 PUBLIC_FILES=(favicon.svg home-books-icon.svg icon-192.png icon-512.png apple-touch-icon.png manifest.webmanifest)
 
 # Validate the source-owned scanner before installing any release files.
@@ -50,6 +50,13 @@ if [ "$server_count" -ne 0 ]; then
   fi
   if grep -q 'wav-cache.mjs' "$STAGE/rr-tts.mjs" && [ ! -f "$STAGE/wav-cache.mjs" ]; then
     echo "reading-room-deploy: missing audio-cache housekeeping" >&2; exit 1
+  fi
+  if grep -q 'voice-worker-pool.mjs' "$STAGE/piper-pool.mjs"; then
+    [ -f "$STAGE/voice-worker-pool.mjs" ] || { echo "reading-room-deploy: missing shared voice pool" >&2; exit 1; }
+  fi
+  if grep -q 'kokoro.mjs' "$STAGE/rr-tts.mjs"; then
+    [ -f "$STAGE/kokoro.mjs" ] && [ -f "$STAGE/kokoro-worker.py" ] || { echo "reading-room-deploy: missing Kokoro engine" >&2; exit 1; }
+    /usr/bin/python3 -c 'import ast,sys; ast.parse(open(sys.argv[1]).read())' "$STAGE/kokoro-worker.py"
   fi
   for name in "${SERVER_FILES[@]}"; do
     [ ! -f "$STAGE/$name" ] || /usr/bin/node --check "$STAGE/$name" >/dev/null
@@ -88,6 +95,9 @@ if [ "$server_count" -ne 0 ]; then
     [ -f "$STAGE/$name" ] || continue
     install -o root -g reading-room -m 0644 "$STAGE/$name" "$RELEASE/$name"
   done
+  if [ -f "$STAGE/kokoro-worker.py" ]; then
+    install -o root -g reading-room -m 0644 "$STAGE/kokoro-worker.py" "$RELEASE/kokoro-worker.py"
+  fi
 fi
 if [ -f "$STAGE/rr-catalog-rebuild.sh" ]; then
   install -o root -g root -m 0755 "$STAGE/rr-catalog-rebuild.sh" /usr/local/lib/reading-room/rr-catalog-rebuild.sh

@@ -53,7 +53,7 @@ for (const name of await readdir(join(distDir, "client/assets"))) {
     assetFiles.push([join(distDir, "client/assets", name), "client-asset", `dist/client/assets/${name}`]);
   }
 }
-for (const name of ["standalone-server.mjs", "rr-settings.mjs", "rr-tts.mjs", "synthesis-queue.mjs", "piper-pool.mjs", "wav-cache.mjs", "request-guard.mjs"]) {
+for (const name of ["standalone-server.mjs", "rr-settings.mjs", "rr-tts.mjs", "synthesis-queue.mjs", "piper-pool.mjs", "wav-cache.mjs", "request-guard.mjs", "voice-worker-pool.mjs", "kokoro.mjs", "kokoro-worker.py"]) {
   assetFiles.push([join(root, "server", name), "server-source"]);
 }
 for (const name of ["favicon.svg", "home-books-icon.svg", "icon-192.png", "icon-512.png", "apple-touch-icon.png", "manifest.webmanifest"]) {

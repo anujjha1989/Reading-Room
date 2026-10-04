@@ -64,6 +64,10 @@ if ! "${SSH[@]}" "$PI" "grep -q 'SERVER_FILES=.*piper-pool.mjs.*wav-cache.mjs.*r
   echo "FAILED: install the current helper before releasing the narration scheduler." >&2
   exit 1
 fi
+if ! "${SSH[@]}" "$PI" "grep -q 'SERVER_FILES=.*voice-worker-pool.mjs.*kokoro.mjs' /usr/local/sbin/reading-room-deploy"; then
+  echo "FAILED: install the current helper before releasing additional voice engines." >&2
+  exit 1
+fi
 
 # Build and stage on the Mac SSD. The repo lives on an SMB mount, where many
 if ! "${SSH[@]}" "$PI" "grep -q 'STAGE/rr-catalog-rebuild.sh' /usr/local/sbin/reading-room-deploy"; then
@@ -144,6 +148,7 @@ for name in "${PUBLIC_FILES[@]}"; do
   cp "public/$name" "$BUILD_DIR/dist/stage/$name"
 done
 cp server/standalone-server.mjs server/rr-settings.mjs server/rr-tts.mjs server/synthesis-queue.mjs server/piper-pool.mjs server/wav-cache.mjs server/request-guard.mjs "$BUILD_DIR/dist/stage/"
+cp server/voice-worker-pool.mjs server/kokoro.mjs server/kokoro-worker.py "$BUILD_DIR/dist/stage/"
 cp ops/pi/lib/rr-catalog-rebuild.sh "$BUILD_DIR/dist/stage/"
 cp ops/pi/tools/rr-cover-extract.py "$BUILD_DIR/dist/stage/"
 
@@ -167,7 +172,8 @@ mkdir -p "$ROLLBACK"
 gzip -t "$ROLLBACK/complete-release.tar.gz"
 "${SSH[@]}" "$PI" "tar czf - -C /opt/reading-room/current \
   standalone-server.mjs rr-settings.mjs rr-tts.mjs \
-  \$([ -f /opt/reading-room/current/synthesis-queue.mjs ] && echo synthesis-queue.mjs) \$([ -f /opt/reading-room/current/piper-pool.mjs ] && echo piper-pool.mjs) \$([ -f /opt/reading-room/current/wav-cache.mjs ] && echo wav-cache.mjs) \$([ -f /opt/reading-room/current/request-guard.mjs ] && echo request-guard.mjs) -C site index.html \
+  \$([ -f /opt/reading-room/current/synthesis-queue.mjs ] && echo synthesis-queue.mjs) \$([ -f /opt/reading-room/current/piper-pool.mjs ] && echo piper-pool.mjs) \$([ -f /opt/reading-room/current/wav-cache.mjs ] && echo wav-cache.mjs) \$([ -f /opt/reading-room/current/request-guard.mjs ] && echo request-guard.mjs) \
+  \$(for name in voice-worker-pool.mjs kokoro.mjs kokoro-worker.py; do [ -f /opt/reading-room/current/\$name ] && echo \$name; done) -C site index.html \
   \$([ -f /opt/reading-room/current/site/sw.js ] && echo sw.js) \
   \$([ -f /opt/reading-room/current/site/settings.html ] && echo settings.html) \
   \$(for name in favicon.svg home-books-icon.svg icon-192.png icon-512.png apple-touch-icon.png manifest.webmanifest; do \
@@ -226,7 +232,7 @@ for document in index.html sw.js; do
   remote_hash=$("${SSH[@]}" "$PI" "sha256sum /opt/reading-room/current/site/$document | cut -d' ' -f1")
   [ "$local_hash" = "$remote_hash" ] || fail "$document did not reach the live candidate"
 done
-for server_file in standalone-server.mjs rr-settings.mjs rr-tts.mjs synthesis-queue.mjs piper-pool.mjs wav-cache.mjs request-guard.mjs; do
+for server_file in standalone-server.mjs rr-settings.mjs rr-tts.mjs synthesis-queue.mjs piper-pool.mjs wav-cache.mjs request-guard.mjs voice-worker-pool.mjs kokoro.mjs kokoro-worker.py; do
   local_hash=$(shasum -a 256 "server/$server_file" | awk '{print $1}')
   remote_hash=$("${SSH[@]}" "$PI" "sha256sum /opt/reading-room/current/$server_file | cut -d' ' -f1")
   [ "$local_hash" = "$remote_hash" ] || fail "$server_file did not reach the live release"
@@ -337,6 +343,10 @@ esac
 verify_origin "http://anujrpi.local:4311" required
 LAN_RESULT=$VERIFY_RESULT
 verify_origin "$PUBLIC_ORIGIN" required
+for origin in "http://anujrpi.local:4311" "$PUBLIC_ORIGIN"; do
+  (cd "$BUILD_DIR" && READING_ROOM_BASE_URL="$origin" node deploy/check-local-voices.mjs) \
+    || fail "local narration engines failed on $origin"
+done
 TAILSCALE_RESULT=$VERIFY_RESULT
 for origin in "http://anujrpi.local:4311" "$PUBLIC_ORIGIN"; do
   (cd "$BUILD_DIR" && READING_ROOM_BASE_URL="$origin" READING_ROOM_EXPECT_VERSION="$VERSION" node deploy/release-smoke.mjs) \

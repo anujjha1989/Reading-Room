@@ -24,6 +24,10 @@ for (const engine of ["chromium", "webkit"]) test(`${engine}: current reader con
   await page.route("**/api/library-state", r => r.fulfill({ json: { states: [] } }));
   await page.route("**/api/book/**", r => r.fulfill({ contentType: "application/epub+zip", body: fixture }));
   await page.route("**/api/tts?**", r => r.fulfill({ body: "fixture" }));
+  await page.route("**/api/tts/voices", r => r.fulfill({ json: { voices: [
+    { id: "en_GB-alba-medium", label: "Alba · British English · medium" },
+    { id: "kokoro-af_heart", label: "Kokoro · Heart · American English" },
+  ] } }));
   await page.addInitScript(() => {
     // Desktop WebKit reports zero despite hasTouch; exercise the iPhone branch.
     Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 1 });
@@ -81,7 +85,13 @@ for (const engine of ["chromium", "webkit"]) test(`${engine}: current reader con
     await page.locator('[data-view="menu"]').waitFor();
   }
   await page.locator('[data-view="menu"] button').filter({ hasText: /^Aloud$/ }).click();
+  await page.locator('[data-view="aloud"] button').filter({ hasText: /^Default voice$/ }).click();
+  await page.getByRole("button", { name: "Alba · British English · medium", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Kokoro · Heart · American English", exact: true }).click();
+  assert.equal(await page.evaluate(() => localStorage.getItem("reading-room-voice")), "kokoro-af_heart");
+  await page.locator('[data-view="aloud"] button').filter({ hasText: /^Kokoro · Heart/ }).waitFor();
   await page.getByRole("button", { name: "Start reading", exact: true }).click();
+  assert.match(await page.locator('#rr-tts-audio').evaluate(audio => audio.src), /v=kokoro-af_heart/);
   await page.getByRole("button", { name: "Pause reading", exact: true }).click();
   await menu.click();
   await page.waitForTimeout(700);

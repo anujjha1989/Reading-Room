@@ -20,6 +20,7 @@ import { join } from "node:path";
 import { createSynthesisQueue } from "./synthesis-queue.mjs";
 import { createPiperPool } from "./piper-pool.mjs";
 import { createWavCache } from "./wav-cache.mjs";
+import { createKokoroPool, installedKokoroVoices } from "./kokoro.mjs";
 
 const PIPER = process.env.READING_ROOM_PIPER || "/opt/piper/piper";
 const TTS_DIR = process.env.READING_ROOM_TTS || "/mnt/seagate/ReadingRoom/tts";
@@ -31,6 +32,10 @@ const MAX_CONCURRENT = 2;       // leave the Pi some room for serving books
 
 const synthesis = createSynthesisQueue({ concurrency: MAX_CONCURRENT, maxPending: 32 });
 const piper = createPiperPool({ executable: PIPER, voiceDir: VOICE_DIR, size: MAX_CONCURRENT });
+// Kokoro's larger model is shared across voices; one process avoids CPU and
+// memory contention. It keeps the same priority/deduplication scheduler.
+const kokoroSynthesis = createSynthesisQueue({ concurrency: 1, maxPending: 32 });
+const kokoro = createKokoroPool({ size: 1 });
 const cache = createWavCache(CACHE_DIR);
 
 const json = (response, code, body) => {
@@ -64,14 +69,14 @@ const label = (id) => {
   return `${name} · ${langs[m[2]] || m[1] + "-" + m[2]} · ${m[4]}`;
 };
 
-function synth(voice, text, out) {
-  return piper.synthesize(voice, text, out);
+async function voiceCatalogue() {
+  return [...(await voices()).map(id => ({ id, label: label(id) })), ...await installedKokoroVoices()];
 }
 
-export async function ttsRoute(request, response, url) {
+export function createTtsRoute({ piperPool = piper, kokoroPool = kokoro, catalogue = voiceCatalogue } = {}) {
+return async function ttsRoute(request, response, url) {
   if (url.pathname === "/api/tts/voices" && request.method === "GET") {
-    const list = await voices();
-    json(response, 200, { voices: list.map((id) => ({ id, label: label(id) })) });
+    json(response, 200, { voices: await catalogue() });
     return true;
   }
 
@@ -82,7 +87,7 @@ export async function ttsRoute(request, response, url) {
   if (!text) { json(response, 400, { error: "no text" }); return true; }
   if (text.length > MAX_TEXT) { json(response, 413, { error: "text too long" }); return true; }
 
-  const list = await voices();
+  const list = (await catalogue()).map(item => item.id);
   if (!list.length) { json(response, 503, { error: "no voices installed" }); return true; }
   if (!SAFE_VOICE.test(voice) || !list.includes(voice)) voice = list[0];
 
@@ -145,13 +150,13 @@ export async function ttsRoute(request, response, url) {
   // work already in progress and never loses priority to later prefetches.
   let lease;
   try {
-    lease = synthesis.acquire(key, async () => {
+    lease = (voice.startsWith("kokoro-") ? kokoroSynthesis : synthesis).acquire(key, async () => {
         // The file may have appeared while this job waited for a Piper slot.
         try { await stat(file); return; } catch {}
         await mkdir(dir, { recursive: true });
         const tmp = join(dir, `.${key}.${process.pid}.${Date.now()}.wav`);
         try {
-          await synth(voice, text, tmp);
+          await (voice.startsWith("kokoro-") ? kokoroPool : piperPool).synthesize(voice, text, tmp);
           await rename(tmp, file);
           cache.wrote((await stat(file)).size);
         } catch (err) {
@@ -175,4 +180,7 @@ export async function ttsRoute(request, response, url) {
     lease.release();
   }
   return true;
+};
 }
+
+export const ttsRoute = createTtsRoute();
