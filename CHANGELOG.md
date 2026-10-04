@@ -26,6 +26,15 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
   unloaded visible sections. Automated browser checks are not a claim of a
   completed physical-iPhone touch/momentum test.
 
+### Deployment
+
+- Source `af93c59`, v190: 26 required browser checks passed; built assets and
+  rendered light/dark routes verified on LAN and public HTTPS. Post-install
+  Trevor Complete Works / After Rain forward-and-reverse traversal on both
+  origins reported zero visible destructions, blank sections or resting-text
+  position shifts. The connected iPhone has native build 8; no native code or
+  app reinstall is required for this web-reader release.
+
 ## v185 — 2026-10-03
 
 ### Fixed
