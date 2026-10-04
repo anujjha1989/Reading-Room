@@ -2,6 +2,17 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v194 — 2026-10-04
+
+- Home shelf bands now fade grey → black/white at the midpoint → grey, matching
+  the approved preview. Reused the existing theme tokens; no layout, reader,
+  progress or control changes.
+- Passed the full release gates (36 root tests, 34 browser regression checks),
+  plus the dedicated light/dark/system gradient test. Exact computed gradients
+  and shelf-menu open/close passed on LAN and authenticated public HTTPS in both
+  themes with no runtime errors. Live mobile screenshots matched the preview;
+  asset hashes/MIME, hydration and Settings checks also passed.
+
 ## v193 — 2026-10-04
 
 - Handle image-only EPUB covers whose text CFI cannot resolve: show reading
