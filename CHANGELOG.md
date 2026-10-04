@@ -2,6 +2,20 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v192 — 2026-10-04
+
+- EPUB page chip now uses continuous whole-book reading pages (1,500 text
+  characters per page), not section-local screen-page numbers. Forward section
+  crossings no longer reset the number; reverse navigation/reopening return to
+  the same number independently of font size or scroll/page mode. These are
+  virtual reading pages, not a printed edition's pagination.
+- Count preceding text in detached documents only, yield between sections,
+  cancel on close and optionally cache lengths with archive-text/manifest CRC
+  invalidation. Never load/unload the live reader sections or change the
+  scrolling manager. Book opening does not wait for this calculation.
+- Added three index tests and four required rendered cross-section/reopen
+  checks in Chrome/WebKit and both reading modes.
+
 ## v191 — 2026-10-04
 
 ### Regressions

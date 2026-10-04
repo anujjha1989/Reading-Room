@@ -21,6 +21,7 @@ import { resolveEpubSavedPosition } from "./epubSavedPosition";
 import { loadReaderToc } from "./readerToc";
 import { readerDeadline } from "./readerDeadline";
 import { continuousEpubManager, type ContinuousManagerConstructor } from "./continuousEpubManager";
+import { createEpubPageIndex } from "./epubPageIndex";
 
 export type ReaderFile = {
   id: string;
@@ -674,6 +675,33 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
           }
           return sectionSizesRef.current[index] ?? 0;
         };
+        const pageSections: Array<{ index: number; url: string; href: string; linear: boolean }> = [];
+        (book.spine as unknown as { each: (callback: (section: { index: number; url: string; href: string; linear: boolean }) => void) => void }).each(section => {
+          pageSections[section.index] = section;
+        });
+        const zipFiles = (book as unknown as { archive?: { zip?: { files?: Record<string, { _data?: { crc32?: number; uncompressedSize?: number } }> } } }).archive?.zip?.files ?? {};
+        // Text/manifest CRCs invalidate changed editions without storing book
+        // text or large image/font filename lists in the optional cache.
+        const signature = JSON.stringify(Object.entries(zipFiles).filter(([path]) => /\.(?:xhtml|html|htm|xml|opf)$/i.test(path)).map(([, entry]) => [entry._data?.crc32, entry._data?.uncompressedSize]));
+        const pageCacheKey = `home-books-text-pages-v1-${file.id}`;
+        let cachedLengths: Array<number | null> | undefined;
+        try {
+          const cached = JSON.parse(localStorage.getItem(pageCacheKey) || "null");
+          if (cached?.signature === signature && Array.isArray(cached.lengths)) cachedLengths = cached.lengths;
+        } catch { /* cache is optional */ }
+        const pageIndex = createEpubPageIndex({
+          linear: pageSections.map(section => section.linear !== false), lengths: cachedLengths, signal: controller.signal,
+          loadLength: async index => {
+            // book.load returns a detached archive document. Do not call
+            // section.load/unload: those sections also belong to narration.
+            const doc = await readerDeadline(book.load(pageSections[index].url), controller.signal, 5_000) as Document;
+            const body = doc.body || doc.querySelector("body");
+            if (!body) throw new Error("EPUB section has no body");
+            return body.textContent?.length ?? 0;
+          },
+        });
+        let pageRequest = 0;
+        let lastPageCache = "";
         const measureEpub = (location: Location): number | undefined => {
           try {
             const index = location.start.index;
@@ -693,6 +721,19 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
               before.setStart(doc.body, 0);
               before.setEnd(range.startContainer, range.startOffset);
               read = before.toString().length;
+              pageIndex.remember(index, total);
+              const request = pageRequest;
+              void pageIndex.pageAt(index, read).then(page => {
+                if (disposed || request !== pageRequest) return;
+                setCurrentPage(page);
+                try {
+                  const lengths = JSON.stringify(pageIndex.snapshot());
+                  if (lengths !== lastPageCache) {
+                    localStorage.setItem(pageCacheKey, JSON.stringify({ signature, lengths: pageIndex.snapshot() }));
+                    lastPageCache = lengths;
+                  }
+                } catch { /* storage full/private: in-memory numbering still works */ }
+              }).catch(() => { if (!disposed && request === pageRequest) setCurrentPage(null); });
             }
             const inSection = Math.max(0, total - read);
             const sizes = sectionSizesRef.current ?? [];
@@ -786,8 +827,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         });
 
         rendition.on("relocated", (location: Location) => {
-          const page = location.start.displayed;
-          setCurrentPage(page?.page > 0 ? page.page : null);
+          pageRequest++;
           const atEnd = (location as Location & { atEnd?: boolean }).atEnd ?? false;
           const fraction = atEnd ? 1 : measureEpub(location);
           const label = fraction !== undefined ? `${Math.max(1, Math.round(fraction * 100))}%` : "In progress";
@@ -1483,7 +1523,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         <button type="button" className="rr-close-btn" aria-label="Close book" onClick={onClose}><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M5 5l14 14M19 5L5 19" /></svg></button>
         <ReadAloudTransport api={readAloud} />
         {isBookReader && currentPage !== null && !status && <output
-          className="rr-page-number" aria-label={`Page ${currentPage}${isEpub ? " in current section" : ""}`}
+          className="rr-page-number" aria-label={`Page ${currentPage}${isEpub ? " in book" : ""}`}
           aria-live="off">{currentPage}</output>}
         {isReflowable && <ReaderAnnotations adapter={annotationAdapter} highlights={highlights}
           onChange={(next) => onHighlightsChange?.(next)} title={displayTitle} author={author} host={readingSheetHost} />}
