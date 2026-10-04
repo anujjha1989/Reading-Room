@@ -67,6 +67,8 @@ type ContinuousManager = {
     indexOf: (view: unknown) => number;
   };
   erase?: (view: unknown, above?: unknown[]) => void;
+  check?: () => Promise<unknown>;
+  ignore?: boolean;
 };
 
 function stabilizeContinuousScroll(rendition: Rendition) {
@@ -97,6 +99,13 @@ function stabilizeContinuousScroll(rendition: Rendition) {
     for (let index = keep; index < below.length; index += 1) {
       manager.erase?.(below[index]);
     }
+    // erase() uses epub.js's silent scroll path, which leaves `ignore` set so
+    // the next native scroll event is not reported. That is correct for the
+    // compensation itself, but on upward iOS scrolling it can also suppress
+    // the visibility pass that reloads a placeholder just entering the view.
+    // Clear the one-shot flag and run that pass immediately.
+    manager.ignore = false;
+    void manager.check?.();
     return Promise.resolve();
   };
 }
