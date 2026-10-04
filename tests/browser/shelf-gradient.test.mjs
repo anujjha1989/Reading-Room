@@ -3,7 +3,7 @@ import test from "node:test";
 import { launchBrowser } from "./cdp-browser.mjs";
 import { summaryPreview } from "./summary-settings-preview.mjs";
 
-test("all home shelf bands fade grey to background to grey in light, dark and system themes", {timeout:60000}, async t => {
+test("all home shelf bands retain gradients and crisp dividers in light, dark and system themes", {timeout:60000}, async t => {
   const preview = await summaryPreview(); t.after(() => preview.close());
   const browser = await launchBrowser(); t.after(() => browser.close());
   const errors=[]; browser.on("Runtime.exceptionThrown", e=>errors.push(e.exceptionDetails.text));
@@ -23,12 +23,13 @@ test("all home shelf bands fade grey to background to grey in light, dark and sy
     await browser.evaluate(`document.documentElement.dataset.rrTheme='${theme}'`);
     const shelves = await browser.evaluate(`[...document.querySelectorAll('.smart-shelf')].map(s => {
       const r=s.getBoundingClientRect(), rail=s.querySelector('.shelf-strip');
-      return {gradient:getComputedStyle(s).backgroundImage,width:r.width,height:r.height,overflow:getComputedStyle(rail).overflowX};
+      return {gradient:getComputedStyle(s).backgroundImage,divider:getComputedStyle(s).boxShadow,width:r.width,height:r.height,overflow:getComputedStyle(rail).overflowX};
     })`);
     for(const shelf of shelves) {
       assert.match(shelf.gradient,/linear-gradient\(/);
       assert.equal(shelf.gradient, `linear-gradient(rgb(${start}) 0%, rgb(${end}) 50%, rgb(${start}) 100%)`);
       assert.equal(shelf.overflow,"auto");
+      assert.equal(shelf.divider, `rgb(${theme==='light'?'209, 209, 214':'69, 69, 72'}) 0px -1px 0px 0px inset`);
     }
     const current=shelves.map(({width,height})=>({width,height}));
     if(geometry) assert.deepEqual(current,geometry,"theme changes must not change shelf layout"); else geometry=current;

@@ -492,11 +492,11 @@ html[data-rr-theme="dark"] .rr-library-dock button[data-view="Search"] { backgro
 html[data-rr-theme="dark"] .rr-library-dock button[data-view="Search"][aria-current="page"] { background:#286957; color:#fff; }
 
 /* One neutral band for every horizontal shelf, including Continue. */
-html .discovery { --shelf-top:#ededf0; --shelf-bottom:#fff; }
+html .discovery { --shelf-top:#ededf0; --shelf-bottom:#fff; --shelf-divider:#d1d1d6; }
 @media (prefers-color-scheme:dark) {
-  html:not([data-rr-theme="light"]) .discovery { --shelf-top:#1e1e1e; --shelf-bottom:#000; }
+  html:not([data-rr-theme="light"]) .discovery { --shelf-top:#1e1e1e; --shelf-bottom:#000; --shelf-divider:#454548; }
 }
-html[data-rr-theme="dark"] .discovery { --shelf-top:#1e1e1e; --shelf-bottom:#000; }
+html[data-rr-theme="dark"] .discovery { --shelf-top:#1e1e1e; --shelf-bottom:#000; --shelf-divider:#454548; }
 
 /* ---- Settings entry point -------------------------------------------- */
 html #rr-settings-link {
@@ -1064,6 +1064,8 @@ html.rr-library-visible #rr-settings-link {
 /* --- full-width shelf bands -------------------------------------------- */
 html[data-rr-library-view="home"] .discovery .smart-shelf {
   border-bottom: 0;
+  /* A crisp hairline separates matching gradient ends without changing layout. */
+  box-shadow: inset 0 -1px 0 var(--shelf-divider);
   margin: 0 -20px;
   padding: 28px 20px 30px;
   overflow: visible;
