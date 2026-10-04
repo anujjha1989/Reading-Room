@@ -3,7 +3,7 @@ import test from "node:test";
 import { launchBrowser } from "./cdp-browser.mjs";
 import { summaryPreview } from "./summary-settings-preview.mjs";
 
-test("all home shelf bands fade downwards in light, dark and system themes", {timeout:60000}, async t => {
+test("all home shelf bands fade grey to background to grey in light, dark and system themes", {timeout:60000}, async t => {
   const preview = await summaryPreview(); t.after(() => preview.close());
   const browser = await launchBrowser(); t.after(() => browser.close());
   const errors=[]; browser.on("Runtime.exceptionThrown", e=>errors.push(e.exceptionDetails.text));
@@ -27,7 +27,7 @@ test("all home shelf bands fade downwards in light, dark and system themes", {ti
     })`);
     for(const shelf of shelves) {
       assert.match(shelf.gradient,/linear-gradient\(/);
-      assert.ok(shelf.gradient.indexOf(start) < shelf.gradient.lastIndexOf(end), shelf.gradient);
+      assert.equal(shelf.gradient, `linear-gradient(rgb(${start}) 0%, rgb(${end}) 50%, rgb(${start}) 100%)`);
       assert.equal(shelf.overflow,"auto");
     }
     const current=shelves.map(({width,height})=>({width,height}));

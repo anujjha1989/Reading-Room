@@ -21,6 +21,12 @@ for (const engine of ["chromium", "webkit"]) test(`${engine}: shelf menus never 
     await page.waitForFunction(() => [...document.querySelectorAll('.smart-shelf h2')].some(heading => heading.textContent === 'Continue'));
     for (const theme of ["light", "dark"]) {
       await page.evaluate(theme => document.documentElement.dataset.rrTheme = theme, theme);
+      const expectedGradient = theme === "dark"
+        ? "linear-gradient(rgb(30, 30, 30) 0%, rgb(0, 0, 0) 50%, rgb(30, 30, 30) 100%)"
+        : "linear-gradient(rgb(237, 237, 240) 0%, rgb(255, 255, 255) 50%, rgb(237, 237, 240) 100%)";
+      const gradients = await page.locator('.smart-shelf').evaluateAll(shelves => shelves.map(shelf => getComputedStyle(shelf).backgroundImage));
+      assert.ok(gradients.length > 0);
+      for (const gradient of gradients) assert.equal(gradient, expectedGradient, 'every shelf fades from grey to the theme background and back to grey');
       const spacing = await page.locator('.smart-shelf').first().evaluate(shelf => {
         const heading = shelf.querySelector('.shelf-heading').getBoundingClientRect();
         const cover = shelf.querySelector('.shelf-strip').getBoundingClientRect();
