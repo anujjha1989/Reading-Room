@@ -1,15 +1,16 @@
 // Home Books — full-page reading.
 //
-// Companion to fullscreen-fix.css, which carries the reasoning. This file sets
-// classes on <html> and wires up the gestures:
+// Mounted and disposed by BookReader. This adapter connects sandboxed book
+// documents to host gestures; reader-chrome.css owns its presentation.
 //
-//   ≡              opens/closes the controls sheet
-//   Hide toolbars  (in the sheet) hides the strip and footer
-//   centre tap     the same toggle, without opening anything
+// React owns the visible close/menu/narration controls. Centre taps toggle
+// those controls; edge taps and swipes navigate through the reader's buttons.
 //
 // Nothing here moves a node the app rendered. The controls are relocated by
 // CSS; every element this adds is appended to <body>, which React does not
 // manage, so a re-render can never trip over it.
+import { getReadAloudSnapshot } from "./readAloudController";
+
 export function mountReaderInteractions() {
   "use strict";
   if (typeof document === "undefined") return () => {};
@@ -41,22 +42,6 @@ export function mountReaderInteractions() {
     schedule();
   }
 
-
-  // Remaining bridge buttons live on <body>, outside React's tree.
-  function make(className, label, text, onClick) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.className = className;
-    b.setAttribute("aria-label", label);
-    b.textContent = text;
-    b.addEventListener("click", function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      onClick();
-    }, { signal: signal });
-    document.body.appendChild(b);
-    return b;
-  }
 
   // --- Centre tap -----------------------------------------------------------
   // Not `click`: the paginator handles touchstart/touchend and pointerdown/
@@ -163,7 +148,7 @@ export function mountReaderInteractions() {
 
   // WebKit suppresses callbacks inside sandboxed ebook frames without
   // allow-scripts. Keep that security boundary; use native host-page buttons.
-  var tapLayer = null, textModeButton = null, textMode = false, scrollWrapper = null;
+  var tapLayer = null, textMode = false, scrollWrapper = null;
   // Is there a link under this point, inside the book's iframe? The reading
   // content lives in an epub.js (or foliate) iframe beneath our tap overlay,
   // so the only way to know is to ask that document directly.
@@ -223,7 +208,6 @@ export function mountReaderInteractions() {
     var enabled = touchDevice && !!shell() && !!stage && (pagesMode() || !!scrollHost);
     if (!enabled) {
       if (tapLayer) tapLayer.style.display = "none";
-      if (textModeButton) textModeButton.style.display = "none";
       return;
     }
     if (!tapLayer) {
@@ -306,17 +290,7 @@ export function mountReaderInteractions() {
         syncTapLayer();
       };
       document.body.appendChild(tapLayer);
-      textModeButton = make("rr-text-mode", "Select text or follow book links", "Select text / follow links", function () {
-        textMode = !textMode;
-        closeSheet();
-        syncTapLayer();
-      });
-      textModeButton.style.cssText = "position:fixed;top:calc(98px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:122;padding:10px 18px;border:1px solid #777;border-radius:20px;background:var(--paper,#fffdf7);color:var(--ink,#1e2422);font:14px sans-serif";
     }
-    var textModeLabel = textMode ? "Enable page taps" : "Select text / follow links";
-    if (textModeButton.textContent !== textModeLabel) textModeButton.textContent = textModeLabel;
-    textModeButton.setAttribute("aria-label", textModeButton.textContent);
-    textModeButton.style.display = sheetOpen() ? "block" : "none";
     var box = stage.getBoundingClientRect();
     var left = Math.max(0, box.left), top = Math.max(0, box.top);
     var width = Math.min(window.innerWidth, box.right) - left;
@@ -368,9 +342,8 @@ export function mountReaderInteractions() {
     if (!direction) return;
     // Leave volume entirely to the device while read-aloud is active,
     // including pauses between utterances and a manually paused session.
-    var speed = document.querySelector(".rr-rate");
-    var listen = document.querySelector(".rr-listen");
-    if ((speed && !speed.hidden) || (listen && listen.getAttribute("aria-pressed") === "true") ||
+    var narration = getReadAloudSnapshot();
+    if (narration.playing || narration.paused ||
         (window.speechSynthesis && (window.speechSynthesis.speaking || window.speechSynthesis.pending || window.speechSynthesis.paused))) return;
     event.preventDefault();
     event.stopPropagation();
@@ -478,7 +451,7 @@ export function mountReaderInteractions() {
       // v44: nothing to tear down when the reader was never open — do not
       // rewrite <html>'s class list on every mutation and every interval tick.
       if (!root.classList.contains("rr-strip")) { textMode = false; return; }
-      root.classList.remove("rr-strip", "rr-hide-chrome", "rr-sheet-open", "rr-theme-dark");
+      root.classList.remove("rr-strip", "rr-hide-chrome", "rr-theme-dark");
       textMode = false;
       syncTapLayer();
       return;
@@ -523,9 +496,8 @@ export function mountReaderInteractions() {
     controller.abort();
     tapLayer?.remove();
     scrollWrapper?.remove();
-    textModeButton?.remove();
     debugPanel?.remove();
-    root.classList.remove("rr-strip", "rr-hide-chrome", "rr-sheet-open", "rr-theme-dark");
+    root.classList.remove("rr-strip", "rr-hide-chrome", "rr-theme-dark");
   };
 }
 

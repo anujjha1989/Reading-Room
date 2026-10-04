@@ -21,6 +21,12 @@ for (const engine of ["chromium", "webkit"]) test(`${engine}: shelf menus never 
     await page.waitForFunction(() => [...document.querySelectorAll('.smart-shelf h2')].some(heading => heading.textContent === 'Continue'));
     for (const theme of ["light", "dark"]) {
       await page.evaluate(theme => document.documentElement.dataset.rrTheme = theme, theme);
+      const spacing = await page.locator('.smart-shelf').first().evaluate(shelf => {
+        const heading = shelf.querySelector('.shelf-heading').getBoundingClientRect();
+        const cover = shelf.querySelector('.shelf-strip').getBoundingClientRect();
+        return { top: heading.top - shelf.getBoundingClientRect().top, gap: cover.top - heading.bottom };
+      });
+      assert.ok(spacing.top >= 27 && spacing.gap >= 23, 'shelf titles need breathing room above and below');
       const geometry = await page.locator(".rr-shelf-cell").evaluateAll(cells => cells.map(cell => {
         const box = node => { const r = node.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
         return { title: box(cell.querySelector('.shelf-book > strong')), author: box(cell.querySelector('.rr-shelf-author')), menu: box(cell.querySelector('.rr-card-more')), progress: cell.querySelector('.rr-continue-meta') ? box(cell.querySelector('.rr-continue-meta')) : null };

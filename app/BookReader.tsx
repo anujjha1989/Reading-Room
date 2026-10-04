@@ -30,6 +30,8 @@ export type ReaderFile = {
 
 export type ReaderLocation = {
   label: string;
+  /** Whole-book fraction, independent of chapter names or section page counts. */
+  progress?: number;
   position?: string;
   status?: "reading" | "finished";
 };
@@ -324,6 +326,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
   const [locationHref, setLocationHref] = useState("");
   const [fontSize, setFontSize] = useState(100);
   const [progress, setProgress] = useState("");
+  const [currentPage, setCurrentPage] = useState<number | null>(null);
   const [readingMode, setReadingMode] = useState<ReadingMode | null>(null);
   const [pageTurnAnimation, setPageTurnAnimation] = useState<PageTurnAnimation>("slide");
   const [displayTitle, setDisplayTitle] = useState(title);
@@ -475,6 +478,8 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
   }, [onLocationChange]);
 
   const reportLocation = useCallback((location: ReaderLocation) => {
+    const page = /^Page (\d+)/.exec(location.label);
+    if (page) setCurrentPage(Number(page[1]));
     currentLocationRef.current = location;
     pendingLocationRef.current = location;
     if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
@@ -511,6 +516,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
   useEffect(() => {
     setDisplayTitle(title);
     currentLocationRef.current = { label: "Saved place", position: initialPosition };
+    setCurrentPage(null);
     sectionSizesRef.current = null;
     textRatioRef.current = new Map();
     paceRef.current = null;
@@ -668,7 +674,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
           }
           return sectionSizesRef.current[index] ?? 0;
         };
-        const measureEpub = (location: Location) => {
+        const measureEpub = (location: Location): number | undefined => {
           try {
             const index = location.start.index;
             const contents = (rendition.getContents() as unknown as Array<{ sectionIndex: number; document: Document }>)
@@ -692,6 +698,13 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
             const sizes = sectionSizesRef.current ?? [];
             const ahead = sizes.slice(index + 1).reduce((sum, bytes) => sum + (bytes || 0), 0) * ratio;
             noteTimeLeft(inSection, sizes.some((bytes) => bytes > 0) ? inSection + ahead : undefined);
+            // Use the archive's spine weights; generating locations for an
+            // entire Complete Works file would delay opening substantially.
+            const bookSize = sizes.reduce((sum, bytes) => sum + (bytes || 0), 0);
+            if (bookSize > 0 && total > 0 && range) {
+              const before = sizes.slice(0, index).reduce((sum, bytes) => sum + (bytes || 0), 0);
+              return Math.max(0, Math.min(1, (before + size * read / total) / bookSize));
+            }
           } catch { /* the section is still rendering */ }
         };
 
@@ -774,16 +787,20 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
 
         rendition.on("relocated", (location: Location) => {
           const page = location.start.displayed;
+          setCurrentPage(page?.page > 0 ? page.page : null);
           const atEnd = (location as Location & { atEnd?: boolean }).atEnd ?? false;
-          const label = readingModeRef.current === "scroll" ? "In progress" : page?.total ? `Page ${page.page} of ${page.total}` : "In progress";
+          const fraction = atEnd ? 1 : measureEpub(location);
+          const label = fraction !== undefined ? `${Math.max(1, Math.round(fraction * 100))}%` : "In progress";
           setProgress(label);
           setLocationHref(location.start.href || "");
           if (location.start.cfi) {
             localStorage.setItem(`reading-room-position-${file.id}`, location.start.cfi);
-            reportLocation({ label, position: location.start.cfi, status: atEnd ? "finished" : "reading" });
+            reportLocation({ label, progress: fraction, position: location.start.cfi, status: atEnd ? "finished" : "reading" });
           }
-          measureEpub(location);
         });
+        // Initial display can emit before this listener is installed. Measure
+        // the restored place as well, without requiring the reader to scroll.
+        rendition.reportLocation();
         // Some otherwise-readable EPUBs omit the optional navigation package.
         // Do not throw merely because they have no table of contents: the book
         // body is already open and can be read normally.
@@ -983,12 +1000,14 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
             );
           }
           const percent = typeof detail.fraction === "number" ? `${Math.max(1, Math.round(detail.fraction * 100))}%` : "";
+          const pageLocation = (detail as typeof detail & { location?: { current?: number } }).location?.current;
+          setCurrentPage(typeof pageLocation === "number" ? pageLocation + 1 : null);
           const label = detail.tocItem?.label || percent || "In progress";
           setProgress(label);
           setLocationHref((detail.tocItem as { href?: string } | undefined)?.href || "");
           if (detail.cfi) {
             localStorage.setItem(`reading-room-position-${file.id}`, detail.cfi);
-            reportLocation({ label, position: detail.cfi, status: "reading" });
+            reportLocation({ label, progress: detail.fraction, position: detail.cfi, status: "reading" });
           }
         });
 
@@ -1360,7 +1379,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
     const save = () => {
       if (!lastCfi) return;
       try { localStorage.setItem(`reading-room-position-${file.id}`, lastCfi); } catch { /* storage off */ }
-      reportLocation({ label: currentLocationRef.current.label || "In progress", position: lastCfi, status: "reading" });
+      reportLocation({ ...currentLocationRef.current, label: currentLocationRef.current.label || "In progress", position: lastCfi, status: "reading" });
     };
     const onNarration = (event: Event) => {
       const detail = (event as CustomEvent<{ kind: string; doc?: Document | null; range?: Range | null }>).detail || { kind: "" };
@@ -1460,8 +1479,12 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
 
       {readingSheetHost ? createPortal(<>
+        <div className="rr-title-chip" title={displayTitle}>{displayTitle}</div>
         <button type="button" className="rr-close-btn" aria-label="Close book" onClick={onClose}><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M5 5l14 14M19 5L5 19" /></svg></button>
         <ReadAloudTransport api={readAloud} />
+        {isBookReader && currentPage !== null && !status && <output
+          className="rr-page-number" aria-label={`Page ${currentPage}${isEpub ? " in current section" : ""}`}
+          aria-live="off">{currentPage}</output>}
         {isReflowable && <ReaderAnnotations adapter={annotationAdapter} highlights={highlights}
           onChange={(next) => onHighlightsChange?.(next)} title={displayTitle} author={author} host={readingSheetHost} />}
         <button type="button" className="rr-react-sheet-trigger"

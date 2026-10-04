@@ -69,7 +69,7 @@ function resolve(target, state, prop) {
 const perms = [
   ['reader open, chrome visible (sheet era)', new Set(['rr-books-controls'])],
   ['reader open, chrome HIDDEN (sheet era)',  new Set(['rr-books-controls','rr-hide-chrome'])],
-  ['sheet open over reader',                  new Set(['rr-books-controls','rr-sheet-open'])],
+  ['sheet open over reader',                  new Set(['rr-books-controls','rr-react-sheet-open'])],
 ];
 
 let fail = 0;

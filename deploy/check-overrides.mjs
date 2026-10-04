@@ -10,10 +10,6 @@ const files = [
   "app/readAloudEngine.ts",
 ];
 
-// Pre-existing dead code, left in place deliberately: removing it is a separate
-// change with its own risk. The check exists to stop NEW dead code shipping.
-const KNOWN_DEAD = new Set(["scrollToPart"]);
-
 let failed = false;
 const fail = (msg) => { console.error("FAILED: " + msg); failed = true; };
 
@@ -24,7 +20,7 @@ for (const file of files) {
   for (const m of src.matchAll(/^\s*function\s+([A-Za-z_$][\w$]*)\s*\(/gm)) {
     const name = m[1];
     const uses = [...src.matchAll(new RegExp("\\b" + name + "\\b", "g"))].length;
-    if (uses < 2 && !KNOWN_DEAD.has(name)) {
+    if (uses < 2) {
       fail(`${file}: function ${name} is declared but never called`);
     }
   }

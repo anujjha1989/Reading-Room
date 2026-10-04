@@ -28,6 +28,13 @@ not used as the current deployment source.
 
 Requires Node.js 22.13 or newer.
 
+Use pnpm 10 and the single `pnpm-lock.yaml` lockfile. The old npm lockfile,
+ChatGPT-host authentication helpers, Drive URL helper, D1 examples/schema and
+migration generator were retired. Runtime authentication and storage belong to
+the Pi server, not the build worker. Historical code is recoverable from Git.
+The Cloudflare/Vinext build tooling is still required to render the React
+startup document; it is not a second production server.
+
 ```bash
 pnpm install
 pnpm dev

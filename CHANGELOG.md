@@ -2,6 +2,39 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v191 — 2026-10-04
+
+### Regressions
+
+- Saved whole-book EPUB/MOBI fractions independently of chapter labels. EPUB
+  estimates use archive spine weights and the visible text offset, without a
+  full-book location-generation delay. Legacy unmeasured positions show
+  “In progress” rather than a fabricated zero, and refresh on reopening.
+- Continuous scrolling keeps measured section placeholders, avoids scroll
+  rebasing from trimming, and releases distant iframes only after scrolling
+  settles. Nearby sections remain loaded for direction reversals.
+- Increased shelf-title top padding and heading-to-cover spacing in both themes.
+
+### Added
+
+- Glass page-number indicator centered on the menu-button baseline, and a
+  matching top-left title chip aligned with Close. Long titles truncate without
+  covering Close. Both follow chrome visibility, theme and reduced-motion
+  preferences and do not intercept book gestures. EPUB numbers are current
+  section display pages; MOBI uses its renderer's numbered reading locations.
+
+### Cleanup
+
+- Removed unused hosted authentication/Drive helpers, D1 schema/examples and
+  migration generator, three unused packages and the stale npm lockfile. pnpm
+  is the one dependency-lock/build path; Vinext's rendering tools remain.
+- Removed retired reader-mode CSS and the permanently hidden text-mode button.
+  Volume-key routing reads the current typed narration state rather than
+  querying deleted UI. Necessary iframe gestures and annotations remain.
+- Replaced obsolete migration checkboxes with current ownership documentation.
+  Replaced an isolated legacy panel-return simulation with real browser checks
+  for Search/Marks return paths, reader controls, themes and chip geometry.
+
 ## v190 — 2026-10-04
 
 ### Fixed

@@ -128,12 +128,11 @@ fi
   node deploy/check-popover-motion.mjs &&
   node deploy/check-read-aloud-follow.mjs &&
   node deploy/check-read-aloud-integration.mjs &&
-  node deploy/check-panel-return.mjs &&
   node deploy/check-library-chrome.mjs &&
   node deploy/check-reader-consolidation.mjs &&
   node deploy/check-reference-room.mjs &&
   node deploy/check-haptics.mjs)
-(cd "$BUILD_DIR" && node --test --test-concurrency=1 tests/browser/reliability.test.mjs tests/browser/mobi-narration.test.mjs tests/browser/shelf-card-layout.test.mjs tests/browser/continuous-scroll.test.mjs)
+(cd "$BUILD_DIR" && node --test --test-concurrency=1 tests/browser/reliability.test.mjs tests/browser/mobi-narration.test.mjs tests/browser/shelf-card-layout.test.mjs tests/browser/continuous-scroll.test.mjs tests/browser/reader-controls.test.mjs)
 
 echo "==> staging"
 rm -rf "$BUILD_DIR/dist/stage" && mkdir -p "$BUILD_DIR/dist/stage/assets"

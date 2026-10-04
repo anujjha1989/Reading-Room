@@ -1,4 +1,4 @@
-# Reading Room — working notes
+# Home Books — working notes
 
 ## Frontend aesthetics
 
@@ -31,9 +31,9 @@ Interpret creatively and make unexpected choices that feel genuinely designed fo
 - **Two theme signals already exist** — `data-rr-theme` (app) and `rr-theme-dark`
   (the book's own theme). Any new colour work keys off the app signal for chrome
   and the book signal for the page. Never both on one element.
-- **The override layer styles a React app it does not own.** Prefer CSS variables
-  over `!important`; the latter has already cost several rounds of specificity
-  fights in `fullscreen-bundle.css`.
+- **React owns the app UI.** Runtime UI overrides have been removed. Use shared
+  tokens and source-owned styles; do not restore retired scripts or layered
+  fixes. The iframe gesture adapter remains necessary for sandboxed book input.
 
 ## Verify the rendered output, not the source
 

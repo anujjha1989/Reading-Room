@@ -24,7 +24,7 @@ type SortMode = "title" | "author" | "series" | "added" | "opened";
 type ReadingStatus = "unread" | "reading" | "finished";
 type SavedState = {
   bookId: string; fileId?: string | null; favorite: boolean; lastOpened?: number | null;
-  progressLabel?: string | null; position?: string | null; status: ReadingStatus; bookmarks?: ReaderBookmark[]; updatedAt: number;
+  progressLabel?: string | null; progress?: number | null; position?: string | null; status: ReadingStatus; bookmarks?: ReaderBookmark[]; updatedAt: number;
   /** On the Want to Read list; cleared when the book is first opened. */
   wantToRead?: boolean;
   /** The reader's own collections this book is in, by name. */
@@ -399,9 +399,9 @@ export default function LibraryClient() {
   function toggleFinished(id: string) {
     const current = savedStates[id]?.status || "unread";
     if (current === "finished") {
-      saveState(id, { status: "unread", progressLabel: undefined });
+      saveState(id, { status: "unread", progressLabel: undefined, progress: null });
     } else {
-      saveState(id, { status: "finished", progressLabel: "Finished" });
+      saveState(id, { status: "finished", progressLabel: "Finished", progress: 1 });
     }
   }
 
@@ -501,7 +501,7 @@ export default function LibraryClient() {
 
   function handleReaderLocation(location: ReaderLocation) {
     if (!reader) return;
-    saveState(reader.bookId, { fileId: reader.file.id, status: location.status || "reading", progressLabel: location.label, position: location.position });
+    saveState(reader.bookId, { fileId: reader.file.id, status: location.status || "reading", progressLabel: location.label, ...(location.progress !== undefined ? { progress: location.progress } : {}), position: location.position });
   }
 
   function handleBookmarksChange(bookmarks: ReaderBookmark[]) {

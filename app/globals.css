@@ -234,7 +234,7 @@ footer { border-top:1px solid var(--line); padding:36px clamp(24px,5vw,78px); di
 /* Production reading-settings button. v105 accidentally promoted the blue
    developer comparison trigger; this matches the established 46px glass
    reader controls and remains an explicit, reliable iOS touch target. */
-.rr-react-sheet-trigger {
+.rr-react-sheet-trigger, .rr-page-number, .rr-title-chip {
   position: fixed;
   right: calc(20px + env(safe-area-inset-right));
   bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
@@ -254,12 +254,54 @@ footer { border-top:1px solid var(--line); padding:36px clamp(24px,5vw,78px); di
   -webkit-backdrop-filter: blur(26px) saturate(1.55);
   backdrop-filter: blur(26px) saturate(1.55);
 }
-html.rr-reader-dark .rr-react-sheet-trigger {
+html.rr-reader-dark .rr-react-sheet-trigger, html.rr-reader-dark .rr-page-number, html.rr-reader-dark .rr-title-chip {
   background: linear-gradient(145deg,rgba(255,255,255,.26),rgba(142,142,147,.28) 48%,rgba(56,56,62,.52));
   border-color: rgba(255,255,255,.18);
   color: #f5f5f7;
 }
 .rr-react-sheet-trigger:active { transform: scale(.92); }
+
+/* Same surface and baseline as the menu, without intercepting book gestures. */
+.rr-page-number {
+  right: auto;
+  left: calc(50% - 23px);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+  pointer-events: none;
+  transition: transform var(--rr-spring-time) var(--rr-spring), opacity .2s ease;
+}
+html.rr-hide-chrome .rr-page-number {
+  opacity: 0;
+  transform: translateY(90px) scale(.82);
+}
+html.rr-react-sheet-open .rr-page-number { visibility: hidden; }
+
+.rr-title-chip {
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  bottom: auto;
+  left: calc(20px + env(safe-area-inset-left));
+  right: auto;
+  width: auto;
+  max-width: calc(100vw - 106px - env(safe-area-inset-left) - env(safe-area-inset-right));
+  box-sizing: border-box;
+  display: block;
+  padding: 0 15px;
+  border-radius: 23px;
+  font-size: 14px;
+  line-height: 44px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  cursor: default;
+  transition: transform var(--rr-spring-time) var(--rr-spring), opacity .2s ease;
+}
+html.rr-hide-chrome .rr-title-chip {
+  opacity: 0;
+  transform: translateX(-110%) scale(.82);
+}
+html.rr-native-panel-open .rr-title-chip { visibility: hidden; }
 
 /* The React-owned hamburger is portalled to <body>, so the legacy
    .rr-sheet-btn motion rules cannot reach it. Keep it paired with the close
@@ -323,6 +365,9 @@ html.rr-hide-chrome .rr-read-transport { opacity:0;pointer-events:none;transform
 html:not(.rr-hide-chrome) .rr-read-transport { opacity:1;transform:translateX(0) rotate(0deg) scale(1); }
 
 @media (prefers-reduced-motion: reduce) {
+  .rr-page-number, .rr-title-chip { transition: opacity .12s ease; }
+  html.rr-hide-chrome .rr-title-chip { transform: none; visibility: hidden; }
+  html.rr-hide-chrome .rr-page-number { transform: none; visibility: hidden; }
   .rr-react-sheet-trigger { transition: opacity .12s ease; }
   .rr-read-transport { transition: opacity .12s ease; }
   html.rr-hide-chrome .rr-read-transport { transform: none; visibility: hidden; }

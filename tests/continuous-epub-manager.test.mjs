@@ -16,17 +16,31 @@ function setup() {
   return { manager: new (continuousEpubManager(Base))(), queue, views };
 }
 
-test("continuous manager unloads synchronously, never queues a stale visibility decision", async () => {
+test("continuous manager never unloads during active updates or queues stale visibility decisions", async () => {
   const { manager, queue, views } = setup();
   let unloads = 0;
   const view = { displayed: true, visible: false, destroy() { unloads++; this.displayed = false; }, show() {} };
   views.push(view);
   await manager.update();
-  assert.equal(unloads, 1);
+  assert.equal(unloads, 0);
   assert.equal(queue.length, 0);
   view.visible = true; view.displayed = true;
   await manager.update();
-  assert.equal(unloads, 1, "reversal must preserve the visible section");
+  assert.equal(unloads, 0, "reversal must preserve the visible section");
+  manager.destroy();
+});
+
+test("idle cleanup retains neighbours and geometry, while releasing distant iframes", async () => {
+  const { manager, views, queue } = setup();
+  for (let i = 0; i < 7; i++) views.push({ displayed: true, visible: i === 3, destroy() { this.displayed = false; }, show() {} });
+  await manager.update();
+  // A queued decision would be stale after a direction reversal.
+  views[3].visible = false; views[1].visible = true;
+  await new Promise(resolve => setTimeout(resolve, 650));
+  assert.deepEqual(views.map(view => view.displayed), [true, true, true, false, false, false, false]);
+  assert.equal(views.length, 7, "measured placeholders must remain for reverse scrolling");
+  await manager.trim(); assert.equal(views.length, 7);
+  assert.equal(queue.length, 0);
   manager.destroy();
 });
 

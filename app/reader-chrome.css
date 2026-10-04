@@ -18,8 +18,8 @@
  *      outright; another tap brings them back. The edges are left alone, so
  *      whatever the reader itself does with taps there still works.
  *
- * All of it hangs off classes on <html> set by fullscreen-fix.js, so the
- * original reader is one class removal away.
+ * React owns the visible controls. readerChromeBridge.js supplies iframe
+ * gestures and reading-state classes; there is no alternative legacy reader.
  */
 
 /* --- Keep the chrome out from under the notch and the home indicator. -----
@@ -78,9 +78,6 @@
     transform: translateY(115%);
     transition: transform .22s ease;
   }
-  html.rr-sheet-open .reader-actions {
-    transform: translateY(0);
-  }
   html.rr-strip .reader-actions label {
     flex: 1 1 100%;
   }
@@ -123,8 +120,7 @@
   }
 }
 
-/* --- The ≡ button. Lives on <body>, outside React's tree. ----------------- */
-/* --- The strip buttons. Mounted on <body>, outside React's tree. ----------
+/* --- React's portalled close button --------------------------------------
  * `.reader-shell` is position:fixed at z-index:100 and paints an opaque
  * background over the whole viewport, so anything below that stacking level is
  * simply invisible — these have to sit above it. Note also that neither can
@@ -424,7 +420,6 @@ html:not([data-rr-theme="light"]) .rr-library-dock button[data-view="Search"][ar
 
 /* Apple Books-inspired chrome. The reading engine and tap layer stay intact. */
 html.rr-books-controls .reader-actions{visibility:hidden!important;pointer-events:none!important}
-html.rr-books-controls .rr-text-mode{display:none!important}
 html.rr-books-controls .rr-close-btn{
  display:grid!important;place-items:center!important;padding:0!important;
  width:46px!important;height:46px!important;border-radius:50%!important;
@@ -515,7 +510,7 @@ html #rr-settings-link {
 }
 /* The reader takes over the screen; the gear belongs to the library. */
 html.rr-strip #rr-settings-link { display: none; }
-/* While settings is open the gear sits behind the iframe — hide it to prevent a ghost. */
+/* Hide library controls while React Settings owns the screen. */
 html.rr-settings-open #rr-settings-link { visibility: hidden; }
 html #rr-settings-link:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
 
@@ -778,9 +773,7 @@ html[data-rr-library-view="library"] .catalog .catalog-toolbar { display: none; 
 html[data-rr-library-view="library"] .catalog .results { display: none; }
 
 /* ---- fixed icon rail: filter, sort, gear -------------------------------- */
-/* The gear is already fixed at the right edge and re-adds itself to <body> on a
-   timer, so these sit beside it at the same offsets rather than wrapping it in
-   a new container that the re-add would fight. */
+/* React owns all three controls; keep their fixed viewport offsets aligned. */
 html #rr-filter-btn,
 html #rr-sort-btn {
   position: fixed;
@@ -949,25 +942,6 @@ html.rr-book-open .rr-library-dock,
 html.rr-book-open #rr-sort-menu,
 html.rr-book-open #rr-popover-scrim { display: none !important; }
 
-/* ---- reader controls need to be visible on any page ---------------------- *
- * The close and menu buttons took --white/--ink, which on a light book page is
- * near-white on near-white: the screenshot showed both as faint ghosts. They
- * float over arbitrary content, so state a definite contrast rather than
- * inheriting the page's.
- * ---------------------------------------------------------------------- */
-html:not(.rr-books-controls) .rr-close-btn {
-  background: rgba(120, 120, 128, .28) !important;
-  border: 0 !important;
-  color: #1c1c1e !important;
-  border-radius: 50% !important;
-  width: 36px !important; height: 36px !important;
-  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, .18);
-}
-html.rr-theme-dark:not(.rr-books-controls) .rr-close-btn {
-  background: rgba(120, 120, 128, .40) !important;
-  color: #f5f5f7 !important;
-}
 .rr-close-btn:active { opacity: .6; }
 html.rr-library-visible main > .hero {
   position: fixed;
@@ -1091,18 +1065,18 @@ html.rr-library-visible #rr-settings-link {
 html[data-rr-library-view="home"] .discovery .smart-shelf {
   border-bottom: 0;
   margin: 0 -20px;
-  padding: 4px 20px 30px;
+  padding: 28px 20px 30px;
   overflow: visible;
 }
 html[data-rr-library-view="home"] .discovery .smart-shelf + .smart-shelf {
   border-top: 0;
   margin-top: 0;
-  padding-top: 4px;
+  padding-top: 28px;
 }
 
 /* --- heading: bigger, chevron inline, caption underneath ----------------- */
 html[data-rr-library-view="home"] .shelf-heading {
-  margin-bottom: 12px;
+  margin-bottom: 24px;
   align-items: baseline;
 }
 html[data-rr-library-view="home"] .shelf-heading > div {
@@ -1699,32 +1673,12 @@ html.rr-books-controls .rr-close-btn {
   will-change: transform, opacity;
 }
 
-/* Hidden: pushed clear of the right edge, tilted slightly as it goes.
- *
- * Scoped to .rr-books-controls deliberately. There are two hiding modes in this
- * file and they differ on purpose:
- *
- *   .rr-hide-chrome alone (the older reader) keeps the hamburger at opacity .22
- *   as a deliberate escape hatch - "without it, a centre tap that failed for any
- *   reason would leave no way back to the controls at all".
- *
- *   .rr-books-controls.rr-hide-chrome (the current sheet) hides both outright,
- *   because the invisible tap layer stays live and restores them.
- *
- * The first version of this block set opacity:0 !important on the hamburger
- * without that scope, which silently removed the escape hatch. */
+/* Hidden controls leave together; the centre tap layer restores them. */
 html.rr-books-controls.rr-hide-chrome .rr-close-btn {
   visibility: visible !important;          /* let transform do the hiding */
   opacity: 0 !important;
   pointer-events: none !important;
   transform: translateX(26vw) rotate(9deg) scale(.82) !important;
-}
-/* The older mode keeps its faint, tappable hamburger - it only needs to travel
-   rather than blink, so the ✕ slides out and the ≡ stays put at .22. */
-html:not(.rr-books-controls).rr-hide-chrome .rr-close-btn {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(26vw) rotate(9deg) scale(.82);
 }
 /* The ✕ is the outer of the two, so it leads on the way out and trails coming
    back - the order a hand would use. */
@@ -1733,7 +1687,7 @@ html.rr-books-controls.rr-hide-chrome .rr-close-btn {
 }
 
 /* Visible: settled at rest. */
-html.rr-books-controls:not(.rr-hide-chrome) .rr-close-btn, html:not(.rr-books-controls):not(.rr-hide-chrome) .rr-close-btn {
+html.rr-books-controls:not(.rr-hide-chrome) .rr-close-btn {
   opacity: 1;
   transform: translateX(0) rotate(0deg) scale(1);
   pointer-events: auto;
@@ -1797,11 +1751,7 @@ html[data-rr-theme="dark"].rr-library-visible #rr-sort-btn {
   color: #ffffff !important;
 }
 
-/* --- the settings overlay had no motion at all -------------------------- *
- * It is an iframe, so its contents cannot be staggered from here - but the panel
- * itself can arrive. It covers the library, so it rises from the bottom like a
- * presented sheet rather than flying in from an edge.
- * ---------------------------------------------------------------------- */
+/* React Settings respects reduced motion. */
 
 @media (prefers-reduced-motion: reduce) {
   #rr-settings-overlay { animation: none !important; }

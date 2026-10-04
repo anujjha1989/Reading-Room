@@ -32,7 +32,7 @@ export type ShelfBook = {
   rrGroupAuthor?: string;
 };
 
-export type ShelfState = { favorite?: boolean; lastOpened?: number | null; progressLabel?: string | null };
+export type ShelfState = { favorite?: boolean; lastOpened?: number | null; progressLabel?: string | null; progress?: number | null; position?: string | null; status?: string };
 export type Shelf = { title: string; items: ShelfBook[]; compact?: boolean };
 
 type Artwork = Record<string, { found?: boolean; url?: string; embedded?: string } | undefined>;
@@ -270,10 +270,13 @@ export function recentlyOpened<T extends ShelfBook>(books: T[], states: Record<s
 }
 
 export function continueProgress(state: ShelfState | undefined) {
-  // Always a percentage. This used to fall through to the raw label, so a book
-  // whose progress was not "Page X of Y" showed "In progress" or "UNO" instead
-  // of a number. Try the page form, then any bare percentage in the label, then
-  // the stored fraction; only show 0% when there is genuinely nothing.
+  // Missing measurements are not zero. Older scroll-mode saves contain a CFI
+  // and a chapter label only; preserve that place and measure on next opening.
+  if (state?.status === "finished") return "100%";
+  const fraction = state?.progress;
+  if (typeof fraction === "number" && Number.isFinite(fraction) && fraction >= 0) {
+    return Math.min(100, Math.max(fraction > 0 ? 1 : 0, Math.round(fraction <= 1 ? fraction * 100 : fraction))) + "%";
+  }
   const label = state && state.progressLabel ? String(state.progressLabel) : "";
   const page = label.match(/Page\s+(\d+)\s+of\s+(\d+)/i);
   if (page && Number(page[2]) > 0) {
@@ -281,12 +284,7 @@ export function continueProgress(state: ShelfState | undefined) {
   }
   const percent = label.match(/(\d+(?:\.\d+)?)\s*%/);
   if (percent) return Math.max(1, Math.min(100, Math.round(Number(percent[1])))) + "%";
-  const fraction = state && typeof (state as { progress?: unknown }).progress === "number"
-    ? (state as { progress: number }).progress : null;
-  if (fraction !== null && fraction > 0) {
-    return Math.max(1, Math.min(100, Math.round(fraction <= 1 ? fraction * 100 : fraction))) + "%";
-  }
-  return "0%";
+  return state?.position || state?.lastOpened || label ? "In progress" : "0%";
 }
 
 // Groups display cards only: original ids, copies and progress remain untouched.

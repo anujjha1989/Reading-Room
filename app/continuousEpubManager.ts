@@ -24,12 +24,30 @@ export type ContinuousManagerConstructor = new (...args: never[]) => ContinuousM
  * EPUB.js queues destruction after deciding a section is off screen. When the
  * user reverses direction, queued work can destroy a now-visible section. Own
  * the update operation so visibility and unloading happen in the same turn.
- * Keep the upstream bounded view trimming and section navigation.
+ * Keep measured placeholders instead of trimming/rebasing the native scroller.
+ * Only nearby sections retain live iframes; empty measured divs are cheap and
+ * let reverse scrolling reuse the same geometry.
  */
 export function continuousEpubManager(Base: ContinuousManagerConstructor) {
   return class ContinuousEpubManager extends Base {
     private pending = new WeakMap<SectionView, Promise<void>>();
     private disposed = false;
+    private cleanupTimer?: ReturnType<typeof setTimeout>;
+
+    private scheduleCleanup(offset: number) {
+      clearTimeout(this.cleanupTimer);
+      this.cleanupTimer = setTimeout(() => {
+        if (this.disposed) return;
+        const bounds = this.bounds();
+        const views = this.views.all();
+        const near = views.map((view, index) => this.isVisible(view, offset, offset, bounds) ? index : -1).filter(index => index >= 0);
+        if (!near.length) return;
+        const first = Math.max(0, near[0] - 1), last = Math.min(views.length - 1, near[near.length - 1] + 1);
+        views.forEach((view, index) => {
+          if ((index < first || index > last) && view.displayed && !this.pending.has(view)) view.destroy();
+        });
+      }, 600);
+    }
 
     update(offset = this.settings.offset): Promise<void[]> {
       if (this.disposed) return Promise.resolve([]);
@@ -50,20 +68,19 @@ export function continuousEpubManager(Base: ContinuousManagerConstructor) {
             }
             tasks.push(task);
           }
-        } else if (view.displayed && !this.pending.has(view)) {
-          // No intervening queue or await: the visibility decision is current.
-          view.destroy();
-          clearTimeout(this.trimTimeout);
-          this.trimTimeout = setTimeout(() => {
-            if (!this.disposed) this.q.enqueue(() => this.trim());
-          }, 250);
         }
       }
+      // update() runs during gestures and momentum. Destruction must wait until
+      // updates stop, and then make a fresh visibility decision, not queue one.
+      this.scheduleCleanup(offset);
       return Promise.all(tasks);
     }
 
+    trim() { return Promise.resolve(); }
+
     destroy() {
       this.disposed = true;
+      clearTimeout(this.cleanupTimer);
       clearTimeout(this.trimTimeout);
       super.destroy();
     }

@@ -32,13 +32,18 @@ claim every historical CSS/bridge or long-session audit is finished.
 5. **Canonical source ownership — in progress.** Startup HTML now generated from
    current SSR output. Native Summary buttons are React-owned; private React
    Fiber injection removed. Obsolete Drive/D1 API implementations removed.
-   Remaining: dependency/documentation cleanup and complete release verification.
+   Subsequent cleanup removes unused hosted auth/Drive helpers, D1 scaffold,
+   three unused dependencies and the second lockfile; current ownership is in
+   `docs/override-collapse.md`. v190 completed full web release verification.
 6. **CSS consolidation — in progress.** Card menus/buttons now have one stylesheet
    owner and 44-point touch targets; competing historical rules removed.
    Shared theme/motion tokens own common controls. Removed 97 overwritten CSS
    declarations and legacy reader style/meta/hidden-button injection. Canonical
    light typography retains explicit user choices; both engines verify font,
-   bold and justification. Remaining: broader historical reader CSS/bridge cleanup.
+   bold and justification. Subsequent cleanup removes the retired reader-mode
+   CSS and hidden text-mode button, and replaces stale narration DOM queries
+   with typed state. Mixed library/reader stylesheet organization remains;
+   retained iframe gestures/font normalization are intentional compatibility.
 7. **Catalogue startup — implemented, candidate verified.** Worker preprocessing,
    normalized alias maps, bounded fallback, placeholder-cover handling. No measured
    production speedup is claimed yet.
