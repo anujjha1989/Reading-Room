@@ -172,12 +172,12 @@ t(!/#007aff|rgba\(0,\s*122,\s*255/.test(globalCss),
 // 20. The collapsed playback rail and library control geometry remain coherent.
 const overrideCss = readFileSync("app/reader-chrome.css", "utf8");
 const transport = readFileSync("app/ReadAloudTransport.tsx", "utf8");
-t(/\.rr-read-transport\s*\{[^}]*flex-direction:column/s.test(globalCss)
+t(/\.rr-read-transport(?:, \.rr-read-glass)?\s*\{[^}]*flex-direction:column/s.test(globalCss)
   && /className="rr-read-transport rr-visible"/.test(transport),
   "collapsed read-aloud controls form a vertical rail");
-t(/\.rr-read-transport\s*\{[^}]*bottom:calc\(78px/s.test(globalCss),
+t(/\.rr-read-transport(?:, \.rr-read-glass)?\s*\{[^}]*bottom:calc\(78px/s.test(globalCss),
   "collapsed read-aloud controls sit close to the settings trigger");
-t(/html\.rr-hide-chrome \.rr-read-transport\s*\{[^}]*opacity:0[^}]*pointer-events:none[^}]*translateX\(26vw\)/s.test(globalCss),
+t(/html\.rr-hide-chrome :is\(\.rr-read-transport,\.rr-read-extras\)\s*\{[^}]*opacity:0[^}]*pointer-events:none[^}]*translateX\(26vw\)/s.test(globalCss),
   "collapsed read-aloud controls leave with the rest of the reader chrome");
 t(/#rr-settings-link svg\s*\{\s*width:\s*26px[^}]*height:\s*26px/.test(overrideCss),
   "library gear glyph is optically balanced inside its halo");
