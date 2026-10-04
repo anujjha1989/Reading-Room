@@ -2,6 +2,18 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v198 — 2026-10-04
+
+- Pausing Read Aloud no longer relocates the page. Added a glass “return to
+  current reading” button above the transport; it follows the spoken sentence
+  only when tapped, even after scrolling ahead or behind.
+- Added the remaining sleep timer chip above the transport: tap adds 30 minutes;
+  hold for three seconds to cancel. The timer keeps the existing countdown and
+  does not stop playback when cancelled.
+- Passed 39 root tests and 36 browser regression checks, including Chrome and
+  WebKit pause/return/timer tests, then verified hydration, assets, Settings,
+  voice playback and rendered routes on LAN and authenticated public HTTPS.
+
 ## v196 — 2026-10-04
 
 - Added crisp, theme-aware one-pixel dividers between home shelf bands. Kept
