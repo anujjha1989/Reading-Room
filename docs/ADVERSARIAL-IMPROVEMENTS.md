@@ -9,6 +9,19 @@ claim every historical CSS/bridge or long-session audit is finished.
 
 ## Accepted workstreams and evidence
 
+### v191 release checkpoint (4 October 2026)
+
+Source `30fe983`, tag `deploy-v191`: full rebuild, typecheck, root tests, static
+checks and 28 required browser cases passed. Whole-book progress now persists
+independently of chapter labels; older unmeasured saves retain their position and
+show “In progress” until reopened. Shelf spacing and glass title/page indicators
+have both-theme geometry coverage. Scrolling retains measured placeholders and
+performs distant iframe cleanup after updates settle. Real Trevor After Rain
+audits passed on LAN and authenticated public HTTPS with no sampled blanks or
+idle paragraph shifts. Full client/server hashes, branding and rendered library/
+Settings checks passed; the previous complete release is backed up. Physical
+touch verification is separate and must not be inferred from browser tests.
+
 1. **Regression coverage — candidate verified.** 26 root tests, 21 mobile-browser
    reliability/list checks and two real-MOBI narration checks pass. Broader audits
    include Christie collections, real Demons and Druids chapter boundaries,

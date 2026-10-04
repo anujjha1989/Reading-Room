@@ -35,6 +35,18 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
   Replaced an isolated legacy panel-return simulation with real browser checks
   for Search/Marks return paths, reader controls, themes and chip geometry.
 
+### Release verification
+
+- Deployed complete source `30fe983` through the full build pipeline. Typecheck,
+  root tests, static checks and all 28 mandatory browser checks passed.
+- Complete client/server hashes and branding MIME/content checks passed on LAN
+  and authenticated public HTTPS; hydration, Settings and menus passed in both
+  engines and themes. Backup: `deployment-backups/20261004-194037-before-v191`.
+- The deployed Trevor collection's After Rain forward/reverse audit passed on
+  both origins: no visible destructions, unloaded visible placeholders or sampled
+  resting-paragraph shifts. Physical touch checks are recorded separately;
+  this is not a claim of perfect scrolling on every device or book.
+
 ## v190 — 2026-10-04
 
 ### Fixed
