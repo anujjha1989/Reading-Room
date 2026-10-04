@@ -2,6 +2,30 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v190 — 2026-10-04
+
+### Fixed
+
+- Continuous EPUB scrolling uses a source-owned manager that checks visibility
+  and unloads offscreen sections in the same operation. EPUB.js's deferred
+  cleanup could destroy sections after the reader scrolled back into them.
+- Concurrent section loads are deduplicated; delayed loads cannot show content
+  after the reader has closed. Bounded upstream trimming remains in place.
+- Removed the ineffective v188/v189 trim patches: they ran before EPUB.js had
+  created its asynchronous manager. Scrollbar movement alone was not evidence
+  of a visible jump; tests now measure actual paragraph positions.
+
+### Verification
+
+- Release gates now include long forward/reverse scrolling in WebKit and
+  Chromium, visible-section cleanup checks, blank-frame detection, resting
+  paragraph position and bounded iframe counts. Unit tests cover load races,
+  close-during-load and retries. Existing narration/mode-switch tests remain.
+- Candidate WebKit traversal of both After Rain and the corresponding part of
+  William Trevor Complete Works reported no visible-section destruction or
+  unloaded visible sections. Automated browser checks are not a claim of a
+  completed physical-iPhone touch/momentum test.
+
 ## v185 — 2026-10-03
 
 ### Fixed
