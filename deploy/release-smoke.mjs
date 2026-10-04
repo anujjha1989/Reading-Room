@@ -9,7 +9,7 @@ for (const [engine, type] of [["Chrome", chromium], ["WebKit", webkit]]) {
   const browser = await type.launch(engine === "Chrome" && process.env.READING_ROOM_CHROME ? { executablePath: process.env.READING_ROOM_CHROME, headless: true } : { headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 393, height: 852 }, serviceWorkers: "block" });
-    if (process.env.READING_ROOM_COOKIE_FILE) {
+    if (process.env.READING_ROOM_COOKIE_FILE && new URL(base).protocol === "https:") {
       const cookie = JSON.parse(await readFile(process.env.READING_ROOM_COOKIE_FILE, "utf8"));
       const { name, value, expires, httpOnly, secure, sameSite } = cookie;
       assert.ok(name && value, "Authenticated release cookie is required");
