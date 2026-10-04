@@ -2,16 +2,30 @@
 # Build Home Books and deploy it to the Pi.
 #
 #   ./deploy/deploy.sh            build, deploy, verify
-#   ./deploy/deploy.sh --no-build reuse the last Mac SSD build
+# Every release is rebuilt from the current source; dependencies stay cached.
 #
 # The build has to run here: the Pi's node is 20.x and vinext needs >= 22.13.
 # Everything privileged on the Pi happens in one helper, reading-room-deploy.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+if [ "${1:-}" = "--no-build" ]; then
+  echo "FAILED: reusing a build without verified source identity is not supported. Run a full deploy." >&2
+  exit 1
+fi
 
 PI=anujjha1989@anujrpi.local
 SSH=(ssh -i "$HOME/.ssh/id_ed25519_anujrpi_codex" -o BatchMode=yes -o IdentitiesOnly=yes)
 DEPLOY_HISTORY_DIR=${READING_ROOM_DEPLOY_HISTORY:-/Volumes/Seagate/ReadingRoom/deployment-history}
+PUBLIC_ORIGIN=${READING_ROOM_PUBLIC_ORIGIN:-https://anujrpi.tail549492.ts.net:8443}
+if [ -z "${READING_ROOM_CURL_COOKIE_FILE:-}" ] || [ ! -f "$READING_ROOM_CURL_COOKIE_FILE" ] || [ -z "${READING_ROOM_COOKIE_FILE:-}" ] || [ ! -f "$READING_ROOM_COOKIE_FILE" ]; then
+  echo "FAILED: an authenticated public release check needs private curl and browser session files." >&2
+  exit 1
+fi
+# Catch unavailable authentication/network/browser prerequisites before install.
+curl -fsS --max-time 15 --cookie "$READING_ROOM_CURL_COOKIE_FILE" "$PUBLIC_ORIGIN/catalog.json" -o /dev/null
+mkdir -p "$DEPLOY_HISTORY_DIR"
+HISTORY_PROBE=$(mktemp "$DEPLOY_HISTORY_DIR/.release-check.XXXXXX")
+rm "$HISTORY_PROBE"
 
 # Capture source identity before the deployment counter changes. VERSION is a
 # tracked deployment counter and is routinely dirty after a successful deploy;
@@ -22,7 +36,11 @@ DEPLOY_COMMIT=$(git rev-parse HEAD)
 DEPLOY_BRANCH=$(git branch --show-current)
 SOURCE_CHANGES=$(git status --porcelain --untracked-files=normal | sed '/ overrides\/VERSION$/d')
 if [ -z "$SOURCE_CHANGES" ]; then SOURCE_CLEAN=true; else SOURCE_CLEAN=false; fi
-if [ "${1:-}" = "--no-build" ]; then DEPLOY_MODE=no-build; else DEPLOY_MODE=full-build; fi
+if [ "$SOURCE_CLEAN" != true ]; then
+  echo "FAILED: commit the complete reviewed candidate before deployment." >&2
+  exit 1
+fi
+DEPLOY_MODE=full-build
 
 # Each deploy gets a new version. Asset filenames are content hashed, but the
 # override bundle is not, and /assets/book-art is served immutable for a year,
@@ -40,6 +58,10 @@ fi
 if ! "${SSH[@]}" "$PI" "grep -q 'PUBLIC_FILES=' /usr/local/sbin/reading-room-deploy"; then
   echo "FAILED: the Pi deployment helper cannot install public branding assets." >&2
   echo "        Install deploy/reading-room-deploy on the Pi first." >&2
+  exit 1
+fi
+if ! "${SSH[@]}" "$PI" "grep -q 'SERVER_FILES=.*piper-pool.mjs.*wav-cache.mjs.*request-guard.mjs' /usr/local/sbin/reading-room-deploy"; then
+  echo "FAILED: install the current helper before releasing the narration scheduler." >&2
   exit 1
 fi
 
@@ -60,7 +82,9 @@ rsync -a --delete --exclude=node_modules --exclude=dist --exclude=.git \
 if [ "${1:-}" != "--no-build" ]; then
   echo "==> building (version $VERSION)"
   (cd "$BUILD_DIR" && npx --yes pnpm@10 install --prefer-offline --frozen-lockfile \
-    && npx --yes pnpm@10 run build)
+    && ./node_modules/.bin/tsc --noEmit \
+    && npx --yes pnpm@10 run build \
+    && node --experimental-loader ./tests/cloudflare-loader.mjs --test tests/*.test.mjs)
 else
   [ -f "$BUILD_DIR/dist/server/__vite_rsc_assets_manifest.js" ] || {
     echo "FAILED: no cached build for --no-build; run a full deploy first" >&2
@@ -109,6 +133,7 @@ fi
   node deploy/check-reader-consolidation.mjs &&
   node deploy/check-reference-room.mjs &&
   node deploy/check-haptics.mjs)
+(cd "$BUILD_DIR" && node --test --test-concurrency=1 tests/browser/reliability.test.mjs tests/browser/mobi-narration.test.mjs)
 
 echo "==> staging"
 rm -rf "$BUILD_DIR/dist/stage" && mkdir -p "$BUILD_DIR/dist/stage/assets"
@@ -119,7 +144,7 @@ PUBLIC_FILES=(favicon.svg home-books-icon.svg icon-192.png icon-512.png apple-to
 for name in "${PUBLIC_FILES[@]}"; do
   cp "public/$name" "$BUILD_DIR/dist/stage/$name"
 done
-cp server/standalone-server.mjs server/rr-settings.mjs server/rr-tts.mjs "$BUILD_DIR/dist/stage/"
+cp server/standalone-server.mjs server/rr-settings.mjs server/rr-tts.mjs server/synthesis-queue.mjs server/piper-pool.mjs server/wav-cache.mjs server/request-guard.mjs "$BUILD_DIR/dist/stage/"
 cp ops/pi/lib/rr-catalog-rebuild.sh "$BUILD_DIR/dist/stage/"
 cp ops/pi/tools/rr-cover-extract.py "$BUILD_DIR/dist/stage/"
 
@@ -131,18 +156,19 @@ COPYFILE_DISABLE=1 tar czf - -C "$BUILD_DIR/dist/stage" . | "${SSH[@]}" "$PI" "t
 "${SSH[@]}" "$PI" "find ~/rr-deploy/stage -name '._*' -delete"
 
 echo "==> capturing rollback"
-# reading-room-deploy is additive for assets (filenames are content hashed), so
-# the only files a deploy destroys are the HTML/JS documents and three server
-# modules it overwrites. Capture them BEFORE the install: afterwards the
-# previous ones are gone.
+# Preserve the complete current release without dereferencing linked library
+# artwork. Also create the flat installer input used for automatic rollback.
 #
 # Backups live beside the existing before-v64/before-v65 ones, outside the repo:
 # they are deployment history, not source, and a repo-relative path would split
 # that history across two directories.
 ROLLBACK=/Volumes/Seagate/ReadingRoom/deployment-backups/$(date +%Y%m%d-%H%M%S)-before-v$VERSION
 mkdir -p "$ROLLBACK"
+"${SSH[@]}" "$PI" "tar czf - -C /opt/reading-room/current ." > "$ROLLBACK/complete-release.tar.gz"
+gzip -t "$ROLLBACK/complete-release.tar.gz"
 "${SSH[@]}" "$PI" "tar czf - -C /opt/reading-room/current \
-  standalone-server.mjs rr-settings.mjs rr-tts.mjs -C site index.html \
+  standalone-server.mjs rr-settings.mjs rr-tts.mjs \
+  \$([ -f /opt/reading-room/current/synthesis-queue.mjs ] && echo synthesis-queue.mjs) \$([ -f /opt/reading-room/current/piper-pool.mjs ] && echo piper-pool.mjs) \$([ -f /opt/reading-room/current/wav-cache.mjs ] && echo wav-cache.mjs) \$([ -f /opt/reading-room/current/request-guard.mjs ] && echo request-guard.mjs) -C site index.html \
   \$([ -f /opt/reading-room/current/site/sw.js ] && echo sw.js) \
   \$([ -f /opt/reading-room/current/site/settings.html ] && echo settings.html) \
   \$(for name in favicon.svg home-books-icon.svg icon-192.png icon-512.png apple-touch-icon.png manifest.webmanifest; do \
@@ -161,12 +187,25 @@ rollback() {
   "${SSH[@]}" "$PI" "rm -rf ~/rr-deploy/stage && mkdir -p ~/rr-deploy/stage/assets"
   "${SSH[@]}" "$PI" "tar xzf - -C ~/rr-deploy/stage" < "$ROLLBACK/site-html.tar.gz"
   "${SSH[@]}" "$PI" "sudo -n /usr/local/sbin/reading-room-deploy" >&2
-  echo "==> rolled back; overrides for v$VERSION remain on disk but are unreferenced" >&2
+  echo "$PREVIOUS_VERSION" > overrides/VERSION
+  echo "$PREVIOUS_VERSION" > "$BUILD_DIR/overrides/VERSION"
+  curl -fsS --max-time 15 "http://anujrpi.local:4311/api/health" | grep -q '"ok":true'
+  for origin in "http://anujrpi.local:4311" "$PUBLIC_ORIGIN"; do
+    (cd "$BUILD_DIR" && READING_ROOM_BASE_URL="$origin" READING_ROOM_EXPECT_VERSION="$PREVIOUS_VERSION" node deploy/release-smoke.mjs)
+  done
+  echo "==> rollback verified on both origins; candidate hashed assets remain unreferenced" >&2
 }
 
 # Everything past this point can change the live server, so a failure must
 # restore the previous release files rather than only abort.
-fail() { echo "FAILED: $1" >&2; rollback; exit 1; }
+fail() {
+  trap - ERR
+  echo "FAILED: $1" >&2
+  if [ -n "${CREATED_TAG:-}" ]; then git tag -d "$CREATED_TAG" >&2; fi
+  rollback
+  exit 1
+}
+trap 'fail "unexpected post-install release failure at line $LINENO"' ERR
 
 echo "==> installing"
 if ! "${SSH[@]}" "$PI" "sudo -n /usr/local/sbin/reading-room-deploy"; then
@@ -175,7 +214,20 @@ fi
 
 # Prove the restarted process received the server sources from this checkout.
 # Asset/version checks alone cannot catch a stale rr-tts.mjs or settings route.
-for server_file in standalone-server.mjs rr-settings.mjs rr-tts.mjs; do
+# Compare every staged browser asset, including lazy reader/worker chunks.
+for asset in "$BUILD_DIR"/dist/stage/assets/*; do
+  name=$(basename "$asset")
+  case "$name" in *[!A-Za-z0-9_.-]*) fail "unexpected candidate asset name" ;; esac
+  local_hash=$(shasum -a 256 "$asset" | awk '{print $1}')
+  remote_hash=$("${SSH[@]}" "$PI" "sha256sum /opt/reading-room/current/site/assets/$name | cut -d' ' -f1")
+  [ "$local_hash" = "$remote_hash" ] || fail "$name did not reach the complete live candidate"
+done
+for document in index.html sw.js; do
+  local_hash=$(shasum -a 256 "$BUILD_DIR/dist/stage/$document" | awk '{print $1}')
+  remote_hash=$("${SSH[@]}" "$PI" "sha256sum /opt/reading-room/current/site/$document | cut -d' ' -f1")
+  [ "$local_hash" = "$remote_hash" ] || fail "$document did not reach the live candidate"
+done
+for server_file in standalone-server.mjs rr-settings.mjs rr-tts.mjs synthesis-queue.mjs piper-pool.mjs wav-cache.mjs request-guard.mjs; do
   local_hash=$(shasum -a 256 "server/$server_file" | awk '{print $1}')
   remote_hash=$("${SSH[@]}" "$PI" "sha256sum /opt/reading-room/current/$server_file | cut -d' ' -f1")
   [ "$local_hash" = "$remote_hash" ] || fail "$server_file did not reach the live release"
@@ -193,17 +245,12 @@ library_asset=$(grep -o 'LibraryClient-[A-Za-z0-9_-]*\.js' "$BUILD_DIR/dist/inde
 # Check both origins. The LAN one is the shortest path to the server and is
 # authoritative: if it passes, the deploy is correct on disk and over HTTP.
 #
-# The public Tailscale origin is how the phone reaches it, so it is worth
-# checking - v68 passed on LAN while the phone was served v67. But it is
-# ADVISORY: a failure there can mean this Mac is off the tailnet, or Tailscale
-# is down, neither of which is a problem with what we just installed. Rolling
-# back a good deploy because a laptop lost its VPN is worse than not checking.
+# The public origin is a required user route. An unavailable check is not proof
+# of a successful release and must restore the previous candidate.
 # --max-time keeps a dead endpoint from hanging the deploy for 75s.
 verify_origin() {
-  local origin=$1 required=$2
-  local soft=0
-  [ "$required" = "required" ] || soft=1
-  echo "  $origin${soft:+ (advisory)}"
+  local origin=$1
+  echo "  $origin"
 
   local problem=""
   check() {
@@ -215,7 +262,7 @@ verify_origin() {
     /assets/$library_asset \
     /favicon.svg /home-books-icon.svg /icon-192.png /icon-512.png \
     /apple-touch-icon.png /manifest.webmanifest; do
-    headers=$(curl -fsSI --max-time 15 "$origin$asset_path") || {
+    headers=$(curl -fsSI --max-time 15 --cookie "$READING_ROOM_CURL_COOKIE_FILE" "$origin$asset_path") || {
       check "$origin$asset_path could not be fetched"
       break
     }
@@ -237,7 +284,7 @@ verify_origin() {
       /favicon.svg|/home-books-icon.svg|/icon-192.png|/icon-512.png|/apple-touch-icon.png|/manifest.webmanifest)
         local expected_hash actual_hash
         expected_hash=$(shasum -a 256 "public/${asset_path#/}" | awk '{print $1}')
-        actual_hash=$(curl -fsS --max-time 15 "$origin$asset_path" | shasum -a 256 | awk '{print $1}') || {
+        actual_hash=$(curl -fsS --max-time 15 --cookie "$READING_ROOM_CURL_COOKIE_FILE" "$origin$asset_path" | shasum -a 256 | awk '{print $1}') || {
           check "$origin$asset_path could not be downloaded for hash verification"
           break
         }
@@ -253,7 +300,7 @@ verify_origin() {
     # A stale standalone file can still be present on the Pi for rollback.
     # The active server must route old Settings bookmarks into the React app.
     local settings_location
-    settings_location=$(curl -fsSI --max-time 15 "$origin/settings.html" \
+    settings_location=$(curl -fsSI --max-time 15 --cookie "$READING_ROOM_CURL_COOKIE_FILE" "$origin/settings.html" \
       | awk -F': *' 'tolower($1)=="location" {print $2}' | tr -d '\r') || true
     if [ "$settings_location" = "/" ]; then
       printf '    %-56s %s\n' "legacy Settings bookmark" "redirects to /"
@@ -265,7 +312,7 @@ verify_origin() {
   if [ -z "$problem" ]; then
     # The index the browser gets must identify this exact deployed version.
     local referenced
-    referenced=$(curl -fsS --max-time 15 "$origin/" | grep -o 'name="rr-app-version" content="[0-9]*"' | head -1) || true
+    referenced=$(curl -fsS --max-time 15 --cookie "$READING_ROOM_CURL_COOKIE_FILE" "$origin/" | grep -o 'name="rr-app-version" content="[0-9]*"' | head -1) || true
     if [ "$referenced" = "name=\"rr-app-version\" content=\"$VERSION\"" ]; then
       printf '    %-56s %s\n' "index.html references" "$referenced"
     else
@@ -275,13 +322,6 @@ verify_origin() {
 
   if [ -z "$problem" ]; then
     VERIFY_RESULT=passed
-    return 0
-  fi
-  if [ "$soft" = 1 ]; then
-    echo "    WARNING: $problem" >&2
-    echo "    The LAN checks passed, so the install is good; this origin was not confirmed." >&2
-    echo "    Check the tailnet with: tailscale status" >&2
-    VERIFY_RESULT=warning
     return 0
   fi
   fail "$problem"
@@ -297,8 +337,12 @@ esac
 
 verify_origin "http://anujrpi.local:4311" required
 LAN_RESULT=$VERIFY_RESULT
-verify_origin "https://anujrpi.tail549492.ts.net" advisory
+verify_origin "$PUBLIC_ORIGIN" required
 TAILSCALE_RESULT=$VERIFY_RESULT
+for origin in "http://anujrpi.local:4311" "$PUBLIC_ORIGIN"; do
+  (cd "$BUILD_DIR" && READING_ROOM_BASE_URL="$origin" READING_ROOM_EXPECT_VERSION="$VERSION" node deploy/release-smoke.mjs) \
+    || fail "required rendered-route check failed at $origin"
+done
 
 served=$("${SSH[@]}" "$PI" "grep -o 'name=\"rr-app-version\" content=\"[0-9]*\"' /opt/reading-room/current/site/index.html | head -1")
 [ "$served" = "name=\"rr-app-version\" content=\"$VERSION\"" ] \
@@ -312,18 +356,19 @@ fi
 
 echo "==> recording deployment"
 DEPLOY_TAG=""
+CREATED_TAG=""
 if [ "$SOURCE_CLEAN" = true ]; then
   DEPLOY_TAG="deploy-v$VERSION"
   if git rev-parse -q --verify "refs/tags/$DEPLOY_TAG" >/dev/null; then
     tagged_commit=$(git rev-list -n 1 "$DEPLOY_TAG")
     if [ "$tagged_commit" != "$DEPLOY_COMMIT" ]; then
-      echo "    WARNING: $DEPLOY_TAG already points to $tagged_commit; tag not changed" >&2
-      DEPLOY_TAG=""
+      fail "$DEPLOY_TAG already points to a different source candidate"
     fi
   elif ! git tag -a "$DEPLOY_TAG" "$DEPLOY_COMMIT" \
     -m "Home Books deployment v$VERSION"; then
-    echo "    WARNING: could not create $DEPLOY_TAG" >&2
-    DEPLOY_TAG=""
+    fail "could not create the required source release tag"
+  else
+    CREATED_TAG="$DEPLOY_TAG"
   fi
 else
   echo "    source had uncommitted changes; manifest recorded, Git tag skipped" >&2
@@ -343,6 +388,6 @@ if ! node deploy/record-deployment.mjs \
   --tailscale-result "$TAILSCALE_RESULT" \
   --rollback "$ROLLBACK" \
   --output-dir "$DEPLOY_HISTORY_DIR"; then
-  # Documentation must never roll back an otherwise verified, working app.
-  echo "    WARNING: deployment succeeded, but its history record could not be written" >&2
+  fail "required release provenance could not be written"
 fi
+trap - ERR

@@ -11,7 +11,11 @@
 // winning declaration for each element and asserts the three agree.
 import { readFileSync } from "node:fs";
 
-const css = readFileSync("app/reader-chrome.css", "utf8");
+// Follow the actual stylesheet order; card controls now have one source owner.
+const cardCss = readFileSync("app/library-controls.css", "utf8");
+const css = readFileSync("app/reader-chrome.css", "utf8") + cardCss;
+// Normal-motion declarations only; reduced motion is validated separately.
+const normalCss = readFileSync("app/reader-chrome.css", "utf8") + cardCss.split("@media (prefers-reduced-motion: reduce)")[0];
 let fail = 0;
 const t = (ok, label, detail = "") => {
   console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? `\n        ${detail}` : ""}`);
@@ -20,7 +24,7 @@ const t = (ok, label, detail = "") => {
 
 /** Last value of `prop` for a selector, honouring !important the way the cascade does. */
 const winning = (selectorPattern, prop) => {
-  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+  const rules = [...normalCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
   let plain = null, important = null;
   for (const [, sel, body] of rules) {
     if (!selectorPattern.test(sel)) continue;
@@ -36,7 +40,7 @@ const winning = (selectorPattern, prop) => {
 // 1. The card menu is portalled and unmounted, so it must animate. The other two
 //    persist in the DOM and must transition. Confusing these is what caused the
 //    dead edits.
-const cardAnim = winning(/body\s*>\s*\.rr-card-menu\s*$/, "animation");
+const cardAnim = winning(/(?:body\s*>\s*)?\.rr-card-menu\s*$/, "animation");
 t(/rr-spring-menu-in/.test(cardAnim ?? ""), "card menu animates (it is unmounted, so it must)",
   `winning: ${cardAnim}`);
 
@@ -50,7 +54,7 @@ for (const [name, sel] of [
 
 // 2. All three must use the shared spring tokens, not a literal duration.
 for (const [name, sel, prop] of [
-  ["card menu", /body\s*>\s*\.rr-card-menu\s*$/, "animation"],
+  ["card menu", /(?:body\s*>\s*)?\.rr-card-menu\s*$/, "animation"],
   ["sort menu", /#rr-sort-menu\s*$/, "transition"],
   ["filter drawer", /\.filters\s*$/, "transition"],
 ]) {

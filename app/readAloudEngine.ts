@@ -93,6 +93,8 @@ type TestWindow = Window & typeof globalThis & {
   var queue: QueueItem[] = [];     // current rendered document
   var cursor = 0;
   var queueDoc: string | null = null;
+  var queueDocument: NarrationDocument | null = null;
+  var playbackError: string | undefined;
   var keepAlive: ReturnType<typeof setInterval> | null = null;
   var sweeper: ReturnType<typeof setInterval> | null = null;
   var mountedShell: Element | null = null;
@@ -211,7 +213,7 @@ type TestWindow = Window & typeof globalThis & {
       // Keep the sentence queue attached to its chapter while adjacent frames
       // mount/unmount. A newly loaded taller chapter must not steal narration.
       const queuedDoc = queue[cursor]?.range.startContainer.ownerDocument
-        ?? queue[queue.length - 1]?.range.startContainer.ownerDocument;
+        ?? queue[queue.length - 1]?.range.startContainer.ownerDocument ?? queueDocument;
       const target = playing && queueDoc && queuedDoc
         ? targets.find(item => item.doc === queuedDoc) ?? visibleEpubNarrationTarget(targets, headerBottom(), window.innerHeight)
         : visibleEpubNarrationTarget(targets, headerBottom(), window.innerHeight);
@@ -750,16 +752,17 @@ type TestWindow = Window & typeof globalThis & {
         if (!playing || paused || mine !== epoch) return;
         state = reader();
       }
-      if (!state) { stop(); return; }
+      if (!state) { pauseForRecovery("The reading view did not become ready. Tap Play to retry."); return; }
     }
 
-    if (signature(state.doc) !== queueDoc) {
+    if (state.doc !== queueDocument || signature(state.doc) !== queueDoc) {
+      const sameChapter = signature(state.doc) === queueDoc;
       ensureQueue(state.doc);
       if (!queue.length) { await advanceSection(state, mine); return; }
       // Start from whatever is on screen, not the top of the chapter.
       var visibleItems: number[] = [];
       for (var i = 0; i < queue.length; i += 1) if (isVisible(state, queue[i].range)) visibleItems.push(i);
-      if (visibleItems.length) cursor = visibleItems[0];
+      if (!sameChapter && visibleItems.length) cursor = visibleItems[0];
       prepareStartupClip(state.doc, cursor);
     }
 
@@ -815,10 +818,19 @@ type TestWindow = Window & typeof globalThis & {
 
   function ensureQueue(doc: NarrationDocument) {
     var sig = signature(doc);
-    if (sig === queueDoc && queue.length) return;
+    if (doc === queueDocument && sig === queueDoc && queue.length) return;
+    const previous = sig === queueDoc ? queue[cursor] : undefined;
+    const wasAtEnd = sig === queueDoc && queue.length > 0 && cursor >= queue.length;
     queue = collect(doc);
     queueDoc = sig;
+    queueDocument = doc;
     cursor = 0;
+    if (wasAtEnd) cursor = queue.length;
+    else if (previous) {
+      const exact = queue.findIndex(item => item.text === previous.text && item.at === previous.at);
+      const match = exact >= 0 ? exact : queue.findIndex(item => item.text === previous.text);
+      if (match >= 0) cursor = match;
+    }
     attachSteering(doc);
   }
 
@@ -873,17 +885,24 @@ type TestWindow = Window & typeof globalThis & {
 
   async function advanceSection(state: ReaderState, mine: number) {
     const adapter = getEpubNarrationAdapter();
-    if (adapter && state.frame) {
+    if (adapter) {
       try {
-        const next = await adapter.advance(state.doc);
-        if (!playing || paused || mine !== epoch) return;
-        if (!next) { stop(); return; }
-        ensureQueue(next.doc as NarrationDocument);
-        cursor = 0;
-        prepareStartupClip(next.doc as NarrationDocument, cursor);
-        void step(mine);
+        let from = state.doc;
+        for (let empty = 0; empty < 64; empty += 1) {
+          const next = await adapter.navigate(from, 1);
+          if (!playing || paused || mine !== epoch) return;
+          if (!next) { stop(); return; }
+          from = next.doc as NarrationDocument;
+          ensureQueue(from);
+          if (!queue.length) continue;
+          cursor = 0;
+          prepareStartupClip(from, cursor);
+          void step(mine);
+          return;
+        }
+        pauseForRecovery("No readable sentence was found in the next chapters.");
       } catch {
-        if (playing && mine === epoch) { playing = false; paused = true; render(); }
+        if (playing && mine === epoch) pauseForRecovery("The next chapter could not be opened.");
       }
       return;
     }
@@ -912,7 +931,7 @@ type TestWindow = Window & typeof globalThis & {
   // playback to an element it has seen the user start, so it is created once
   // and reused rather than per sentence.
   var rrTtsAudio: HTMLAudioElement | null = null;
-  var rrPrefetch: Partial<Record<string, Promise<unknown>>> = Object.create(null);
+  const rrPrefetch = new Map<string, { promise: Promise<unknown>; controller: AbortController; done: boolean }>();
   var rrWarmTimer: ReturnType<typeof setTimeout> | null = null;
   var rrWarmAttempts = 0;
   var stallTimer: ReturnType<typeof setTimeout> | null = null, stallRetries = 0, stallText = "";
@@ -930,7 +949,7 @@ type TestWindow = Window & typeof globalThis & {
       if (stallText !== text) { stallText = text; stallRetries = 0; }
       stallRetries += 1;
       if (stallRetries <= 2) restartCurrentSentence();
-      else { stallRetries = 0; cursor += 1; restartCurrentSentence(); }
+      else pauseForRecovery("The voice stopped responding.");
     }, timeout);
   }
 
@@ -956,28 +975,45 @@ type TestWindow = Window & typeof globalThis & {
   }
 
   function warmUrl(url: string): Promise<unknown> {
-    if (rrPrefetch[url]) return rrPrefetch[url];
-    try {
-      rrPrefetch[url] = fetch(url, { cache: "force-cache" }).then(function (response) {
-        if (!response.ok) throw new Error("TTS prefetch returned " + response.status);
-      }).catch(function () {
-        // A failed synthesis must remain retryable. Remembering a resolved
-        // failure made every subsequent warm-ahead believe the clip was ready.
-        delete rrPrefetch[url];
-      });
-    } catch (e) {
-      return Promise.resolve();
+    const cached = rrPrefetch.get(url);
+    if (cached) return cached.promise;
+    while (rrPrefetch.size >= 24) {
+      const oldest = rrPrefetch.keys().next().value!;
+      rrPrefetch.get(oldest)!.controller.abort();
+      rrPrefetch.delete(oldest);
     }
-    return rrPrefetch[url];
+    const controller = new AbortController();
+    const entry = { controller, done: false, promise: Promise.resolve() as Promise<unknown> };
+    entry.promise = fetch(url, {
+      cache: "force-cache", signal: controller.signal,
+      headers: { "X-Home-Books-Prefetch": "1" },
+    }).then(async function (response) {
+        if (!response.ok) throw new Error("TTS prefetch returned " + response.status);
+        // Consume the response before warming the next clip. Headers alone
+        // do not mean the audio has reached the browser's HTTP cache.
+        await response.arrayBuffer();
+        entry.done = true;
+      }).catch(function () {
+        if (rrPrefetch.get(url) === entry) rrPrefetch.delete(url);
+      });
+    rrPrefetch.set(url, entry);
+    return entry.promise;
+  }
+
+  function cancelWarming() {
+    for (const [url, entry] of rrPrefetch) {
+      if (!entry.done) { entry.controller.abort(); rrPrefetch.delete(url); }
+    }
   }
 
   // Warm the next sentence while the current one plays. Synthesis runs at
   // several times real time, so by the time it is needed it is on disk.
   function warmAhead(start: number, count: number) {
     var end = start + count;
+    const generation = epoch, source = queue;
     function lane(index: number): Promise<unknown> {
-      if (index >= end) return Promise.resolve();
-      var next = queue[index];
+      if (generation !== epoch || source !== queue || index >= end) return Promise.resolve();
+      var next = source[index];
       if (!next || !next.text) return lane(index + 2);
       var url = ttsUrl(next.text);
       return warmUrl(url).then(function () { return lane(index + 2); });
@@ -990,6 +1026,7 @@ type TestWindow = Window & typeof globalThis & {
   }
 
   function prefetch(mine: number) {
+    if (mine !== epoch) return;
     // Six ahead, not two. Each /api/tts call is a synthesis round trip on the
     // Pi; two sentences of lead does not cover it at reading speed, so
     // playback stalled for several seconds every few sentences waiting for the
@@ -1061,8 +1098,8 @@ type TestWindow = Window & typeof globalThis & {
       // Skip back/forward (the Lock Screen's 15-second buttons, AirPods, the car)
       // move by a couple of sentences - about that long spoken. Previous/next
       // track move by chapter, as in an audiobook.
-      navigator.mediaSession.setActionHandler("seekbackward", function () { skipSentence(-1); skipSentence(-1); });
-      navigator.mediaSession.setActionHandler("seekforward", function () { skipSentence(1); skipSentence(1); });
+      navigator.mediaSession.setActionHandler("seekbackward", async function () { await skipSentence(-1); await skipSentence(-1); });
+      navigator.mediaSession.setActionHandler("seekforward", async function () { await skipSentence(1); await skipSentence(1); });
       navigator.mediaSession.setActionHandler("previoustrack", function () { changeChapter(-1); });
       navigator.mediaSession.setActionHandler("nexttrack", function () { changeChapter(1); });
     } catch (e) { /* older browsers */ }
@@ -1095,7 +1132,7 @@ type TestWindow = Window & typeof globalThis & {
       if (stallText !== text) { stallText = text; stallRetries = 0; }
       stallRetries += 1;
       if (stallRetries <= 2) restartCurrentSentence();
-      else { stallRetries = 0; cursor += 1; restartCurrentSentence(); }
+      else pauseForRecovery("This sentence's audio could not be loaded.");
     };
     a.onplaying = function () { armStallWatchdog(text, mine); };
     a.ontimeupdate = function () { armStallWatchdog(text, mine); };
@@ -1112,7 +1149,7 @@ type TestWindow = Window & typeof globalThis & {
         // reject that now-obsolete promise after the pause tap; treating the
         // rejection as a fresh autoplay failure stopped the whole session and
         // made the collapsed controls disappear.
-        if (playing && !paused && mine === epoch) { playing = false; paused = true; render(); }
+        if (playing && !paused && mine === epoch) pauseForRecovery("Playback needs your permission to resume.");
       });
     }
     prefetch(mine);
@@ -1155,6 +1192,7 @@ type TestWindow = Window & typeof globalThis & {
     if (!reader()) return;
     playing = true;
     paused = false;
+    playbackError = undefined;
     epoch += 1;
     queueDoc = null;
     render();
@@ -1174,8 +1212,12 @@ type TestWindow = Window & typeof globalThis & {
   function stop() {
     playing = false;
     paused = false;
+    playbackError = undefined;
     epoch += 1;
-    queue = []; queueDoc = null; cursor = 0;
+    cancelWarming();
+    if (rrWarmTimer) clearTimeout(rrWarmTimer);
+    rrWarmTimer = null;
+    queue = []; queueDoc = null; queueDocument = null; cursor = 0;
     clearSleepTimer();
     clearStallWatchdog();
     try { if (rrTtsAudio) { rrTtsAudio.pause(); rrTtsAudio.removeAttribute('src'); rrTtsAudio.load(); } } catch (e) { /* ignore */ }
@@ -1185,6 +1227,7 @@ type TestWindow = Window & typeof globalThis & {
     clearHighlights();
     render();
     announce("stopped");
+    lastSpoken = null;
   }
 
   // Keep the same audio element and source paused so iOS retains the media
@@ -1192,10 +1235,13 @@ type TestWindow = Window & typeof globalThis & {
   function toggle() {
     if (!playing) { play(); return; }
     if (paused) {
+      const retry = Boolean(playbackError);
+      playbackError = undefined;
+      stallRetries = 0;
       paused = false;
       try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; } catch (e) {}
       render();
-      if (rrTtsAudio && rrTtsAudio.src) {
+      if (!retry && rrTtsAudio && rrTtsAudio.src) {
         var resumed = rrTtsAudio.play();
         if (resumed && resumed.catch) resumed.catch(restartCurrentSentence);
       } else restartCurrentSentence();
@@ -1211,6 +1257,7 @@ type TestWindow = Window & typeof globalThis & {
 
   function haltCurrentAudio() {
     clearStallWatchdog();
+    cancelWarming();
     try {
       if (rrTtsAudio) {
         rrTtsAudio.onended = null;
@@ -1220,6 +1267,15 @@ type TestWindow = Window & typeof globalThis & {
         rrTtsAudio.load();
       }
     } catch (e) { /* ignore */ }
+  }
+
+  function pauseForRecovery(message: string) {
+    epoch += 1;
+    haltCurrentAudio();
+    paused = true;
+    playbackError = message;
+    try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; } catch {}
+    render(); announce("paused");
   }
 
   function restartCurrentSentence() {
@@ -1234,18 +1290,46 @@ type TestWindow = Window & typeof globalThis & {
   // the Lock Screen controls. Invalidating the current clip before moving the
   // cursor is important: otherwise its delayed `ended` callback advances a
   // second time and makes a single Next tap skip two sentences.
-  function skipSentence(delta: -1 | 1) {
+  async function skipSentence(delta: -1 | 1) {
     if (!playing || !delta) return;
     var state = reader();
     if (state) ensureQueue(state.doc);
     if (!queue.length) return;
-    cursor = delta < 0 ? Math.max(0, cursor - 1) : Math.min(queue.length, cursor + 1);
     epoch += 1;
     var mine = epoch;
+    playbackError = undefined;
+    stallRetries = 0;
     haltCurrentAudio();
     clearHighlights();
+    if (delta < 0 && cursor === 0 && state && getEpubNarrationAdapter()) {
+      const adapter = getEpubNarrationAdapter();
+      try {
+        let from = state.doc;
+        // Contents/title/furniture-only sections are not a listening destination.
+        // Bound traversal and invalidate every awaited reply on stop/another seek.
+        for (let empty = 0; empty < 64; empty += 1) {
+          const previous = await adapter?.navigate(from, -1);
+          if (!playing || mine !== epoch) return;
+          if (!previous) {
+            if (!queue.length) { pauseForRecovery("No earlier readable sentence was found."); return; }
+            break;
+          }
+          ensureQueue(previous.doc as NarrationDocument);
+          from = previous.doc as NarrationDocument;
+          state = reader();
+          if (queue.length) { cursor = queue.length - 1; break; }
+          if (empty === 63) { pauseForRecovery("No readable sentence was found in the previous chapters."); return; }
+        }
+      } catch { if (playing && mine === epoch) pauseForRecovery("The previous chapter could not be opened."); return; }
+    } else cursor = delta < 0 ? Math.max(0, cursor - 1) : Math.min(queue.length, cursor + 1);
     render();
     if (!paused) step(mine);
+    else if (state && queue[cursor]) {
+      // Paused navigation intentionally does not enter the playing-only pump.
+      // Explicitly reveal its target without resuming or turning multiple pages.
+      if (!screenAsleep()) state.reveal(queue[cursor].range);
+      if (playing && mine === epoch && paused) highlight(state.doc, queue[cursor].range);
+    }
   }
 
   function publicState() {
@@ -1254,8 +1338,9 @@ type TestWindow = Window & typeof globalThis & {
       paused: paused,
       rate: rate,
       sleepMinutes: sleepMs ? Math.ceil(sleepMs / 60000) : 0,
-      canPrevious: playing && cursor > 0,
+      canPrevious: playing && (cursor > 0 || Boolean(queueDocument && getEpubNarrationAdapter()?.canPrevious(queueDocument))),
       canNext: playing && !!queue.length,
+      error: playbackError,
     };
   }
 
@@ -1283,6 +1368,9 @@ type TestWindow = Window & typeof globalThis & {
     if (before) ensureQueue(before.doc);
     var anchorText = queue[cursor] && queue[cursor].text;
     var oldDoc = before && before.doc;
+    // EPUB rebuilds its document; Foliate reflows the same document in place.
+    // Both are ready after their mode changes, not only after a new iframe.
+    var keepsDocument = Boolean(document.querySelector("foliate-view"));
     var wasPlaying = playing;
     var wasPaused = paused;
     epoch += 1;
@@ -1298,7 +1386,7 @@ type TestWindow = Window & typeof globalThis & {
         await sleep(100);
         if (mine !== epoch) return;
         state = reader();
-        if (state && state.mode === requested && state.doc !== oldDoc) break;
+        if (state && state.mode === requested && (state.doc !== oldDoc || keepsDocument)) break;
       }
       if (!state || mine !== epoch) return;
       ensureQueue(state.doc);

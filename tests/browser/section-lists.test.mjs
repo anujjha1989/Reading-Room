@@ -20,7 +20,7 @@ test("home section lists render one metadata block and a usable menu in both the
         menus: card.querySelectorAll('.rr-card-more').length, fits: c.right <= innerWidth && a.right <= b.left && b.right <= c.right + 1,
         visible: b.width > 20 && b.height > 20, position: getComputedStyle(menu).position };
     })`);
-    for (const card of cards) { assert.equal(card.duplicates, 0); assert.equal(card.titles, 1); assert.equal(card.menus, 1); assert.ok(card.fits && card.visible); assert.equal(card.position, "static"); }
+    for (const card of cards) { assert.equal(card.duplicates, 0); assert.equal(card.titles, 1); assert.equal(card.menus, 1); assert.ok(card.fits && card.visible); assert.match(card.position, /^(static|relative)$/, "menu touch target must remain in the row's layout flow"); }
     await browser.screenshot(`section-list-${theme}.png`);
     await browser.evaluate(`document.querySelector('.grid.list-view .rr-card-more').click()`);
     await browser.waitFor(`!!document.querySelector('[role="menu"]')`);

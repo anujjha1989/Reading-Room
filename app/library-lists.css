@@ -41,9 +41,7 @@
 .rr-list-new button:disabled { opacity: .35; }
 
 
-/* Reference Room papers almost never have artwork, so a thumbnail without art
- * carries its title on the cover, as the Home shelves draw theirs. Reading Room
- * thumbnails keep their plain colour and caption. */
-html .catalog .thumbnail-view .cover.rr-drawn:not(.has-cover) .cover-copy {
+/* A missing cover always gets a readable title, never an unexplained blank. */
+html .catalog .thumbnail-view .cover:not(.has-cover) .cover-copy {
   display: flex; margin: auto 0; justify-content: center; text-align: center;
 }

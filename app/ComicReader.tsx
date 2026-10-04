@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { readerDeadline } from "./readerDeadline";
 
 export type ComicReaderHandle = { previous: () => void; next: () => void; goTo: (page: number) => void };
 type ComicPage = { name: string; url: string };
@@ -16,10 +17,10 @@ function sortPages<T extends { name: string }>(pages: T[]) {
   return pages.sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: "base" }));
 }
 
-async function openCbr(data: ArrayBuffer): Promise<ComicPage[]> {
+async function openCbr(data: ArrayBuffer, signal: AbortSignal): Promise<ComicPage[]> {
   const [{ createExtractorFromData }, wasmResponse] = await Promise.all([
     import("node-unrar-js/esm/index.esm.js"),
-    fetch("/unrar.wasm"),
+    fetch("/unrar.wasm", { signal }),
   ]);
   if (!wasmResponse.ok) throw new Error("The CBR reader could not start");
   const extractor = await createExtractorFromData({ data, wasmBinary: await wasmResponse.arrayBuffer() });
@@ -27,29 +28,34 @@ async function openCbr(data: ArrayBuffer): Promise<ComicPage[]> {
   if (!headers.length) throw new Error("No comic pages were found in this CBR file");
   const extracted = extractor.extract({ files: headers.map((header) => header.name) });
   const pages: ComicPage[] = [];
-  for (const file of extracted.files) {
+  try { for (const file of extracted.files) {
+    signal.throwIfAborted();
     if (!file.extraction || !IMAGE_PATTERN.test(file.fileHeader.name)) continue;
     const bytes = new Uint8Array(file.extraction.byteLength);
     bytes.set(file.extraction);
     pages.push({ name: file.fileHeader.name, url: URL.createObjectURL(new Blob([bytes], { type: imageType(file.fileHeader.name) })) });
-  }
+  } } catch (error) { pages.forEach(page => URL.revokeObjectURL(page.url)); throw error; }
   return sortPages(pages);
 }
 
-async function openCbz(data: ArrayBuffer): Promise<ComicPage[]> {
+async function openCbz(data: ArrayBuffer, signal: AbortSignal): Promise<ComicPage[]> {
   const { configure, ZipReader, BlobReader, BlobWriter } = await import("foliate-js/vendor/zip.js");
   configure({ useWebWorkers: false });
   const reader = new ZipReader(new BlobReader(new Blob([data])));
+  const pages: ComicPage[] = [];
   try {
     const entries = await reader.getEntries();
     const images = entries.filter((entry) => !entry.directory && IMAGE_PATTERN.test(entry.filename));
     if (!images.length) throw new Error("No comic pages were found in this CBZ file");
-    const pages: ComicPage[] = [];
     for (const entry of images) {
+      signal.throwIfAborted();
       const blob = await entry.getData(new BlobWriter(imageType(entry.filename)));
+      signal.throwIfAborted();
       pages.push({ name: entry.filename, url: URL.createObjectURL(blob) });
     }
     return sortPages(pages);
+  } catch (error) {
+    pages.forEach(page => URL.revokeObjectURL(page.url)); throw error;
   } finally {
     await reader.close();
   }
@@ -82,16 +88,23 @@ const ComicReader = forwardRef<ComicReaderHandle, {
 
   useEffect(() => {
     const controller = new AbortController();
+    let disposed = false;
     let urls: string[] = [];
     setPages([]);
     setPageIndex(0);
     onStatus("Loading the comic…");
-    fetch(`/api/book/${encodeURIComponent(fileId)}?format=${encodeURIComponent(format)}`, { signal: controller.signal })
+    readerDeadline(fetch(`/api/book/${encodeURIComponent(fileId)}?format=${encodeURIComponent(format)}`, { signal: controller.signal }), controller.signal)
       .then((response) => {
         if (!response.ok) throw new Error("The comic could not be downloaded");
-        return response.arrayBuffer();
+        return readerDeadline(response.arrayBuffer(), controller.signal);
       })
-      .then((data) => format.toUpperCase() === "CBR" ? openCbr(data) : openCbz(data))
+      .then((data) => {
+        const opening = format.toUpperCase() === "CBR" ? openCbr(data, controller.signal) : openCbz(data, controller.signal);
+        // A timed-out extractor may finish later. Its URLs must not leak or
+        // mount into a newly opened reader.
+        void opening.then(pages => { if (controller.signal.aborted) pages.forEach(page => URL.revokeObjectURL(page.url)); }, () => {});
+        return readerDeadline(opening, controller.signal);
+      })
       .then((nextPages) => {
         if (controller.signal.aborted) {
           nextPages.forEach((page) => URL.revokeObjectURL(page.url));
@@ -105,9 +118,12 @@ const ComicReader = forwardRef<ComicReaderHandle, {
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        if (disposed) return;
+        controller.abort();
         onStatus("This comic could not be opened here. It may be encrypted, damaged, or part of a multi-file archive.");
       });
     return () => {
+      disposed = true;
       controller.abort();
       urls.forEach((url) => URL.revokeObjectURL(url));
     };

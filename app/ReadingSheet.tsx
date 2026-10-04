@@ -50,6 +50,7 @@ export type ReadAloudApi = {
   sleepMinutes: number;
   canPrevious: boolean;
   canNext: boolean;
+  error?: string;
   voices: { label: string; value: string; current: boolean }[];
   toggle: () => void;
   stop: () => void;
@@ -404,7 +405,7 @@ export default function ReadingSheet(props: ReadingSheetProps) {
           {props.fontFamily !== undefined && props.fontFamilies && (
             <label className={styles.selectRow}>
               <span>Font</span>
-              <select value={props.fontFamily}
+              <select aria-label="Font" value={props.fontFamily}
                 onChange={(event) => props.onFontFamilyChange?.(event.target.value)}>
                 {props.fontFamilies.map((family) => <option key={family}>{family}</option>)}
               </select>
@@ -456,6 +457,7 @@ export default function ReadingSheet(props: ReadingSheetProps) {
       {view === "aloud" && aloud && (
         <>
           <SheetHeader title="Read Aloud" onBack={() => go("menu")} />
+          {aloud.error && <p role="status">{aloud.error} Tap Resume to retry this sentence.</p>}
           {!aloud.playing ? (
             <SheetRow primary label="Start reading" icon="play" onClick={aloud.toggle} />
           ) : (

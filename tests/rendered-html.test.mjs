@@ -18,6 +18,9 @@ test("server-renders the ebook library", async () => {
   assert.match(html, /<title>Home Books<\/title>/i);
   assert.match(html, /<h1><svg\b[^>]*class="home-books-mark"[\s\S]*?<\/svg>Books<\/h1>/);
   assert.match(html, /name="rr-react-library-chrome" content="1"/);
+  const viewports = html.match(/<meta\b[^>]*name="viewport"[^>]*>/g) ?? [];
+  assert.equal(viewports.length, 1, "One source-owned viewport declaration");
+  assert.match(viewports[0], /viewport-fit=cover/, "iOS safe-area layout must survive source generation");
   assert.match(html, /Continue/);
   assert.match(html, /aria-label="Home Books home"/);
   // Filter/sort popovers mount on interaction; browser tests cover their

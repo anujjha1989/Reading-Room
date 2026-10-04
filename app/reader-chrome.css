@@ -145,7 +145,6 @@
   color: var(--ink, #1e2422);
   font: 600 15px/1 Georgia, serif;
   cursor: pointer;
-  transition: opacity .15s ease;
 }
 .rr-close-btn { right: calc(9px + env(safe-area-inset-right)); font-size: 19px; }
 @media (width <= 1200px), (height <= 560px) {
@@ -154,7 +153,6 @@
 html.rr-theme-dark .rr-close-btn {
   background: #252a28;
   border-color: #4a524e;
-  color: #e8e4d8;
 }
 
 /* --- Chrome hidden: the page and nothing else. ---------------------------- */
@@ -211,14 +209,6 @@ html.rr-hide-chrome .reader-footer { height:0!important; margin:0!important; }
 .reader-theme-light .reader-settings summary { font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important; }
 .reader-theme-light .reader-settings > div { border-radius:16px; box-shadow:0 8px 32px #0002; padding:20px; }
 .reader-theme-light .theme-options button { border-radius:8px; }
-/* Host-page close buttons stay tappable above the reader's touch layer. */
-.rr-panel-close {
-  display:none; position:fixed; z-index:130;
-  width:44px; height:44px; padding:0; place-items:center;
-  border:0; border-radius:50%; cursor:pointer;
-  font:400 28px/1 system-ui; touch-action:manipulation;
-}
-.rr-panel-close:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
 .reader-settings[open] > div { padding-top:48px!important; }
 @media (width <= 900px), (height <= 560px) {
   html.rr-strip .reader-actions { padding-top:48px; box-sizing:border-box; }
@@ -328,7 +318,7 @@ html .series-strip small { font-size:13px; }
 html .rail-nav.prev { left:6px; } html .rail-nav.next { right:6px; }
 @media (hover:none), (pointer:coarse), (max-width:700px) { html .rail-nav { display:none!important; } }
 html main > .catalog { order:3; max-width:1248px; padding:24px 24px 52px; scroll-margin-top:16px; }
-html .catalog::before { content:"Your library"; display:block; margin:0 0 24px; font:700 32px/1.15 Georgia,serif; letter-spacing:-.025em; }
+html .catalog::before { content:"Your library"; margin:0 0 24px; font:700 32px/1.15 Georgia,serif; letter-spacing:-.025em; }
 html .catalog .catalog-toolbar { align-items:center; }
 html .catalog .mobile-filter-toggle,html .catalog .sort-control select,html .catalog .clear {
   border:0; border-radius:12px; background:var(--paper-2); color:var(--ink); font-size:13px;
@@ -354,9 +344,9 @@ html main > .modal-backdrop { background:#0008; }
 html .modal-backdrop .modal { border-radius:24px; }
 .rr-library-dock {
   position:fixed; bottom:calc(12px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
-  width:min(420px,calc(100% - 32px)); height:70px; padding:5px; display:flex; gap:3px;
-  z-index:30; background:rgba(244,244,247,.94); border:1px solid #d0d0d580;
-  border-radius:38px; box-shadow:0 6px 28px #0002; backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  width:min(420px,calc(100% - 32px)); height:70px; display:flex;
+  z-index:30;
+  border-radius:38px; -webkit-backdrop-filter:blur(18px);
 }
 .rr-library-dock[hidden] { display:none!important; }
 .rr-library-dock button { flex:1; border:0; background:transparent; border-radius:32px; min-width:0; color:var(--muted); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; font:500 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:0; text-transform:none; padding:4px; }
@@ -397,7 +387,7 @@ html:not([data-rr-theme="light"]) main > :is(.topbar, html:not([data-rr-theme="l
 html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book { background:transparent; color:var(--ink); }
 html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book:nth-child(3n+2) { background:transparent; }
 html:not([data-rr-theme="light"]) .rr-continue-shelf .shelf-book:nth-child(3n) { background:transparent; }
-html:not([data-rr-theme="light"]) .rr-library-dock { background:rgba(48,48,50,.94); border-color:#ffffff30; }
+html:not([data-rr-theme="light"]) .rr-library-dock { border-color:#ffffff30; }
 html:not([data-rr-theme="light"]) .rr-library-dock button[aria-current="page"] { background:#5b5b60; color:#fff; }
 }
 @media (prefers-reduced-motion:reduce) {
@@ -434,7 +424,7 @@ html:not([data-rr-theme="light"]) .rr-library-dock button[data-view="Search"][ar
 
 /* Apple Books-inspired chrome. The reading engine and tap layer stay intact. */
 html.rr-books-controls .reader-actions{visibility:hidden!important;pointer-events:none!important}
-html.rr-books-controls .rr-panel-close, html.rr-books-controls .rr-text-mode{display:none!important}
+html.rr-books-controls .rr-text-mode{display:none!important}
 html.rr-books-controls .rr-close-btn{
  display:grid!important;place-items:center!important;padding:0!important;
  width:46px!important;height:46px!important;border-radius:50%!important;
@@ -499,7 +489,7 @@ html[data-rr-theme="dark"] main > :is(.topbar, html[data-rr-theme="dark"] .hero,
 html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book { background:transparent; color:var(--ink); }
 html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book:nth-child(3n+2) { background:transparent; }
 html[data-rr-theme="dark"] .rr-continue-shelf .shelf-book:nth-child(3n) { background:transparent; }
-html[data-rr-theme="dark"] .rr-library-dock { background:rgba(48,48,50,.94); border-color:#ffffff30; }
+html[data-rr-theme="dark"] .rr-library-dock { border-color:#ffffff30; }
 html[data-rr-theme="dark"] .rr-library-dock button[aria-current="page"] { background:#5b5b60; color:#fff; }
 html[data-rr-theme="dark"] .rr-library-dock { background:none; border:0; }
 html[data-rr-theme="dark"] .rr-library-dock::before { background:rgba(48,48,50,.94); border-color:#ffffff30; }
@@ -516,13 +506,10 @@ html[data-rr-theme="dark"] .discovery { --shelf-top:#1e1e1e; --shelf-bottom:#000
 /* ---- Settings entry point -------------------------------------------- */
 html #rr-settings-link {
   position: fixed;
-  top: calc(30px + env(safe-area-inset-top));
   right: calc(14px + env(safe-area-inset-right));
   display: inline-grid; place-items: center;
-  width: 42px; height: 42px;
-  color: var(--ink); border-radius: 50%;
+  width: 42px; height: 42px; border-radius: 50%;
   text-decoration: none; z-index: 130;
-  background: color-mix(in srgb, var(--paper) 72%, transparent);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
 }
@@ -530,7 +517,6 @@ html #rr-settings-link {
 html.rr-strip #rr-settings-link { display: none; }
 /* While settings is open the gear sits behind the iframe — hide it to prevent a ghost. */
 html.rr-settings-open #rr-settings-link { visibility: hidden; }
-html #rr-settings-link svg { width: 22px; height: 22px; }
 html #rr-settings-link:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
 
 /* Dark mode chevron */
@@ -551,7 +537,6 @@ html #rr-settings-link {
 }
 @media (prefers-color-scheme: dark) {
   html:not([data-rr-theme="light"]) #rr-settings-link {
-    background: rgba(44, 44, 46, .82);
     border-color: rgba(255, 255, 255, .16);
     color: #f5f5f7;
   }
@@ -690,10 +675,8 @@ html[data-rr-theme="dark"] #rr-metafix .rr-mf-save { background: #f5f5f7; color:
 /* ==== Apple Books catalog: text below covers, clean artwork ============= */
 
 /* Show book caption below covers in thumbnail view. */
-html .catalog .thumbnail-view .book-caption { display:block; margin-top:8px; }
-html .catalog .thumbnail-view .book-caption > strong {
-  display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
-  overflow:hidden; white-space:normal;
+html .catalog .thumbnail-view .book-caption { margin-top:8px; }
+html .catalog .thumbnail-view .book-caption > strong { white-space:normal;
   font:600 12.5px/1.28 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   color:var(--ink);
 }
@@ -786,24 +769,13 @@ html .catalog .thumbnail-view .book { contain-intrinsic-size:156px 330px; }
 
 /* Title + search stay put while the grid scrolls under them. */
 html[data-rr-library-view="library"] main > .hero {
-  position: sticky;
-  top: 0;
-  z-index: 120;
-  background: var(--paper);
   padding-top: calc(18px + env(safe-area-inset-top));
   padding-bottom: 10px;
-  gap: 12px;
 }
 /* Leave room for the icon rail so a long title never runs under it. */
-html[data-rr-library-view="library"] .hero h1 {
-  font-size: 34px;
-  line-height: 1.1;
-  padding-right: 150px;
-}
 html[data-rr-library-view="library"] .hero .category-chips { display: none; }
 html[data-rr-library-view="library"] .catalog .catalog-toolbar { display: none; }
 html[data-rr-library-view="library"] .catalog .results { display: none; }
-html[data-rr-library-view="library"] main > .catalog { padding-top: 4px; }
 
 /* ---- fixed icon rail: filter, sort, gear -------------------------------- */
 /* The gear is already fixed at the right edge and re-adds itself to <body> on a
@@ -857,21 +829,14 @@ html[data-rr-theme="dark"] #rr-sort-btn {
    would stop its selects reporting sizes when it opens. */
 html[data-rr-library-view="library"] .catalog .filters {
   position: fixed;
-  left: 50%; transform: translate(-50%, 8px);
   top: calc(76px + env(safe-area-inset-top));
-  width: min(560px, calc(100vw - 28px));
   max-height: min(70vh, 620px); overflow-y: auto;
   z-index: 140;
   background: var(--white);
   border: 1px solid var(--line) !important;
   border-radius: 18px !important;
   box-shadow: 0 18px 44px rgba(0, 0, 0, .22);
-  opacity: 0; pointer-events: none;
   /* Spring, matching the reading sheet and library panels; was .16s ease. */
-  transition: opacity .2s linear, transform var(--rr-spring-time,.46s) var(--rr-spring,cubic-bezier(.16,1,.3,1));
-}
-html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
-  opacity: 1; pointer-events: auto; transform: translate(-50%, 0);
 }
 
 /* ---- sort / view menu --------------------------------------------------- */
@@ -886,10 +851,7 @@ html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
   border-radius: 14px;
   box-shadow: 0 18px 44px rgba(0, 0, 0, .22);
   padding: 6px; margin: 0;
-  opacity: 0; pointer-events: none; transform: translateY(8px);
-  transition: opacity .16s ease, transform .16s ease;
 }
-html.rr-sort-open #rr-sort-menu { opacity: 1; pointer-events: auto; transform: translateY(0); }
 #rr-sort-menu button {
   display: flex; align-items: center; gap: 10px;
   width: 100%; min-height: 40px; padding: 0 10px;
@@ -909,9 +871,6 @@ html.rr-sort-open #rr-sort-menu { opacity: 1; pointer-events: auto; transform: t
   html:not([data-rr-theme="light"]) #rr-sort-menu {
     background: #242426; color: #f5f5f7; border-color: #3a3a3e;
   }
-}
-html[data-rr-theme="dark"] #rr-sort-menu {
-  background: #242426; color: #f5f5f7; border-color: #3a3a3e;
 }
 
 /* Scrim so a tap outside either popover closes it. */
@@ -1125,10 +1084,8 @@ html[data-rr-library-view="favorites"] .catalog .cover {
 /* --- gear lines up with the title on every library view ------------------ */
 html.rr-library-visible #rr-settings-link {
   top: calc(14px + env(safe-area-inset-top)) !important;
-  right: calc(20px + env(safe-area-inset-right));
 }
 /* Match the h1's optical centre: the title box is 42px tall, the gear 42px. */
-html.rr-library-visible #rr-settings-link svg { width: 23px; height: 23px; }
 
 /* --- full-width shelf bands -------------------------------------------- */
 html[data-rr-library-view="home"] .discovery .smart-shelf {
@@ -1185,9 +1142,6 @@ html[data-rr-library-view="home"] .shelf-book > small {
   font-size: 12px; margin-top: 2px; color: var(--muted); opacity: 1;
 }
 /* Continue cards carry a progress line, so they run a little taller. */
-html[data-rr-library-view="home"] .rr-continue-shelf .shelf-strip {
-  grid-auto-columns: 132px;
-}
 
 /* --- Continue as horizontal tiles ---------------------------------------- */
 html[data-rr-library-view="home"] .rr-continue-shelf .shelf-strip {
@@ -1254,184 +1208,41 @@ html[data-rr-library-view="home"] .rr-continue-shelf .rr-cover-label strong {
 
 /* The ⋯ sits on the cover's bottom-right. Both card types need a positioning
    context; .book already has one, .rr-shelf-cell is new for exactly this. */
-html .rr-shelf-cell { position: relative; display: block; }
 html .book, html .book-tools { position: relative; }
 
-html .rr-card-more {
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  width: 30px; height: 30px;
-  display: grid; place-items: center;
-  border: 0; padding: 0;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--paper) 78%, transparent);
-  color: var(--ink);
-  font: 600 17px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  letter-spacing: 0;
-  cursor: pointer;
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, .18);
-  z-index: 4;
-}
-html .rr-card-more:active { opacity: .55; }
 /* On a shelf card the ⋯ belongs on the artwork, not the caption below it, so
    it is offset from the cover's foot rather than the cell's. */
-html .rr-shelf-cell .rr-card-more { bottom: auto; top: 0; right: 4px; transform: translateY(4px); }
-html[data-rr-library-view="home"] .rr-continue-shelf .rr-card-more {
-  top: 50%; right: 8px; transform: translateY(-50%);
-}
 /* The library card's ⋯ hangs off .book-tools, which sits under the cover. */
-html .catalog .book-tools { min-height: 0; margin: 0; }
-html .catalog .book-tools .rr-card-more { bottom: auto; top: -38px; right: 6px; }
 
 /* --- the menu itself ----------------------------------------------------- */
-html .rr-card-menu {
-  position: absolute;
-  right: 4px; top: calc(100% + 2px);
-  min-width: 208px; max-width: 244px;
-  z-index: 60;
-  padding: 6px;
-  border-radius: 13px;
-  background: var(--white, #fff);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, .26);
-  text-align: left;
-}
 /* Near the right edge a fixed offset would overflow; flip to the left instead. */
-html .rr-shelf-cell .rr-card-menu { right: 0; left: auto; top: 46%; }
-html .catalog .book-tools .rr-card-menu { top: 6px; }
-html .rr-card-menu button {
-  display: block; width: 100%;
-  min-height: 38px; padding: 0 10px;
-  border: 0; background: none;
-  color: inherit; font: inherit; font-size: 14.5px;
-  text-align: left; border-radius: 8px; cursor: pointer;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-html .rr-card-menu button:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
-html .rr-card-menu button:active { background: color-mix(in srgb, var(--ink) 14%, transparent); }
-html .rr-card-menu button.danger { color: #d3342f; }
-html .rr-card-menu hr { border: 0; border-top: 1px solid var(--line); margin: 5px 4px; }
-
-@media (prefers-color-scheme: dark) {
-  html:not([data-rr-theme="light"]) .rr-card-menu {
-    background: #242426; border-color: #3a3a3e; color: #f5f5f7;
-  }
-  html:not([data-rr-theme="light"]) .rr-card-menu button.danger { color: #ff6b6b; }
-  html:not([data-rr-theme="light"]) .rr-card-more {
-    background: rgba(40, 40, 42, .78); color: #f5f5f7;
-  }
-}
-html[data-rr-theme="dark"] .rr-card-menu {
-  background: #242426; border-color: #3a3a3e; color: #f5f5f7;
-}
-html[data-rr-theme="dark"] .rr-card-menu button.danger { color: #ff6b6b; }
-html[data-rr-theme="dark"] .rr-card-more {
-  background: rgba(40, 40, 42, .78); color: #f5f5f7;
-}
 
 /* --- ⋯ under the cover, right-aligned with the caption ------------------- */
-html .rr-shelf-cell { position: relative; display: grid; }
-html .rr-shelf-cell .rr-card-more,
-html .catalog .book-tools .rr-card-more,
-html .rr-card-more {
-  position: absolute;
-  top: auto;
-  transform: none;
-  right: 0;
-  width: 28px; height: 28px;
-  background: color-mix(in srgb, var(--ink) 10%, transparent);
-  box-shadow: none;
-  font-size: 16px;
-  z-index: 5;
-}
+html .rr-shelf-cell { display: grid; }
 /* Shelf card: the caption is the last two lines, so anchor to the cell's foot
    and lift by the caption height to land beside the title. */
-html .rr-shelf-cell .rr-card-more { bottom: 4px; right: 2px; }
 /* Continue tile: vertically centred on the tile, inside its padding. */
-html[data-rr-library-view="home"] .rr-continue-shelf .rr-card-more {
-  top: 50%; bottom: auto; right: 10px; transform: translateY(-50%);
-}
 /* Library grid card: bottom-right of the caption block. */
-html .catalog .book-tools { min-height: 30px; margin-top: 2px; }
-html .catalog .book-tools .rr-card-more { bottom: 0; right: 2px; top: auto; }
+html .catalog .book-tools { margin-top: 2px; }
 
 /* --- the menu escapes every scroll container ----------------------------- */
-html .rr-card-menu {
-  position: fixed;
-  right: auto;
-  width: 224px; min-width: 0; max-width: none;
-  max-height: min(70vh, 340px);
-  overflow-y: auto;
-  z-index: 200;
-  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-  background: color-mix(in srgb, var(--white) 92%, transparent);
-}
-html .rr-shelf-cell .rr-card-menu,
-html .catalog .book-tools .rr-card-menu {
-  position: fixed;
-  top: auto; right: auto;
-}
-@media (prefers-color-scheme: dark) {
-  html:not([data-rr-theme="light"]) .rr-card-menu { background: rgba(44, 44, 46, .94); }
-}
-html[data-rr-theme="dark"] .rr-card-menu { background: rgba(44, 44, 46, .94); }
 html.rr-library-visible #rr-settings-link,
 html.rr-library-visible #rr-filter-btn,
 html.rr-library-visible #rr-sort-btn {
-  background: color-mix(in srgb, var(--ink) 10%, transparent) !important;
-  border: 0 !important;
-  -webkit-backdrop-filter: blur(14px) !important; backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
   filter: none !important;
-  color: var(--ink) !important;
-  width: 42px !important; height: 42px !important;
-}
-html.rr-library-visible #rr-settings-link svg,
-html.rr-library-visible #rr-filter-btn svg,
-html.rr-library-visible #rr-sort-btn svg {
-  width: 21px !important; height: 21px !important;
 }
 html.rr-library-visible #rr-settings-link:active,
 html.rr-library-visible #rr-filter-btn:active,
 html.rr-library-visible #rr-sort-btn:active { opacity: .55; }
 
-html .rr-card-more {
-  position: absolute !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  top: auto !important;
-  transform: none !important;
-  width: 30px !important; height: 24px !important;
-  border-radius: 12px !important;
-  /* Frosted glass: a translucent fill plus blur, so the author text behind it
-     is muted rather than fighting the glyph. */
-  background: color-mix(in srgb, var(--paper) 62%, transparent) !important;
-  -webkit-backdrop-filter: blur(8px) saturate(1.3) !important;
-  backdrop-filter: blur(8px) saturate(1.3) !important;
-  border: 0 !important;
-  box-shadow: 0 0 10px 6px color-mix(in srgb, var(--paper) 62%, transparent) !important;
-  color: var(--ink) !important;
-  font: 600 15px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
-  z-index: 6 !important;
-}
-html .rr-card-more:active { opacity: .5 !important; }
 
 /* The author line is the last row of each card type, so anchoring to the
    card's foot lands the ⋯ on it. Continue is a tile, so it centres instead. */
 html .rr-shelf-cell { position: relative; }
-html[data-rr-library-view="home"] .rr-continue-shelf .rr-card-more {
-  top: 50% !important; bottom: auto !important;
-  right: 8px !important;
-  transform: translateY(-50%) !important;
-  width: 32px !important; height: 32px !important;
-  border-radius: 50% !important;
-}
 /* Library grid: .book-tools is the last block, directly under the author. */
 html .catalog .book-tools { min-height: 0 !important; margin: 0 !important; position: static; }
 html .catalog .book { position: relative; }
-html .catalog .book .rr-card-more { bottom: 0 !important; right: 0 !important; }
 
 /* Author lines end before the button so the covered text is never the start of
    a word: 34px of padding is the button plus its glow. */
@@ -1439,44 +1250,6 @@ html .rr-shelf-cell .shelf-book > small:not(.rr-continue-meta) { padding-right: 
 html .catalog .book-caption small { padding-right: 34px; display: block; }
 
 /* --- the portalled menu -------------------------------------------------- */
-body > .rr-card-menu {
-  position: fixed;
-  width: 224px;
-  max-height: min(70vh, 340px);
-  overflow-y: auto;
-  z-index: 400;
-  padding: 6px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--white, #fff) 94%, transparent);
-  color: var(--ink, #1c1c1e);
-  border: 1px solid var(--line, #e5e5ea);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, .3);
-  -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4);
-  text-align: left;
-}
-body > .rr-card-menu button {
-  display: block; width: 100%;
-  min-height: 40px; padding: 0 12px;
-  border: 0; background: none;
-  color: inherit; font: inherit; font-size: 15px;
-  text-align: left; border-radius: 9px; cursor: pointer;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-body > .rr-card-menu button:active { background: color-mix(in srgb, var(--ink) 14%, transparent); }
-body > .rr-card-menu button.danger { color: #d3342f; }
-body > .rr-card-menu hr { border: 0; border-top: 1px solid var(--line, #e5e5ea); margin: 5px 6px; }
-@media (prefers-color-scheme: dark) {
-  html:not([data-rr-theme="light"]) body > .rr-card-menu,
-  html:not([data-rr-theme="light"]) .rr-card-menu {
-    background: rgba(44, 44, 46, .96); border-color: #3a3a3e; color: #f5f5f7;
-  }
-  html:not([data-rr-theme="light"]) .rr-card-menu button.danger { color: #ff6b6b; }
-}
-html[data-rr-theme="dark"] body > .rr-card-menu,
-html[data-rr-theme="dark"] .rr-card-menu {
-  background: rgba(44, 44, 46, .96); border-color: #3a3a3e; color: #f5f5f7;
-}
-html[data-rr-theme="dark"] .rr-card-menu button.danger { color: #ff6b6b; }
 
 /* --- library card: title 2 lines, then the byline row -------------------- */
 html .catalog .thumbnail-view .book-caption { display: grid; }
@@ -1497,16 +1270,6 @@ html .rr-byline > small {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* In the row, so no absolute positioning and nothing to drift. */
-html .rr-byline .rr-card-more,
-html .catalog .list-view .book > .rr-card-more {
-  position: static !important;
-  flex: 0 0 auto;
-  width: 26px !important; height: 22px !important;
-  border-radius: 11px !important;
-  box-shadow: none !important;
-  background: color-mix(in srgb, var(--ink) 12%, transparent) !important;
-  font-size: 14px !important;
-}
 
 /* --- shelf card: overlay the ⋯ on the author line ------------------------ */
 html .rr-shelf-cell .shelf-book > strong {
@@ -1516,17 +1279,6 @@ html .rr-shelf-cell .shelf-book > strong {
 html .rr-shelf-cell .rr-shelf-author { padding-right: 30px; }
 /* The author line is the last row of the shelf button, so the ⋯ aligns to the
    cell's foot. Continue has a progress line after it, so it is offset. */
-html .rr-shelf-cell .rr-card-more {
-  bottom: 1px !important;
-  right: 0 !important;
-  width: 26px !important; height: 20px !important;
-  border-radius: 10px !important;
-}
-html[data-rr-library-view="home"] .rr-continue-shelf .rr-card-more {
-  top: 50% !important; bottom: auto !important; right: 10px !important;
-  transform: translateY(-50%) !important;
-  width: 30px !important; height: 30px !important; border-radius: 50% !important;
-}
 
 /* --- Continue: no progress bar, just the number -------------------------- */
 html[data-rr-library-view="home"] .rr-continue-shelf .rr-continue-meta::before {
@@ -1570,9 +1322,6 @@ body > .rr-card-scrim {
 }
 
 /* Card ⋯ menu: out of the button's corner. */
-body > .rr-card-menu {
-  transform-origin: top right;
-}
 /* Sort and filter popovers hang from the icon rail. */
 /* These four all opened on their own short easings - .17s to .22s - which is why
    they felt snappier than the reading sheet and settings overlay. They now use
@@ -1582,31 +1331,32 @@ body > .rr-card-menu {
    beats any transition declared on the base rule, so editing the base rule alone
    has no visible effect. That is what made the filters panel look unchanged
    earlier - the transition was corrected but this animation still won. */
-#rr-sort-menu { transform-origin: top right; }
 /* The reading sheet slides up from the ≡ that opened it. */
 /* Settings overlay and the metadata sheet. */
-#rr-settings-overlay { animation: none; }
 #rr-metafix .rr-mf-sheet { animation: rr-rise var(--rr-spring-time, .46s) var(--rr-spring, cubic-bezier(.16, 1, .3, 1)) both; }
 #rr-metafix { animation: rr-fade .16s ease both; }
 /* Editions picker. */
 .rr-editions { animation: rr-pop var(--rr-spring-time, .46s) var(--rr-spring, cubic-bezier(.16, 1, .3, 1)) both; }
 
 /* Tap feedback on the chrome buttons, so a press is visibly acknowledged. */
-html .rr-card-more,
-html #rr-filter-btn, html #rr-sort-btn, html #rr-settings-link {
+html #rr-filter-btn,
+html #rr-sort-btn,
+html #rr-settings-link {
   transition: transform .12s ease, opacity .12s ease;
 }
-html .rr-card-more:active,
-html #rr-filter-btn:active, html #rr-sort-btn:active, html #rr-settings-link:active {
+html #rr-filter-btn:active,
+html #rr-sort-btn:active,
+html #rr-settings-link:active {
   transform: scale(.9);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body > .rr-card-menu, html.rr-sort-open #rr-sort-menu, html[data-rr-library-view="library"].rr-filters-open .catalog .filters, #rr-settings-overlay, #rr-metafix, #rr-metafix .rr-mf-sheet, .rr-editions {
+  html.rr-sort-open #rr-sort-menu, html[data-rr-library-view="library"].rr-filters-open .catalog .filters, #rr-settings-overlay, #rr-metafix, #rr-metafix .rr-mf-sheet, .rr-editions {
     animation: none !important;
   }
-  html .rr-card-more:active,
-  html #rr-filter-btn:active, html #rr-sort-btn:active, html #rr-settings-link:active {
+  html #rr-filter-btn:active,
+  html #rr-sort-btn:active,
+  html #rr-settings-link:active {
     transform: none;
   }
 }
@@ -1868,7 +1618,6 @@ html.rr-library-visible #rr-sort-btn { width:44px !important;height:44px !import
 html.rr-library-visible #rr-settings-link { right:calc(20px + env(safe-area-inset-right)) !important; }
 html.rr-library-visible #rr-sort-btn { right:calc(72px + env(safe-area-inset-right)) !important; }
 html.rr-library-visible #rr-filter-btn { right:calc(124px + env(safe-area-inset-right)) !important; }
-html.rr-library-visible #rr-settings-link svg { width:26px !important;height:26px !important; }
 html.rr-library-visible #rr-filter-btn svg,
 html.rr-library-visible #rr-sort-btn svg { width:22px !important;height:22px !important; }
 
@@ -1919,14 +1668,6 @@ html.rr-library-visible #rr-sort-btn svg { width:22px !important;height:22px !im
 
 /* --- the card ⋯ menu: unfolds from the button it belongs to -------------- */
 
-body > .rr-card-menu {
-  transform-origin: top right;
-}
-body > .rr-card-menu button { animation: rr-fan-right .26s cubic-bezier(.2, 1.05, .3, 1) both; }
-body > .rr-card-menu button:nth-child(1) { animation-delay: .05s; }
-body > .rr-card-menu button:nth-child(2) { animation-delay: .08s; }
-body > .rr-card-menu button:nth-child(3) { animation-delay: .11s; }
-body > .rr-card-menu button:nth-child(n+4) { animation-delay: .13s; }
 
 /* --- side panels really come from the side ------------------------------- */
 html.rr-books-controls .reader-panel > * {
@@ -1937,11 +1678,6 @@ html.rr-books-controls .reader-panel > :nth-child(2) { animation-delay: .17s; }
 html.rr-books-controls .reader-panel > :nth-child(n+3) { animation-delay: .21s; }
 
 /* --- the library ⋯ / filter / sort popovers ------------------------------ */
-#rr-sort-menu {
-  transform-origin: top right;
-  animation: none;
-}
-html.rr-sort-open #rr-sort-menu > * { animation: rr-fan-right .26s cubic-bezier(.2,1.05,.3,1) both; }
 html.rr-sort-open #rr-sort-menu > :nth-child(1) { animation-delay: .05s; }
 html.rr-sort-open #rr-sort-menu > :nth-child(2) { animation-delay: .08s; }
 html.rr-sort-open #rr-sort-menu > :nth-child(n+3) { animation-delay: .11s; }
@@ -1952,13 +1688,10 @@ html.rr-sort-open #rr-sort-menu > :nth-child(n+3) { animation-delay: .11s; }
   68%  { opacity: 1; transform: scale(1.1) rotate(2deg); }
   100% { opacity: 1; transform: scale(1) rotate(0deg); }
 }
-html.rr-books-controls .rr-close-btn {
-  animation: rr-btn-in .34s cubic-bezier(.2, 1.25, .3, 1) both;
-}
 html.rr-books-controls .rr-close-btn { animation-delay: .05s; }
 
 @media (prefers-reduced-motion: reduce) {
-  body > .rr-card-menu, body > .rr-card-menu button, html.rr-books-controls .reader-panel, html.rr-books-controls .reader-panel > *, html.rr-sort-open #rr-sort-menu, html.rr-sort-open #rr-sort-menu > *, html[data-rr-library-view="library"].rr-filters-open .catalog .filters, html.rr-books-controls .rr-close-btn { animation: none !important; }
+  html.rr-books-controls .reader-panel, html.rr-books-controls .reader-panel > *, html.rr-sort-open #rr-sort-menu, html.rr-sort-open #rr-sort-menu > *, html[data-rr-library-view="library"].rr-filters-open .catalog .filters, html.rr-books-controls .rr-close-btn { animation: none !important; }
 }
 
 html.rr-books-controls .rr-close-btn {
@@ -2073,10 +1806,6 @@ html[data-rr-theme="dark"].rr-library-visible #rr-sort-btn {
  * presented sheet rather than flying in from an edge.
  * ---------------------------------------------------------------------- */
 
-#rr-settings-overlay {
-  transform-origin: bottom center;
-}
-
 @media (prefers-reduced-motion: reduce) {
   #rr-settings-overlay { animation: none !important; }
 }
@@ -2103,20 +1832,9 @@ html[data-rr-theme="dark"] #rr-sort-menu {
 /* Use physical viewport insets rather than percentage centring. On platforms
    that reserve space for a scrollbar, `left:50%` is relative to a narrower
    containing block and leaves the right edge visibly clipped. */
-html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
-  /* Layout only. The transform and animation that used to be here are dropped:
-     `transform: none` cancelled the scale the open state needs, and the .34s
-     rr-filter-sheet-in outranked the spring transition declared further down, so
-     the drawer kept opening at the old speed no matter what that transition said.
-     This is the declaration that survived three attempted fixes. */
-}
 
 /* Settings is a page beyond the library, so it enters from the trailing edge
    and settles with a small, deliberate landing. */
-
-#rr-settings-overlay {
-  transform-origin: right center;
-}
 
 @media (prefers-reduced-motion: reduce) {
   html[data-rr-library-view="library"].rr-filters-open .catalog .filters,
@@ -2150,27 +1868,11 @@ html.rr-sort-open #rr-sort-menu {
   pointer-events: auto;
   transform: translate(0, 0) scale(1);
 }
-html.rr-sort-open #rr-sort-menu > *, body > .rr-card-menu button {
+html.rr-sort-open #rr-sort-menu > * {
   animation: none !important;
-}
-body > .rr-card-menu {
-  animation: rr-spring-menu-in var(--rr-spring-time) var(--rr-spring) both !important;
-  transform-origin: top right;
 }
 /* The portalled card menu is app chrome, not book paper. Match the Library's
    white surface in light mode instead of inheriting the old cream --white. */
-html[data-rr-theme="light"] body > .rr-card-menu {
-  background: rgba(255, 255, 255, .97) !important;
-  color: #1c1c1e !important;
-  border-color: #d8d8dc !important;
-}
-@media (prefers-color-scheme: light) {
-  html:not([data-rr-theme="dark"]) body > .rr-card-menu {
-    background: rgba(255, 255, 255, .97) !important;
-    color: #1c1c1e !important;
-    border-color: #d8d8dc !important;
-  }
-}
 @keyframes rr-spring-menu-in {
   /* The card menu is mounted and unmounted by React, so it cannot use a
      transition the way the sort menu and filter drawer do - there is no resting

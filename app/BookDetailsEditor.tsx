@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useModalFocus } from "./useModalFocus";
 
 type BookDetails = { id: string; title: string; author?: string; titleCorrected?: boolean; authorCorrected?: boolean };
 type Props = {
@@ -18,6 +19,8 @@ export default function BookDetailsEditor({ book, focusDelete, onClose, onSaved,
   const [busy, setBusy] = useState(false);
   const titleInput = useRef<HTMLInputElement>(null);
   const deleteButton = useRef<HTMLButtonElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+  useModalFocus(dialog);
 
   useEffect(() => {
     document.documentElement.classList.add("rr-metafix-open");
@@ -56,7 +59,7 @@ export default function BookDetailsEditor({ book, focusDelete, onClose, onSaved,
   }
 
   return <div id="rr-metafix" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <div className="rr-mf-sheet" role="dialog" aria-modal="true" aria-label="Edit book details">
+    <div ref={dialog} tabIndex={-1} className="rr-mf-sheet" role="dialog" aria-modal="true" aria-label="Edit book details">
       <h2>Edit details</h2>
       <label>Title<input ref={titleInput} type="text" autoComplete="off" value={title} onChange={(event) => setTitle(event.target.value)} /></label>
       <label>Author<input type="text" autoComplete="off" value={author} onChange={(event) => setAuthor(event.target.value)} /></label>

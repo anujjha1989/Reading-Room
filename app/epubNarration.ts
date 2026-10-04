@@ -2,7 +2,8 @@
 export type EpubNarrationTarget = { doc: Document; frame: HTMLIFrameElement; index: number };
 export type EpubNarrationAdapter = {
   targets: () => EpubNarrationTarget[];
-  advance: (doc: Document) => Promise<EpubNarrationTarget | null>;
+  navigate: (doc: Document, direction: -1 | 1) => Promise<EpubNarrationTarget | null>;
+  canPrevious: (doc: Document) => boolean;
 };
 let adapter: EpubNarrationAdapter | null = null;
 export const getEpubNarrationAdapter = () => adapter;

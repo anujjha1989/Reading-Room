@@ -12,7 +12,7 @@ and runtime state are backed up separately.
 
 - `app/` — React UI, library, readers and reading controls.
 - `server/` — standalone Pi server and APIs.
-- `overrides/` — deployment HTML template, service worker and version counter;
+- `overrides/` — service worker and version counter;
   no runtime UI override scripts or stylesheets are loaded.
 - `deploy/` — build, validation, deployment, rollback and live-audit tooling.
 - `ops/pi/` — sanitized snapshot of the current Pi services and maintenance
@@ -36,18 +36,33 @@ pnpm test:browser
 pnpm build
 ```
 
-`pnpm test:browser` runs the critical mobile flows against the deployed Pi app
-(`http://anujrpi.local:4311` by default) in an isolated Chromium profile. Set
-`READING_ROOM_BASE_URL` to audit another origin. Screenshots are written to the
-system temporary directory, not committed to the repository.
+`tests/browser/reliability.test.mjs` runs the candidate's critical mobile flows
+in Chromium and WebKit against an isolated, read-only preview. Book fixtures,
+settings and saves are mocked; these tests do not modify the real library.
+Install Playwright in the test environment, or set `HOME_BOOKS_PLAYWRIGHT` to its
+module path; `READING_ROOM_CHROME` optionally selects an installed Chrome binary.
+The other browser audits accept `READING_ROOM_BASE_URL` and may target the Pi.
 
 ## Deployment
 
 The Mac builds the app and deploys to the Pi using `deploy/deploy.sh`. The
 script increments `overrides/VERSION`, validates the built app, captures a
-rollback, and installs through the restricted Pi helper. LAN verification is
-required; the Tailscale endpoint is checked when reachable from the deploying
-machine.
+rollback, and installs through the restricted Pi helper. Both LAN and the actual
+authenticated public HTTPS origin are required release checks. A failed or
+unavailable check blocks release and restores the previous candidate.
+
+There is one editable web source (this repository) and one native source
+(`/Users/anuj-mac/Developer/readingroom-ios-src`). The disposable Mac SSD cache
+at `~/Library/Caches/home-books-build` contains dependencies and build outputs,
+not a second source. `deploy/render-index.mjs` generates startup HTML from the
+current React server render; there is no maintained HTML template. The restricted
+Pi installer copies the complete candidate to `/opt/reading-room/current`.
+Books, artwork, voices and user state remain independently configured data.
+
+Before deployment, provide private `READING_ROOM_CURL_COOKIE_FILE` and
+`READING_ROOM_COOKIE_FILE` session files for the public-origin checks. They must
+never enter this repository. A helper lacking a staged server module causes a
+pre-install failure, not a partial server/client release.
 
 ```bash
 ./deploy/deploy.sh

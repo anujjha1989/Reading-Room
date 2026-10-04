@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import "./settings-panel.css";
+import { useModalFocus } from "./useModalFocus";
 
 type Source = { id: string; name: string; path: string; enabled: boolean };
 type ScanStatus = { state: string; message?: string; before?: number; after?: number };
@@ -71,6 +72,7 @@ export default function SettingsPanel({ version, closing, onClose, onRefresh, on
   const [toast, setToast] = useState("");
   const previousScan = useRef<string | null>(null);
   const overlay = useRef<HTMLDivElement>(null);
+  useModalFocus(overlay);
   const [summaries, setSummaries] = useState<SummarySettings | null>(null);
   const [summaryError, setSummaryError] = useState("");
   const [selectedSummaries, setSelectedSummaries] = useState<string[]>([]);

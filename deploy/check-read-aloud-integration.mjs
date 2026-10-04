@@ -6,7 +6,8 @@ const hook = readFileSync("app/useReadAloud.ts", "utf8");
 const reader = readFileSync("app/BookReader.tsx", "utf8");
 const transport = readFileSync("app/ReadAloudTransport.tsx", "utf8");
 const ttsServer = readFileSync("server/rr-tts.mjs", "utf8");
-const template = readFileSync("overrides/index.template.html", "utf8");
+const template = readFileSync("dist/index.html", "utf8");
+const synthesisQueue = readFileSync("server/synthesis-queue.mjs", "utf8");
 const deploy = readFileSync("deploy/deploy.sh", "utf8");
 
 let failures = 0;
@@ -45,9 +46,9 @@ check(/if \(!ok\) \{[\s\S]{0,400}?void step\(mine\)/.test(engine),
 check(/LOAD_TIMEOUT\s*=\s*25000/.test(engine)
   && /armStallWatchdog\(text, mine, LOAD_TIMEOUT\)/.test(engine),
   "uncached audio gets a synthesis window before stall recovery");
-check(/const inFlight = new Map\(\)/.test(ttsServer)
-  && /inFlight\.get\(key\)/.test(ttsServer)
-  && /await job/.test(ttsServer),
+check(/synthesis\.acquire\(key/.test(ttsServer)
+  && /jobs\.get\(key\)/.test(synthesisQueue)
+  && /await lease.promise/.test(ttsServer),
   "playback joins an in-progress prefetch instead of synthesising the clip twice");
 check(/function warmAhead\(start: number, count: number\)/.test(engine)
   && /warmAhead\(cursor \+ 1, 6\)/.test(engine)

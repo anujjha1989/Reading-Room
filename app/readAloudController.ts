@@ -5,6 +5,7 @@ export type ReadAloudState = {
   sleepMinutes: number;
   canPrevious: boolean;
   canNext: boolean;
+  error?: string;
 };
 
 export type ReadAloudVoice = { label: string; value: string; current: boolean };
@@ -38,7 +39,7 @@ const listeners = new Set<() => void>();
 function sameState(a: ReadAloudState, b: ReadAloudState) {
   return a.playing === b.playing && a.paused === b.paused && a.rate === b.rate
     && a.sleepMinutes === b.sleepMinutes && a.canPrevious === b.canPrevious
-    && a.canNext === b.canNext;
+    && a.canNext === b.canNext && a.error === b.error;
 }
 
 function sameVoices(a: ReadAloudVoice[], b: ReadAloudVoice[]) {

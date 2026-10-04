@@ -34,14 +34,11 @@ function Icon({ name }: { name: "home" | "library" | "favorites" | "filter" | "m
   return <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="var(--rr-library-icon)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34A1.7 1.7 0 0 0 14 20.93V21h-4v-.08a1.7 1.7 0 0 0-1.04-1.52 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15 1.7 1.7 0 0 0 3.08 14H3v-4h.08A1.7 1.7 0 0 0 4.6 8.96a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.96 4.6 1.7 1.7 0 0 0 10 3.08V3h4v.08a1.7 1.7 0 0 0 1.03 1.53 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.96 1.7 1.7 0 0 0 20.92 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z" /></svg>;
 }
 
-function Tick() { return <svg className="rr-tick" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" /></svg>; }
+function Tick() { return <svg className="rr-tick" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12.5l5 5L20 6.5" /></svg>; }
 
 export default function LibraryChrome(props: Props) {
-  // The deployed index is a committed prerendered document. This component did
-  // not exist when that document was captured, so keep the hydration snapshot
-  // identical and mount the fixed chrome immediately afterwards. Unlike a
-  // setState-in-effect gate, useSyncExternalStore has an explicit server
-  // snapshot and cannot produce a hydration mismatch.
+  // Fixed chrome needs a browser viewport and release metadata. Keep the
+  // hydration snapshot identical, then mount it immediately afterwards.
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
   const { onFiltersOpenChange } = props;
   const [sortOpen, setSortOpen] = useState(false);

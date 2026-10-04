@@ -7,7 +7,7 @@ let failed = 0;
 const t = (ok, name) => { console.log(`${ok ? "ok  " : "FAIL"} ${name}`); if (!ok) failed += 1; };
 const server = readFileSync("server/standalone-server.mjs", "utf8");
 const client = readFileSync("app/LibraryClient.tsx", "utf8");
-const template = readFileSync("overrides/index.template.html", "utf8");
+const template = readFileSync("dist/index.html", "utf8");
 t(/case "\/reference-catalog\.json"/.test(server), "server serves /reference-catalog.json");
 t(/id: `ref-\$\{row\.id\}`|const id = `ref-\$\{row\.id\}`/.test(server) && /id\.startsWith\("ref-"\)/.test(server), "reference ids are prefixed and served from disk");
 t(/fetch\("\/reference-catalog\.json"\)/.test(client), "client loads the Reference Room catalogue");

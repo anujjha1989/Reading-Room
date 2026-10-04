@@ -179,7 +179,7 @@ t(/\.rr-read-transport\s*\{[^}]*bottom:calc\(78px/s.test(globalCss),
   "collapsed read-aloud controls sit close to the settings trigger");
 t(/html\.rr-hide-chrome \.rr-read-transport\s*\{[^}]*opacity:0[^}]*pointer-events:none[^}]*translateX\(26vw\)/s.test(globalCss),
   "collapsed read-aloud controls leave with the rest of the reader chrome");
-t(/#rr-settings-link svg\s*\{\s*width:26px[^}]*height:26px/.test(overrideCss),
+t(/#rr-settings-link svg\s*\{\s*width:\s*26px[^}]*height:\s*26px/.test(overrideCss),
   "library gear glyph is optically balanced inside its halo");
 
 // 21. The body-injected reader sheet was deliberately removed after parity.
@@ -204,8 +204,11 @@ t(/data-rr-theme="light"\] #rr-sort-menu\s*\{[^}]*background:[^}]*255, 255, 255/
   && /prefers-color-scheme: light[\s\S]*?not\(\[data-rr-theme="dark"\]\) #rr-sort-menu\s*\{[^}]*background:[^}]*255, 255, 255/s.test(overrideCss)
   && /data-rr-theme="dark"\] #rr-sort-menu\s*\{[^}]*background:[^}]*36, 36, 38/s.test(overrideCss),
   "library ellipsis menu follows explicit and system light/dark themes");
-t(/data-rr-theme="light"\] body > \.rr-card-menu\s*\{[^}]*background:[^}]*255, 255, 255/s.test(overrideCss)
-  && /data-rr-theme="dark"\][^}]*\.rr-card-menu\s*\{[^}]*background:/s.test(overrideCss),
+const cardControls = readFileSync("app/library-controls.css", "utf8");
+const designTokens = readFileSync("app/design-tokens.css", "utf8");
+t(/:root\s*\{[^}]*--rr-menu-bg:\s*rgba\(255,255,255/.test(designTokens)
+  && /data-rr-theme="dark"\][^}]*--rr-menu-bg:/.test(designTokens)
+  && /\.rr-card-menu\s*\{[^}]*background:\s*var\(--rr-menu-bg\)/s.test(cardControls),
   "book options menu follows explicit light and dark themes");
 t(/<SettingsPanel/.test(libraryChrome)
   && /onClose=\{closeSettings\}/.test(libraryChrome)
@@ -219,7 +222,6 @@ t(/@keyframes rr-settings-spring-in[\s\S]*?translateX\(0\)/.test(overrideCss)
 
 // 20c. Motion is paired and damped; narration follows automatically, so the
 //      redundant manual follow control must not return.
-const designTokens = readFileSync("app/globals.css", "utf8");
 t(/--rr-spring:\s*cubic-bezier\(\.16,\s*1,\s*\.3,\s*1\)/.test(designTokens)
   && /@supports \(animation-timing-function: linear\(0,\s*1\)\)/.test(designTokens),
   "motion system has a monotonic spring and an older-Safari fallback");
@@ -251,9 +253,10 @@ t(/backLabel = "Back to reading menu"/.test(tsx) && /aria-label=\{backLabel\}/.t
 
 // 23. Rendering must reconcile the stale serialized root metadata as well as
 //     the visible meta element, or iOS restores a light status bar on hydration.
-const renderer = readFileSync("deploy/render-index.mjs", "utf8");
-t(/serialized status-bar metadata/.test(renderer) && /black-translucent/.test(renderer),
-  "renderer reconciles iOS status-bar metadata to translucent safe-area mode");
+const html = readFileSync("dist/index.html", "utf8");
+t(/name="apple-mobile-web-app-status-bar-style" content="black-translucent"/.test(html)
+  && !/name="apple-mobile-web-app-status-bar-style" content="default"/.test(html),
+  "source-rendered iOS metadata uses translucent safe-area mode");
 
 // 24. Home and Reader are independent. Verify every colour in the 2 × 3
 //     matrix in the React owner rather than an unrelated override.

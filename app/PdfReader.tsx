@@ -2,6 +2,7 @@
 
 import { forwardRef, memo, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import { readerDeadline } from "./readerDeadline";
 
 export type PdfSearchResult = { target: string; label: string; excerpt: string };
 export type PdfReaderHandle = {
@@ -123,16 +124,18 @@ const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId
     const controller = new AbortController();
     let disposed = false;
     let document: PDFDocumentProxy | null = null;
+    let loadingTask: { destroy: () => Promise<void> } | undefined;
 
     async function openPdf() {
       try {
         onStatus("Loading the book…");
-        const response = await fetch(readerUrl(fileId, format), { signal: controller.signal });
+        const response = await readerDeadline(fetch(readerUrl(fileId, format), { signal: controller.signal }), controller.signal);
         if (!response.ok) throw new Error("The PDF could not be downloaded");
-        const data = await response.arrayBuffer();
-        const pdfjs = await import("pdfjs-dist/webpack.mjs");
+        const data = await readerDeadline(response.arrayBuffer(), controller.signal);
+        const pdfjs = await readerDeadline(import("pdfjs-dist/webpack.mjs"), controller.signal);
         const task = pdfjs.getDocument({ data });
-        document = await task.promise;
+        loadingTask = task;
+        document = await readerDeadline(task.promise, controller.signal);
         if (disposed) return;
         const saved = Number(initialPosition || localStorage.getItem(`reading-room-pdf-page-${fileId}`)) || 1;
         setPageNumber(Math.min(Math.max(1, saved), document.numPages));
@@ -140,6 +143,9 @@ const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId
         onStatus("");
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        if (disposed) return;
+        controller.abort();
+        void loadingTask?.destroy().catch(() => {});
         onStatus("This PDF could not be opened here. You can still download the file from Home Books.");
       }
     }
@@ -148,7 +154,7 @@ const PdfReader = forwardRef<PdfReaderHandle, Props>(function PdfReader({ fileId
     return () => {
       disposed = true;
       controller.abort();
-      (document as unknown as { destroy?: () => void })?.destroy?.();
+      void loadingTask?.destroy().catch(() => {});
     };
   }, [fileId, format, initialPosition, onStatus]);
 

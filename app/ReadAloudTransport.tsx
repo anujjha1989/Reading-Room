@@ -18,7 +18,7 @@ export default function ReadAloudTransport({ api }: { api?: ReadAloudApi }) {
   if (!api?.playing) return null;
   return <div className="rr-read-transport rr-visible" role="group" aria-label="Read aloud controls">
     <button type="button" onClick={api.previous} disabled={!api.canPrevious} aria-label="Previous sentence"><TransportIcon name="previous" /></button>
-    <button type="button" className="rr-read-toggle" onClick={api.toggle} aria-label={api.paused ? "Resume read aloud" : "Pause read aloud"} aria-pressed={!api.paused}><TransportIcon name={api.paused ? "play" : "pause"} /></button>
+    <button type="button" className="rr-read-toggle" onClick={api.toggle} aria-label={api.paused ? "Resume read aloud" : "Pause read aloud"} title={api.error ? `${api.error} Tap to retry.` : undefined} aria-pressed={!api.paused}><TransportIcon name={api.paused ? "play" : "pause"} /></button>
     <button type="button" onClick={api.skip} disabled={!api.canNext} aria-label="Next sentence"><TransportIcon name="next" /></button>
   </div>;
 }

@@ -17,7 +17,7 @@ umask 022
 STAGE=/home/anujjha1989/rr-deploy/stage
 SITE=/opt/reading-room/current/site
 RELEASE=/opt/reading-room/current
-SERVER_FILES=(standalone-server.mjs rr-settings.mjs rr-tts.mjs)
+SERVER_FILES=(standalone-server.mjs rr-settings.mjs rr-tts.mjs synthesis-queue.mjs piper-pool.mjs wav-cache.mjs request-guard.mjs)
 PUBLIC_FILES=(favicon.svg home-books-icon.svg icon-192.png icon-512.png apple-touch-icon.png manifest.webmanifest)
 
 # Validate the source-owned scanner before installing any release files.
@@ -28,6 +28,33 @@ fi
 [ -d "$STAGE/assets" ] || { echo "reading-room-deploy: no staged assets" >&2; exit 1; }
 [ -f "$STAGE/index.html" ] || { echo "reading-room-deploy: no staged index.html" >&2; exit 1; }
 [ -d "$SITE/assets" ] || { echo "reading-room-deploy: $SITE/assets missing" >&2; exit 1; }
+
+# Validate the entire candidate before overwriting even the HTML. An older
+# rollback may contain the original three modules, with no scheduler import.
+server_count=0
+for name in "${SERVER_FILES[@]}"; do
+  [ -f "$STAGE/$name" ] && server_count=$((server_count + 1))
+done
+if [ "$server_count" -ne 0 ]; then
+  for name in standalone-server.mjs rr-settings.mjs rr-tts.mjs; do
+    [ -f "$STAGE/$name" ] || { echo "reading-room-deploy: incomplete server candidate" >&2; exit 1; }
+  done
+  if grep -q 'synthesis-queue.mjs' "$STAGE/rr-tts.mjs" && [ ! -f "$STAGE/synthesis-queue.mjs" ]; then
+    echo "reading-room-deploy: missing narration scheduler" >&2; exit 1
+  fi
+  if grep -q 'request-guard.mjs' "$STAGE/standalone-server.mjs" && [ ! -f "$STAGE/request-guard.mjs" ]; then
+    echo "reading-room-deploy: missing mutation guard" >&2; exit 1
+  fi
+  if grep -q 'piper-pool.mjs' "$STAGE/rr-tts.mjs" && [ ! -f "$STAGE/piper-pool.mjs" ]; then
+    echo "reading-room-deploy: missing local voice pool" >&2; exit 1
+  fi
+  if grep -q 'wav-cache.mjs' "$STAGE/rr-tts.mjs" && [ ! -f "$STAGE/wav-cache.mjs" ]; then
+    echo "reading-room-deploy: missing audio-cache housekeeping" >&2; exit 1
+  fi
+  for name in "${SERVER_FILES[@]}"; do
+    [ ! -f "$STAGE/$name" ] || /usr/bin/node --check "$STAGE/$name" >/dev/null
+  done
+fi
 
 # Regular files only, one level deep, only the two extensions we serve.
 find "$STAGE/assets" -maxdepth 1 -type f \( -name '*.js' -o -name '*.css' \) -print0 \
@@ -56,17 +83,9 @@ fi
 
 # The server process itself, when staged. Optional so a stage without one still
 # installs, and so a rollback that only carries the HTML still works.
-server_count=0
-for name in "${SERVER_FILES[@]}"; do
-  [ -f "$STAGE/$name" ] && server_count=$((server_count + 1))
-done
-if [ "$server_count" -ne 0 ] && [ "$server_count" -ne "${#SERVER_FILES[@]}" ]; then
-  echo "reading-room-deploy: incomplete staged server module set" >&2
-  exit 1
-fi
-if [ "$server_count" -eq "${#SERVER_FILES[@]}" ]; then
+if [ "$server_count" -ne 0 ]; then
   for name in "${SERVER_FILES[@]}"; do
-    /usr/bin/node --check "$STAGE/$name" >/dev/null
+    [ -f "$STAGE/$name" ] || continue
     install -o root -g reading-room -m 0644 "$STAGE/$name" "$RELEASE/$name"
   done
 fi

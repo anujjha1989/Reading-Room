@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
 
 const args = new Map();
@@ -46,6 +46,21 @@ const assetFiles = [
   [join(root, "app/reader-layout.css"), "reader-layout-source"],
   [join(root, "app/readAloudEngine.ts"), "read-aloud-source"],
 ];
+
+// Record the complete executable/static candidate, not only its entry bundle.
+for (const name of await readdir(join(distDir, "client/assets"))) {
+  if (/\.(?:js|css)$/.test(name) && name !== libraryAsset) {
+    assetFiles.push([join(distDir, "client/assets", name), "client-asset", `dist/client/assets/${name}`]);
+  }
+}
+for (const name of ["standalone-server.mjs", "rr-settings.mjs", "rr-tts.mjs", "synthesis-queue.mjs", "piper-pool.mjs", "wav-cache.mjs", "request-guard.mjs"]) {
+  assetFiles.push([join(root, "server", name), "server-source"]);
+}
+for (const name of ["favicon.svg", "home-books-icon.svg", "icon-192.png", "icon-512.png", "apple-touch-icon.png", "manifest.webmanifest"]) {
+  assetFiles.push([join(root, "public", name), "public-asset"]);
+}
+assetFiles.push([join(root, "ops/pi/lib/rr-catalog-rebuild.sh"), "catalogue-scanner"],
+  [join(root, "ops/pi/tools/rr-cover-extract.py"), "cover-extractor"]);
 
 const record = {
   schemaVersion: 1,

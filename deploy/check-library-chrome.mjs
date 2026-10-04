@@ -27,13 +27,13 @@ for (const action of ['action: "add"', 'action: "toggle"', 'action: "remove"', '
 check(component.includes('className="rr-library-dock"'), "React owns the library navigation dock");
 check(client.includes("<LibraryChrome"), "LibraryClient renders the typed chrome component");
 check(layout.includes('name="rr-react-library-chrome"'), "new renders declare React chrome ownership");
-check(renderer.includes('name="rr-react-library-chrome"'), "the committed prerender is reconciled to React ownership");
-check(renderer.includes('renderToStaticMarkup(createElement(HomeBooksMark))') && client.includes('<HomeBooksMark />'), "the prerendered heading and client share the same icon component");
+check(renderer.includes("worker.fetch") && !renderer.includes("index.template.html"), "the complete prerender is generated from current React source");
+check(client.includes('<HomeBooksMark />'), "the source-rendered heading and client share the same icon component");
 check(component.includes('stroke="var(--rr-library-icon)"')
   && component.includes('fill="var(--rr-library-icon)"'), "React icons declare their own themed stroke and fill");
-const globalCss = readFileSync("app/globals.css", "utf8");
-check(globalCss.includes(':root[data-rr-theme="dark"] { --rr-library-icon:#f5f5f7; }')
-  && globalCss.includes(':root[data-rr-theme="light"] { --rr-library-icon:#26332f; }'), "library icon token covers explicit light and dark themes");
+const tokens = readFileSync("app/design-tokens.css", "utf8");
+check(/:root\[data-rr-theme="dark"\]\s*\{[^}]*--rr-library-icon:\s*#f5f5f7/.test(tokens)
+  && /:root\[data-rr-theme="light"\]\s*\{[^}]*--rr-library-icon:\s*#26332f/.test(tokens), "library icon token covers explicit light and dark themes");
 check(!legacy.includes("rr-library-dock"), "legacy navigation injector is deleted");
 check(!legacy.includes('var ID = "rr-settings-link"'), "legacy Settings injector is deleted");
 check(!renderer.includes("settings.template.html")

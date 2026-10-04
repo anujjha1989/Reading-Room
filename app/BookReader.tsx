@@ -19,6 +19,7 @@ import { restartReadAloudFromView } from "./readAloudController";
 import ComicReader, { type ComicReaderHandle } from "./ComicReader";
 import { resolveEpubSavedPosition } from "./epubSavedPosition";
 import { loadReaderToc } from "./readerToc";
+import { readerDeadline } from "./readerDeadline";
 
 export type ReaderFile = {
   id: string;
@@ -45,7 +46,7 @@ type TocEntry = { href: string; label: string; depth: number };
 type ReadingMode = "pages" | "scroll";
 type PageTurnAnimation = "none" | "slide";
 type TocItem = { href: string; label: string; subitems?: TocItem[] };
-type FoliateSection = { load?: () => Promise<string> };
+type FoliateSection = { load?: () => Promise<string>; linear?: string };
 type FoliateSearchGroup = {
   progress?: number;
   label?: string;
@@ -65,7 +66,7 @@ type FoliateView = HTMLElement & {
   init: (options: { lastLocation?: string; showTextStart?: boolean }) => Promise<void>;
   prev: () => Promise<void>;
   next: () => Promise<void>;
-  goTo: (target: string) => Promise<unknown>;
+  goTo: (target: string | number) => Promise<unknown>;
   search?: (options: { query: string }) => AsyncGenerator<FoliateSearchGroup>;
   clearSearch?: () => void;
   close: () => void;
@@ -97,7 +98,7 @@ function isMobileViewport() {
 function themeColors(theme: ReaderTheme) {
   if (theme === "dark") return { ink: "#e8e4d8", paper: "#181b1a", link: "#a8c8b7" };
   if (theme === "sepia") return { ink: "#443a2d", paper: "#f3ead7", link: "#6c5b3f" };
-  return { ink: "#26332f", paper: "#fffdf7", link: "#4d6b5d" };
+  return { ink: "#202123", paper: "#ffffff", link: "#0969da" };
 }
 
 /**
@@ -143,6 +144,7 @@ function epubStyles(
   type: Typography = DEFAULT_TYPOGRAPHY,
 ) {
   const colors = themeColors(theme);
+  const family = type.family || (theme === "light" ? 'ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' : "Georgia, serif");
   return {
     // overflow-y must be hidden when paginated. epub.js lays a paginated
     // section out as CSS columns and moves between them by translating the
@@ -163,13 +165,13 @@ function epubStyles(
     // horizontal scrollbar or bleed into the reader chrome.
     body: {
       // The chosen family wins; "" falls back to the reader's default serif.
-      "font-family": `${type.family || "Georgia, serif"} !important`,
+      "font-family": `${family} !important`,
       "font-weight": type.bold ? "700 !important" : "inherit !important",
       "text-align": type.justify ? "justify !important" : "start !important",
       "letter-spacing": `${type.charSpacing}px !important`,
       "word-spacing": `${type.wordSpacing}px !important`,
       "line-height": `${lineHeight} !important`,
-      padding: `1.25rem max(16px, ${margin}%) 2.5rem !important`,
+      padding: `${theme === "light" ? "12px" : "1.25rem"} max(16px, ${margin}%) ${theme === "light" ? "12px" : "2.5rem"} !important`,
       "word-wrap": "break-word !important",
       ...(paginated ? { overflow: "visible !important" } : { "overflow-x": "hidden !important" }),
     },
@@ -179,7 +181,7 @@ function epubStyles(
       "overflow-wrap": "break-word !important",
       // Repeated from body deliberately. A book's own stylesheet usually sets
       // these per element, and an inherited body rule would lose to it.
-      "font-family": `${type.family || "Georgia, serif"} !important`,
+      "font-family": `${family} !important`,
       "font-weight": type.bold ? "700 !important" : "inherit !important",
       "text-align": type.justify ? "justify !important" : "start !important",
       "letter-spacing": `${type.charSpacing}px !important`,
@@ -206,11 +208,12 @@ function mobiStyles(
   type: Typography = DEFAULT_TYPOGRAPHY,
 ) {
   const colors = themeColors(theme);
+  const family = type.family || (theme === "light" ? 'ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' : "Georgia, serif");
   return `
     :root, html { color: ${colors.ink} !important; background: ${colors.paper} !important;
       overflow-x: hidden !important; box-sizing: border-box !important; }
     body, body p, body li, body blockquote {
-      font-family: ${type.family || "Georgia, serif"} !important;
+      font-family: ${family} !important;
       font-weight: ${type.bold ? 700 : "inherit"} !important;
       text-align: ${type.justify ? "justify" : "start"} !important;
       letter-spacing: ${type.charSpacing}px !important;
@@ -218,7 +221,7 @@ function mobiStyles(
       line-height: ${lineHeight} !important; }
     body { color: ${colors.ink} !important; background: ${colors.paper} !important;
       font-size: ${fontSize}% !important; line-height: ${lineHeight} !important;
-      margin: 0 !important; padding: 1.25rem max(16px, ${margin}%) 2.5rem !important; overflow-x: hidden !important; box-sizing: border-box !important; }
+      margin: 0 !important; padding: ${theme === "light" ? "12px" : "1.25rem"} max(16px, ${margin}%) ${theme === "light" ? "12px" : "2.5rem"} !important; overflow-x: hidden !important; box-sizing: border-box !important; }
     *, *::before, *::after { box-sizing: border-box !important; }
     div, section, article, main, header, footer, blockquote, p, li { max-width: 100% !important; min-width: 0 !important; }
     p, li, blockquote { overflow-wrap: break-word !important; }
@@ -582,15 +585,18 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
     async function openEpub() {
       try {
         setStatus("Loading the book…");
-        const response = await fetch(readerUrl(file.id, file.format), { signal: controller.signal });
+        const response = await readerDeadline(fetch(readerUrl(file.id, file.format), { signal: controller.signal }), controller.signal);
         if (!response.ok) throw new Error("The book could not be downloaded");
-        const data = await response.arrayBuffer();
+        const data = await readerDeadline(response.arrayBuffer(), controller.signal);
         const { default: ePub, EpubCFI: EpubPosition } = await import("epubjs");
         if (disposed || !viewerRef.current) return;
 
-        const book = ePub(data);
+        // Await the explicit open promise: the constructor swallows archive
+        // failures while book.ready may remain unresolved forever.
+        const book = ePub();
         bookRef.current = book;
-        await book.ready;
+        await readerDeadline(book.open(data), controller.signal);
+        await readerDeadline(book.ready, controller.signal);
         if (disposed || !viewerRef.current) return;
         const mode = readingModeRef.current;
         const mobile = isMobileViewport();
@@ -630,11 +636,15 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
           else localStorage.removeItem(`reading-room-position-${file.id}`);
         }
         try {
-          await rendition.display(target);
-        } catch {
+          await readerDeadline(rendition.display(target), controller.signal);
+        } catch (error) {
           if (disposed) return;
           localStorage.removeItem(`reading-room-position-${file.id}`);
-          await rendition.display();
+          // A stalled initial display can leave epub.js's internal queue busy.
+          // Only retry a rejected location; do not queue another display after
+          // our timeout or cancellation.
+          if (controller.signal.aborted || (error instanceof DOMException && error.name === "TimeoutError")) throw error;
+          await readerDeadline(rendition.display(), controller.signal);
         }
         if (disposed) return;
 
@@ -647,11 +657,11 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
             const files = archive?.zip?.files ?? {};
             const keys = Object.keys(files);
             const sizes: number[] = [];
-            (book.spine as unknown as { each: (callback: (section: { index: number; url?: string; href: string; linear?: string }) => void) => void }).each((section) => {
+            (book.spine as unknown as { each: (callback: (section: { index: number; url?: string; href: string; linear?: boolean }) => void) => void }).each((section) => {
               let path = (section.url || section.href || "").replace(/^\//, "");
               try { path = decodeURIComponent(path); } catch { /* keep as is */ }
               const key = files[path] ? path : keys.find((name) => name.endsWith(section.href));
-              sizes[section.index] = section.linear === "no" ? 0 : (key ? files[key]?._data?.uncompressedSize ?? 0 : 0);
+              sizes[section.index] = section.linear === false ? 0 : (key ? files[key]?._data?.uncompressedSize ?? 0 : 0);
             });
             sectionSizesRef.current = sizes;
           }
@@ -696,14 +706,24 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         });
         unregisterNarration = registerEpubNarrationAdapter({
           targets: narrationTargets,
-          advance: async doc => {
+          canPrevious: doc => {
+            const current = narrationTargets().find(target => target.doc === doc);
+            if (!current) return false;
+            const spine = book.spine as unknown as { get: (index: number) => { index: number; linear?: boolean } | null };
+            for (let index = current.index - 1; index >= 0; index--) {
+              const section = spine.get(index);
+              if (section && section.linear !== false) return true;
+            }
+            return false;
+          },
+          navigate: async (doc, direction) => {
             const current = narrationTargets().find(target => target.doc === doc);
             if (!current || disposed) return null;
-            const spine = book.spine as unknown as { get: (index: number) => { index: number; href: string; linear?: string } | null };
-            let section = spine.get(current.index + 1);
-            while (section?.linear === "no") section = spine.get(section.index + 1);
+            const spine = book.spine as unknown as { get: (index: number) => { index: number; href: string; linear?: boolean } | null };
+            let section = current.index + direction < 0 ? null : spine.get(current.index + direction);
+            while (section?.linear === false) section = section.index + direction < 0 ? null : spine.get(section.index + direction);
             if (!section) return null;
-            await rendition.display(section.href);
+            await readerDeadline(rendition.display(section.href), controller.signal);
             if (disposed) return null;
             return narrationTargets().find(target => target.index === section!.index) ?? null;
           },
@@ -766,12 +786,14 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         // Some otherwise-readable EPUBs omit the optional navigation package.
         // Do not throw merely because they have no table of contents: the book
         // body is already open and can be read normally.
-        const navigation = await book.loaded?.navigation;
+        const navigation = await readerDeadline(Promise.resolve(book.loaded?.navigation), controller.signal, 5_000).catch(() => undefined);
         const entries = navigation ? await loadReaderToc(book, navigation.toc, title) : [];
         if (!disposed) { setTocTree(entries); setToc(flattenToc(entries)); }
         setStatus("");
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        if (disposed) return;
+        controller.abort();
         setStatus("This EPUB could not be opened here. You can still download the file from Home Books.");
       }
     }
@@ -832,13 +854,14 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
     const controller = new AbortController();
     let disposed = false;
     let revokeSafeUrls = () => {};
+    let unregisterNarration: (() => void) | undefined;
 
     async function openMobi() {
       try {
         setStatus("Loading the book…");
-        const response = await fetch(readerUrl(file.id, file.format), { signal: controller.signal });
+        const response = await readerDeadline(fetch(readerUrl(file.id, file.format), { signal: controller.signal }), controller.signal);
         if (!response.ok) throw new Error("The book could not be downloaded");
-        const blob = await response.blob();
+        const blob = await readerDeadline(response.blob(), controller.signal);
         const extension = format === "AZW3" || format === "KF8" ? "azw3" : "mobi";
         const mobiFile = new File([blob], `${title}.${extension}`, { type: "application/x-mobipocket-ebook" });
         await import("foliate-js/view.js");
@@ -848,10 +871,10 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         Object.assign(view.style, { display: "block", width: "100%", height: "100%" });
         viewerRef.current.append(view);
         mobiViewRef.current = view;
-        await view.open(mobiFile);
+        await readerDeadline(view.open(mobiFile), controller.signal);
         const metadataTitle = view.book?.metadata?.title?.trim();
         if (metadataTitle && metadataTitle.length > title.trim().length) setDisplayTitle(metadataTitle);
-        revokeSafeUrls = await secureMobiSections(view);
+        revokeSafeUrls = await readerDeadline(secureMobiSections(view), controller.signal);
         view.renderer?.setAttribute("flow", readingModeRef.current === "scroll" ? "scrolled" : "paginated");
         view.renderer?.setAttribute("max-column-count", isMobileViewport() ? "1" : "2");
         view.renderer?.setStyles(mobiStyles(fontSizeRef.current, themeRef.current, lineHeightRef.current, marginRef.current));
@@ -875,6 +898,32 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         const fv = view as unknown as FoliateMore;
         cfiCompareRef.current = (a, b) => { try { return compareCFI(a, b); } catch { return a.localeCompare(b); } };
         const mobiContents = () => (fv.renderer?.getContents?.() ?? []).filter((item) => item?.doc?.body);
+        const narrationTargets = () => mobiContents().flatMap(item => {
+          const frame = item.doc.defaultView?.frameElement;
+          return frame instanceof HTMLIFrameElement ? [{ doc: item.doc, frame, index: item.index }] : [];
+        });
+        const adjacentIndex = (doc: Document, direction: -1 | 1) => {
+          const current = narrationTargets().find(target => target.doc === doc);
+          const sections = view.book?.sections ?? [];
+          if (!current) return -1;
+          for (let index = current.index + direction; index >= 0 && index < sections.length; index += direction) {
+            if (sections[index].linear !== "no") return index;
+          }
+          return -1;
+        };
+        unregisterNarration = registerEpubNarrationAdapter({
+          targets: narrationTargets,
+          canPrevious: doc => adjacentIndex(doc, -1) >= 0,
+          navigate: async (doc, direction) => {
+            const index = adjacentIndex(doc, direction);
+            if (index < 0 || disposed) return null;
+            await readerDeadline(view.goTo(index), controller.signal);
+            if (disposed) return null;
+            const target = narrationTargets().find(target => target.index === index);
+            if (!target) throw new Error("The requested chapter did not open");
+            return target;
+          },
+        });
         const mobiTarget = (item: { doc: Document; index: number }): AnnotationTarget => ({
           doc: item.doc,
           frame: (item.doc.defaultView?.frameElement as HTMLIFrameElement | null) ?? null,
@@ -943,11 +992,13 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         });
 
         const saved = localStorage.getItem(`reading-room-position-${file.id}`) || initialPosition || undefined;
-        await view.init({ lastLocation: saved, showTextStart: true });
+        await readerDeadline(view.init({ lastLocation: saved, showTextStart: true }), controller.signal);
         if (!disposed) { setTocTree(view.book?.toc || []); setToc(flattenToc(view.book?.toc || [])); }
         setStatus("");
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        if (disposed) return;
+        controller.abort();
         setStatus("This MOBI could not be opened here. It may be encrypted or use an unsupported Kindle format.");
       }
     }
@@ -957,12 +1008,13 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
       disposed = true;
       controller.abort();
       revokeSafeUrls();
+      unregisterNarration?.();
       setAnnotationAdapter(null);
       mobiViewRef.current?.close();
       mobiViewRef.current?.remove();
       mobiViewRef.current = null;
     };
-  }, [file.id, file.format, format, initialPosition, isMobi, noteTimeLeft, readerModeReady, reportLocation, title]);
+  }, [epubRevision, file.id, file.format, format, initialPosition, isMobi, noteTimeLeft, readerModeReady, reportLocation, title]);
 
   useEffect(() => {
     if (!isMobi || !readerModeReady) return;
@@ -1402,7 +1454,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
       </aside>, readingSheetHost) : null}
 
       {isBookReader ? <>
-        <div className="epub-stage" onTouchStart={(event) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={endSwipe}>{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{isComic && readingMode && <ComicReader ref={comicReaderRef} fileId={file.id} format={file.format} mode={readingMode} direction={mangaMode ? "rtl" : "ltr"} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{status && <div className="reader-message"><p>{status}</p>{status.includes("could not") && <a href={`${readerUrl(file.id, file.format)}&download=1`} download>Download {format}</a>}</div>}</div>
+        <div className="epub-stage" onTouchStart={(event) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={endSwipe}>{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader key={epubRevision} ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{isComic && readingMode && <ComicReader key={epubRevision} ref={comicReaderRef} fileId={file.id} format={file.format} mode={readingMode} direction={mangaMode ? "rtl" : "ltr"} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{status && <div className="reader-message" role="status"><p>{status}</p>{status.includes("could not") && <><button type="button" onClick={() => setEpubRevision(value => value + 1)}>Retry opening</button><a href={`${readerUrl(file.id, file.format)}&download=1`} download>Download {format}</a></>}</div>}</div>
         <footer className="reader-footer"><button onClick={previous}>{readingMode === "scroll" ? "↑ Up" : "← Previous"}</button><span>{footerLabel || (readingMode === "scroll" ? "Continuous scroll" : "Use the arrow keys to turn pages")}</span><button onClick={next}>{readingMode === "scroll" ? "Down ↓" : "Next →"}</button></footer>
       </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
 

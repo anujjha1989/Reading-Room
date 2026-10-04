@@ -41,15 +41,6 @@ export function mountReaderInteractions() {
     schedule();
   }
 
-  // iOS reads this when adding to the home screen; keep it present even if a
-  // hydration pass rewrites the head from the RSC payload.
-  function ensureStandaloneMeta() {
-    if (document.querySelector('meta[name="apple-mobile-web-app-capable"]')) return;
-    var m = document.createElement("meta");
-    m.setAttribute("name", "apple-mobile-web-app-capable");
-    m.setAttribute("content", "yes");
-    document.head.appendChild(m);
-  }
 
   // Remaining bridge buttons live on <body>, outside React's tree.
   function make(className, label, text, onClick) {
@@ -477,45 +468,6 @@ export function mountReaderInteractions() {
       // Toolbar/grid changes do not naturally generate that event.
       if (rect.width > 0 && rect.height > 0) window.dispatchEvent(new Event("resize"));
     }
-    var light = shell() && shell().classList.contains("reader-theme-light");
-    documents().forEach(function (doc) {
-      if (!doc.head) return;
-      var style = doc.getElementById("rr-light-reading");
-      if (!style) { style = doc.createElement("style"); style.id = "rr-light-reading"; doc.head.appendChild(style); }
-      // The engine injects :root background rules with !important. Match a
-      // higher specificity so its later theme refresh cannot restore cream.
-      var css = light ? ':root:root,:root body{background:#ffffff!important;background-image:none!important;color:#202123!important;color-scheme:light!important}body{font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;padding-top:12px!important;padding-bottom:12px!important}p,li,blockquote,div,span{font-family:inherit!important;text-align:start!important}p{font-size:1em!important}a{color:#0969da!important}' : '';
-      if (style.textContent !== css) style.textContent = css;
-    });
-  }
-  var panelCloseButton = null, fontCloseButton = null;
-  function syncPanelCloseButtons() {
-    if (!panelCloseButton) {
-      panelCloseButton = make("rr-panel-close", "Close reading controls", "×", closeSheet);
-      fontCloseButton = make("rr-panel-close", "Close font settings", "×", function () {
-        var settings = document.querySelector(".reader-settings");
-        if (settings) settings.open = false;
-        schedule();
-      });
-    }
-    var controls = document.querySelector(".reader-actions");
-    var settings = document.querySelector(".reader-settings[open] > div");
-    function position(button, panel, parent) {
-      button.style.display = "none";
-      if (!shell() || !sheetOpen() || !panel) return;
-      var rect = panel.getBoundingClientRect();
-      var bounds = parent ? parent.getBoundingClientRect() : rect;
-      var top = Math.max(rect.top + 4, bounds.top + (parent ? 48 : 4), 4);
-      if (rect.width < 48 || Math.min(rect.bottom, bounds.bottom, window.innerHeight) < top + 44) return;
-      button.style.top = top + "px";
-      button.style.left = (Math.min(rect.right, window.innerWidth) - 48) + "px";
-      var theme = window.getComputedStyle(shell());
-      button.style.background = theme.getPropertyValue("--paper") || "#fff";
-      button.style.color = theme.getPropertyValue("--ink") || "#222";
-      button.style.display = "grid";
-    }
-    position(panelCloseButton, controls);
-    position(fontCloseButton, settings, controls);
   }
   function apply() {
     queued = false;
@@ -528,19 +480,15 @@ export function mountReaderInteractions() {
       if (!root.classList.contains("rr-strip")) { textMode = false; return; }
       root.classList.remove("rr-strip", "rr-hide-chrome", "rr-sheet-open", "rr-theme-dark");
       textMode = false;
-      if (panelCloseButton) panelCloseButton.style.display = "none";
-      if (fontCloseButton) fontCloseButton.style.display = "none";
       syncTapLayer();
       return;
     }
-    ensureStandaloneMeta();
     root.classList.add("rr-strip");
     root.classList.toggle("rr-hide-chrome", hidden);
     root.classList.toggle("rr-theme-dark", s.classList.contains("reader-theme-dark"));
     bindTaps();
     syncTapLayer();
     refreshLayout();
-    syncPanelCloseButtons();
   }
 
   function schedule() {
@@ -576,8 +524,6 @@ export function mountReaderInteractions() {
     tapLayer?.remove();
     scrollWrapper?.remove();
     textModeButton?.remove();
-    panelCloseButton?.remove();
-    fontCloseButton?.remove();
     debugPanel?.remove();
     root.classList.remove("rr-strip", "rr-hide-chrome", "rr-sheet-open", "rr-theme-dark");
   };

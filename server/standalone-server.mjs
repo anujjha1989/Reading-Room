@@ -15,6 +15,7 @@ import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { settingsRoute } from "./rr-settings.mjs";
 import { ttsRoute } from "./rr-tts.mjs";
+import { mutationProblem } from "./request-guard.mjs";
 
 const APP_VERSION = "1.1";
 const startedAt = Date.now();
@@ -1612,6 +1613,10 @@ async function handlePublicAccess(request, response) {
 const handler = async (request, response) => {
   try {
     const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
+    if (url.pathname.startsWith("/api/")) {
+      const problem = mutationProblem(request);
+      if (problem) { sendJson(response, problem.status, { error: problem.error }); return; }
+    }
     switch (url.pathname) {
       case "/settings.html": {
         // Older bookmarks targeted the retired standalone Settings document.
