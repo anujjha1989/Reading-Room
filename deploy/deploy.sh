@@ -140,7 +140,7 @@ fi
   node deploy/check-reader-consolidation.mjs &&
   node deploy/check-reference-room.mjs &&
   node deploy/check-haptics.mjs)
-(cd "$BUILD_DIR" && node --test --test-concurrency=1 tests/browser/reliability.test.mjs tests/browser/mobi-narration.test.mjs tests/browser/shelf-card-layout.test.mjs tests/browser/continuous-scroll.test.mjs tests/browser/reader-controls.test.mjs tests/browser/book-pages.test.mjs tests/browser/narration-position.test.mjs tests/browser/narration-buffer.test.mjs)
+(cd "$BUILD_DIR" && node --test --test-concurrency=1 tests/browser/reliability.test.mjs tests/browser/mobi-narration.test.mjs tests/browser/shelf-card-layout.test.mjs tests/browser/continuous-scroll.test.mjs tests/browser/reader-controls.test.mjs tests/browser/book-pages.test.mjs tests/browser/narration-position.test.mjs tests/browser/narration-buffer.test.mjs tests/browser/desktop-navigation.test.mjs)
 
 echo "==> staging"
 rm -rf "$BUILD_DIR/dist/stage" && mkdir -p "$BUILD_DIR/dist/stage/assets"

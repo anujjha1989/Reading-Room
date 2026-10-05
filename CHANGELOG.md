@@ -2,6 +2,17 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v203 — 2026-10-05
+
+- Corrected desktop navigation to centred icon-and-label rows with 44px
+  targets, consistent spacing, a softly tinted sidebar and theme-aware
+  selection/hover states. Mobile and tablet keep the existing bottom dock.
+- The desktop header and control rail now share the shelves' content inset
+  and clear the sidebar, including on wide monitors. Reader and narration
+  code are unchanged.
+- Added Chrome/WebKit desktop alignment, mouse/keyboard navigation and
+  mobile-breakpoint regression checks to the release pipeline.
+
 ## v202 — 2026-10-05
 
 - The Home catalogue-failure notice now clears the fixed header instead of sitting directly beneath it.

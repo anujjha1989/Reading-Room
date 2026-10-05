@@ -705,6 +705,12 @@ html .catalog .thumbnail-view .book { contain-intrinsic-size:156px 330px; }
  * matching Apple Books on macOS. Content shifts right to make room.
  * ---------------------------------------------------------------------- */
 @media (min-width:1200px) {
+  html.rr-library-visible {
+    --rr-library-sidebar-width:220px;
+    --rr-library-header-max:none;
+    --rr-library-header-inset:max(24px,calc((100vw - 220px - 1248px)/2 + 24px));
+    --rr-library-control-inset:var(--rr-library-header-inset);
+  }
   html.rr-library-visible .rr-library-dock {
     left:0; right:auto; top:0; bottom:0;
     width:220px; height:100dvh;
@@ -712,14 +718,14 @@ html .catalog .thumbnail-view .book { contain-intrinsic-size:156px 330px; }
     border-radius:0;
     flex-direction:column;
     align-items:stretch;
-    padding:calc(env(safe-area-inset-top,0px) + 90px) 10px 24px;
-    gap:2px;
+    padding:calc(env(safe-area-inset-top,0px) + 74px) 12px 24px;
+    gap:6px;
     border:0; background:transparent; box-shadow:none;
     backdrop-filter:none; -webkit-backdrop-filter:none;
   }
   html.rr-library-visible .rr-library-dock::before {
     border-radius:0;
-    background:var(--paper);
+    background:color-mix(in srgb,var(--paper-2) 75%,var(--paper));
     border:0;
     border-right:1px solid var(--line);
     box-shadow:none;
@@ -734,20 +740,24 @@ html .catalog .thumbnail-view .book { contain-intrinsic-size:156px 330px; }
     color:var(--muted); letter-spacing:.06em; text-transform:uppercase;
   }
   html.rr-library-visible .rr-library-dock button {
-    flex:0 0 auto; height:40px;
-    justify-content:flex-start;
+    flex:0 0 auto; height:44px;
+    flex-direction:row; align-items:center; justify-content:flex-start;
     padding:0 14px; border-radius:10px;
-    gap:12px; font-size:14px; font-weight:500;
+    gap:12px; font-size:14px; font-weight:500; line-height:1.2;
+    text-align:left; transition:background-color .18s ease;
     color:var(--ink);
   }
   html.rr-library-visible .rr-library-dock button > span { display:block; }
   html.rr-library-visible .rr-library-dock button svg { flex-shrink:0; width:20px; height:20px; }
   html.rr-library-visible .rr-library-dock button[aria-current="page"] {
-    background:var(--paper-2); color:var(--ink); box-shadow:none;
+    background:color-mix(in srgb,var(--ink) 12%,var(--paper)); color:var(--ink); box-shadow:none;
+  }
+  html.rr-library-visible .rr-library-dock button:not([aria-current="page"]):hover {
+    background:color-mix(in srgb,var(--ink) 6%,var(--paper));
   }
   /* Reset the special circular Search button to match the other nav items. */
   html.rr-library-visible .rr-library-dock button[data-view="Search"] {
-    flex:0 0 auto; height:40px; margin-top:0;
+    flex:0 0 auto; height:44px; margin-top:0;
     background:transparent; border:0; box-shadow:none; color:var(--ink);
   }
   html.rr-library-visible .rr-library-dock button[data-view="Search"] svg { width:20px; height:20px; }
@@ -945,9 +955,10 @@ html.rr-book-open #rr-popover-scrim { display: none !important; }
 .rr-close-btn:active { opacity: .6; }
 html.rr-library-visible main > .hero {
   position: fixed;
-  top: 0; left: 0; right: 0;
+  top: 0; left: var(--rr-library-sidebar-width,0px); right: 0;
+  max-width:var(--rr-library-header-max,1248px);
   z-index: 128;
-  padding: calc(14px + env(safe-area-inset-top)) max(20px, calc((100vw - 1200px)/2)) 14px;
+  padding: calc(14px + env(safe-area-inset-top)) var(--rr-library-header-inset,max(20px, calc((100vw - 1200px)/2))) 14px;
   background: var(--paper);
   transition: background-color .22s ease, box-shadow .22s ease;
 }
@@ -1588,9 +1599,9 @@ html.rr-books-controls .reader-panel-heading > button {
 html.rr-library-visible #rr-settings-link,
 html.rr-library-visible #rr-filter-btn,
 html.rr-library-visible #rr-sort-btn { width:44px !important;height:44px !important; }
-html.rr-library-visible #rr-settings-link { right:calc(20px + env(safe-area-inset-right)) !important; }
-html.rr-library-visible #rr-sort-btn { right:calc(72px + env(safe-area-inset-right)) !important; }
-html.rr-library-visible #rr-filter-btn { right:calc(124px + env(safe-area-inset-right)) !important; }
+html.rr-library-visible #rr-settings-link { right:calc(var(--rr-library-control-inset,20px) + env(safe-area-inset-right)) !important; }
+html.rr-library-visible #rr-sort-btn { right:calc(var(--rr-library-control-inset,20px) + 52px + env(safe-area-inset-right)) !important; }
+html.rr-library-visible #rr-filter-btn { right:calc(var(--rr-library-control-inset,20px) + 104px + env(safe-area-inset-right)) !important; }
 html.rr-library-visible #rr-filter-btn svg,
 html.rr-library-visible #rr-sort-btn svg { width:22px !important;height:22px !important; }
 
