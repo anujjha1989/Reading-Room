@@ -2,6 +2,10 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v205 — 2026-10-05
+
+- Desktop Library: the search field no longer runs off the right edge of the window. The frozen header kept a full-window width after being moved beside the sidebar; it now ends where the book grid ends, at every desktop width. Phone and tablet layouts are unchanged.
+
 ## v204 — 2026-10-05
 
 - The sandbox-safe page input surface now supports mouse as well as touch:

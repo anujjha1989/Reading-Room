@@ -770,6 +770,9 @@ html .catalog .thumbnail-view .book { contain-intrinsic-size:156px 330px; }
   html.rr-library-visible .rr-library-dock button:nth-child(3) { margin-right:0; }
   /* Shift content right to clear the sidebar. */
   html.rr-library-visible body { padding-left:220px; }
+  /* The frozen Library header starts after the sidebar, so it must not keep
+     a full-viewport width: the search field ran 220px off the right edge. */
+  html.rr-library-visible[data-rr-library-view="library"] main > .hero { width:auto; }
 }
 
 /* Title + search stay put while the grid scrolls under them. */
