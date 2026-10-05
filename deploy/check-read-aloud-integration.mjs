@@ -46,7 +46,8 @@ check(/if \(!ok\) \{[\s\S]{0,400}?void step\(mine\)/.test(engine),
 check(/LOAD_TIMEOUT\s*=\s*25000/.test(engine)
   && /armStallWatchdog\(text, mine, LOAD_TIMEOUT\)/.test(engine),
   "uncached audio gets a synthesis window before stall recovery");
-check(/kokoroSynthesis : synthesis\)\.acquire\(key/.test(ttsServer)
+check(/queueFor\(voice\)\.acquire\(key/.test(ttsServer)
+  && /kokoroSynthesis : \/-high\$\/\.test\(voice\) \? slowSynthesis : synthesis/.test(ttsServer)
   && /jobs\.get\(key\)/.test(synthesisQueue)
   && /await lease.promise/.test(ttsServer),
   "playback joins an in-progress prefetch instead of synthesising the clip twice");
