@@ -205,7 +205,10 @@ export function mountReaderInteractions() {
     var touchDevice = navigator.maxTouchPoints > 0;
     var stage = document.querySelector(".epub-stage");
     var scrollHost = !pagesMode() && document.querySelector(".epub-container, .pdf-scroll, .comic-scroll");
-    var enabled = !!shell() && !!stage && (pagesMode() || !!scrollHost);
+    // PDF/comic mouse input already bubbles through the host page. Keep its
+    // native text-selection surface; only sandboxed ebooks need a mouse layer.
+    var desktopEbook = !!document.querySelector(".epub-viewer");
+    var enabled = (touchDevice || desktopEbook) && !!shell() && !!stage && (pagesMode() || !!scrollHost);
     if (!enabled) {
       if (tapLayer) tapLayer.style.display = "none";
       return;
