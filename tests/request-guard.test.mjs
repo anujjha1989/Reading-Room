@@ -28,5 +28,6 @@ test("reading state keeps the documented shape and drops what could break a read
   const collection = cleanReadingState({ bookId: "L21f5fc9f61ffc9c2b8b0107ab33083a58460018b~22-52", status: "finished" });
   assert.equal(collection.status, "finished");
   const bad = cleanReadingState({ bookId: "Labc", status: { x: 1 }, highlights: "notalist", updatedAt: "zzz", favorite: "yes", progress: 7, "__proto__x": 1, nested: { a: 1 } });
-  assert.deepEqual(bad, { bookId: "Labc" });
+  assert.equal(bad, null);
+  assert.equal(cleanReadingState({ bookId: "Labc" }), null);
 });

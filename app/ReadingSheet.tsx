@@ -249,6 +249,23 @@ export default function ReadingSheet(props: ReadingSheetProps) {
     onClose();
   }, [onClose]);
 
+  // The menu is a non-modal popover, so the page behind stays live; keyboard and
+  // VoiceOver focus still has to land inside it, and go back where it came from.
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const frame = requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel || panel.contains(document.activeElement)) return;
+      panel.querySelector<HTMLElement>("button:not([disabled])")?.focus({ preventScroll: true });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      const panel = panelRef.current;
+      if (previous?.isConnected && (!document.activeElement || document.activeElement === document.body || panel?.contains(document.activeElement))) previous.focus({ preventScroll: true });
+    };
+  }, [open]);
+
   // Escape steps back one level, then closes — matching the ‹ button, so the two
   // never disagree.
   useEffect(() => {

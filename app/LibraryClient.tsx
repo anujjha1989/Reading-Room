@@ -742,6 +742,8 @@ export default function LibraryClient() {
       {renderShelf("Finished", finishedBooks)}
     </section>}
 
+    {chromeView === "home" && catalogStatus === "error" && <div className="empty rr-home-notice"><b>The catalogue could not be loaded</b><p>Check your connection to Home Books, then try again.</p><button type="button" onClick={() => setCatalogRevision(value => value + 1)}>Retry</button></div>}
+
     <section className="catalog">
       <div className="catalog-toolbar"><button className="mobile-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>Filters {activeFilters.length ? `(${activeFilters.length})` : ""}</button><label className="sort-control"><span>Sort</span><select value={sort} onChange={(event) => chooseSort(event.target.value as SortMode)}><option value="title">Title</option><option value="author">Author</option><option value="series">Series</option><option value="added">Recently added</option><option value="opened">Recently opened</option></select></label></div>
       <div className={`filters expanded-filters ${filtersOpen ? "open" : ""}`}>

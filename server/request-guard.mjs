@@ -50,5 +50,6 @@ export function cleanReadingState(item) {
     }
     if (kept !== undefined) out[key] = kept;
   }
-  return out;
+  // A record with nothing but an id says nothing about the book; do not store it.
+  return Object.keys(out).length > 1 ? out : null;
 }

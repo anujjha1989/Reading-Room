@@ -52,3 +52,8 @@ html .filters label span, html .filter-picker > span { font-size: 11px; letter-s
 html .sort-control span { font-size: 10px; }
 html .active-filters span { font-size: 11px; }
 html .cover-progress { font-size: 9px; }
+
+/* Home hides the catalogue section, so a failed load needs its own notice. */
+.rr-home-notice { padding:64px 20px; border-bottom:0; }
+.rr-home-notice b { font-size:26px; }
+.rr-home-notice button { border-radius:24px; font-size:14px; }

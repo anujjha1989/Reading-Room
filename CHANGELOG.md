@@ -2,6 +2,13 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v201 — 2026-10-05
+
+- Home now says so when the catalogue cannot be loaded, with a Retry button, instead of showing an empty page (the message previously lived only on the Library tab).
+- Opening the reading menu moves keyboard and VoiceOver focus into it, and closing it hands focus back to the ≡ button.
+- Reading-state records that carry nothing except a book id are no longer stored.
+- Library data (no code): 360 EPUB records had their title and/or author corrected through the reversible metadata overlay — the Star Wars import now carries series, number, title and author; publisher, year, version and file-type debris was removed from titles. Previous values are kept in `library-repair-backups/meta-cleanup-20261005/` on the Pi.
+
 ## v200 — 2026-10-05
 
 - Narration from the Pi now travels as MP3 (about a seventh of the WAV) when
