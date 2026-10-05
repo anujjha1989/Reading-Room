@@ -23,7 +23,8 @@ for (const engine of ["chromium", "webkit"]) test(`${engine}: current reader con
   await page.route("**/catalog.json", r => r.fulfill({ json: [{ id: "controls-fixture", title, format: "EPUB", source: "Local" }] }));
   await page.route("**/api/library-state", r => r.fulfill({ json: { states: [] } }));
   await page.route("**/api/book/**", r => r.fulfill({ contentType: "application/epub+zip", body: fixture }));
-  await page.route("**/api/tts?**", r => r.fulfill({ body: "fixture" }));
+  const voiceRequests = [];
+  await page.route("**/api/tts?**", r => { voiceRequests.push(new URL(r.request().url()).searchParams.get('v')); return r.fulfill({ body: "fixture" }); });
   await page.route("**/api/tts/voices", r => r.fulfill({ json: { voices: [
     { id: "en_GB-alba-medium", label: "Alba · British English · medium" },
     { id: "kokoro-af_heart", label: "Kokoro · Heart · American English" },
@@ -91,7 +92,8 @@ for (const engine of ["chromium", "webkit"]) test(`${engine}: current reader con
   assert.equal(await page.evaluate(() => localStorage.getItem("reading-room-voice")), "kokoro-af_heart");
   await page.locator('[data-view="aloud"] button').filter({ hasText: /^Kokoro · Heart/ }).waitFor();
   await page.getByRole("button", { name: "Start reading", exact: true }).click();
-  assert.match(await page.locator('#rr-tts-audio').evaluate(audio => audio.src), /v=kokoro-af_heart/);
+  await page.waitForFunction(() => !!document.querySelector('#rr-tts-audio')?.src);
+  assert.ok(voiceRequests.includes('kokoro-af_heart'), 'selected voice must be fetched even when its audio is buffered');
   await page.getByRole('button', { name:'Add 30 minutes', exact:true }).click();
   await page.getByRole("button", { name: "Pause reading", exact: true }).click();
   await menu.click();

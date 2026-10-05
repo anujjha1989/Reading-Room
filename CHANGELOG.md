@@ -2,6 +2,18 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v199 — 2026-10-05
+
+- Read Aloud now hands downloaded lookahead audio directly to the existing
+  player, avoiding a second network load between sentences. Preserves natural
+  voice pacing, sentence highlights, transport controls and background audio.
+- Bounds buffered clips to 24 entries and 16 MiB, releases obsolete URLs and
+  clears audio buffers on Stop. No added dependencies or reader layout changes.
+- Added real-media Chrome/WebKit regression checks for delayed network loads,
+  sentence handoffs, pause/resume and buffer cleanup to the release gates.
+- Public browser verification can use an explicit HTTPS proxy when competing
+  VPNs prevent direct access; it retains the actual HTTPS URL and certificate.
+
 ## v198 — 2026-10-04
 
 - Pausing Read Aloud no longer relocates the page. Added a glass “return to

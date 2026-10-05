@@ -931,7 +931,9 @@ type TestWindow = Window & typeof globalThis & {
   // playback to an element it has seen the user start, so it is created once
   // and reused rather than per sentence.
   var rrTtsAudio: HTMLAudioElement | null = null;
-  const rrPrefetch = new Map<string, { promise: Promise<unknown>; controller: AbortController; done: boolean }>();
+  const rrPrefetch = new Map<string, { promise: Promise<unknown>; controller: AbortController; done: boolean; audioUrl?: string; bytes: number }>();
+  let bufferedBytes = 0, activeAudioUrl = "";
+  const MAX_BUFFER_BYTES = 16 * 1024 * 1024;
   var rrWarmTimer: ReturnType<typeof setTimeout> | null = null;
   var rrWarmAttempts = 0;
   var stallTimer: ReturnType<typeof setTimeout> | null = null, stallRetries = 0, stallText = "";
@@ -979,19 +981,29 @@ type TestWindow = Window & typeof globalThis & {
     if (cached) return cached.promise;
     while (rrPrefetch.size >= 24) {
       const oldest = rrPrefetch.keys().next().value!;
-      rrPrefetch.get(oldest)!.controller.abort();
-      rrPrefetch.delete(oldest);
+      discardBuffer(oldest);
     }
     const controller = new AbortController();
-    const entry = { controller, done: false, promise: Promise.resolve() as Promise<unknown> };
+    const entry: { controller: AbortController; done: boolean; promise: Promise<unknown>; audioUrl?: string; bytes: number } = { controller, done: false, promise: Promise.resolve(), bytes: 0 };
     entry.promise = fetch(url, {
       cache: "force-cache", signal: controller.signal,
       headers: { "X-Home-Books-Prefetch": "1" },
     }).then(async function (response) {
         if (!response.ok) throw new Error("TTS prefetch returned " + response.status);
-        // Consume the response before warming the next clip. Headers alone
-        // do not mean the audio has reached the browser's HTTP cache.
-        await response.arrayBuffer();
+        // Keep the downloaded audio itself. Safari's media loader need not
+        // share fetch's HTTP cache (and gateways may disable that cache), so
+        // setting the HTTP src again discarded our lookahead at every boundary.
+        const blob = await response.blob();
+        if (controller.signal.aborted || rrPrefetch.get(url) !== entry) return;
+        if (blob.size <= MAX_BUFFER_BYTES) {
+          entry.audioUrl = URL.createObjectURL(blob);
+          entry.bytes = blob.size;
+          bufferedBytes += blob.size;
+          for (const key of rrPrefetch.keys()) {
+            if (bufferedBytes <= MAX_BUFFER_BYTES) break;
+            if (key !== url) discardBuffer(key);
+          }
+        }
         entry.done = true;
       }).catch(function () {
         if (rrPrefetch.get(url) === entry) rrPrefetch.delete(url);
@@ -1000,9 +1012,31 @@ type TestWindow = Window & typeof globalThis & {
     return entry.promise;
   }
 
+  function discardBuffer(url: string) {
+    const entry = rrPrefetch.get(url);
+    if (!entry) return;
+    entry.controller.abort();
+    bufferedBytes -= entry.bytes;
+    // The element owns its current URL until the next source is installed.
+    if (entry.audioUrl && entry.audioUrl !== activeAudioUrl) URL.revokeObjectURL(entry.audioUrl);
+    rrPrefetch.delete(url);
+  }
+
+  function releaseActiveAudio() {
+    if (activeAudioUrl && !Array.from(rrPrefetch.values()).some(entry => entry.audioUrl === activeAudioUrl)) {
+      URL.revokeObjectURL(activeAudioUrl);
+    }
+    activeAudioUrl = "";
+  }
+
+  function clearAudioBuffers() {
+    for (const url of rrPrefetch.keys()) discardBuffer(url);
+    releaseActiveAudio();
+  }
+
   function cancelWarming() {
     for (const [url, entry] of rrPrefetch) {
-      if (!entry.done) { entry.controller.abort(); rrPrefetch.delete(url); }
+      if (!entry.done) discardBuffer(url);
     }
   }
 
@@ -1137,7 +1171,16 @@ type TestWindow = Window & typeof globalThis & {
     a.onplaying = function () { armStallWatchdog(text, mine); };
     a.ontimeupdate = function () { armStallWatchdog(text, mine); };
     a.onwaiting = function () { armStallWatchdog(text, mine, a.readyState < 2 ? LOAD_TIMEOUT : STALL_TIMEOUT); };
-    a.src = ttsUrl(text);
+    const url = ttsUrl(text);
+    const buffered = rrPrefetch.get(url)?.audioUrl;
+    // Reuse the gesture-authorised element, including for lock-screen audio.
+    // A cold start retains the direct URL path so it never waits on lookahead.
+    a.src = buffered || url;
+    releaseActiveAudio();
+    activeAudioUrl = buffered || "";
+    // Mark the played entry most-recently used; short backward skips stay warm.
+    const entry = rrPrefetch.get(url);
+    if (entry) { rrPrefetch.delete(url); rrPrefetch.set(url, entry); }
     mediaSession(doc);
     stallText = text;
     armStallWatchdog(text, mine, LOAD_TIMEOUT);
@@ -1221,6 +1264,7 @@ type TestWindow = Window & typeof globalThis & {
     clearSleepTimer();
     clearStallWatchdog();
     try { if (rrTtsAudio) { rrTtsAudio.pause(); rrTtsAudio.removeAttribute('src'); rrTtsAudio.load(); } } catch (e) { /* ignore */ }
+    clearAudioBuffers();
     try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none'; } catch (e) {}
     if (keepAlive) { clearInterval(keepAlive); keepAlive = null; }
     if (sweeper) { clearInterval(sweeper); sweeper = null; }
@@ -1265,6 +1309,7 @@ type TestWindow = Window & typeof globalThis & {
         rrTtsAudio.pause();
         rrTtsAudio.removeAttribute("src");
         rrTtsAudio.load();
+        releaseActiveAudio();
       }
     } catch (e) { /* ignore */ }
   }
