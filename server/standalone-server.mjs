@@ -15,7 +15,7 @@ import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { settingsRoute } from "./rr-settings.mjs";
 import { ttsRoute } from "./rr-tts.mjs";
-import { mutationProblem } from "./request-guard.mjs";
+import { mutationProblem, cleanReadingState } from "./request-guard.mjs";
 
 const APP_VERSION = "1.1";
 const startedAt = Date.now();
@@ -478,8 +478,9 @@ async function handleLibraryState(request, response) {
     catch { sendJson(response, 400, { saved: false, error: "Invalid JSON" }); return; }
     const items = Array.isArray(incoming) ? incoming : [incoming];
     let changed = false;
-    for (const item of items) {
-      if (!item || typeof item.bookId !== "string") continue;
+    for (const raw of items.slice(0, 500)) {
+      const item = cleanReadingState(raw);
+      if (!item) continue;
       const previous = libraryState.get(item.bookId);
       const incomingAt = Number(item.updatedAt) || 0;
       const previousAt = Number(previous?.updatedAt) || 0;

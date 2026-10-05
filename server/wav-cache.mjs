@@ -13,7 +13,7 @@ export function createWavCache(root, { maxBytes = 2 * 1024 ** 3, minimumAgeMs = 
       for await (const voice of await opendir(root)) {
         if (!voice.isDirectory() || !/^[A-Za-z0-9_-]{1,64}$/.test(voice.name)) continue;
         for await (const file of await opendir(join(root, voice.name))) {
-          if (!file.isFile() || !/^[0-9a-f]{40}\.wav$/.test(file.name)) continue;
+          if (!file.isFile() || !/^[0-9a-f]{40}\.(wav|mp3)$/.test(file.name)) continue;
           const path = join(root, voice.name, file.name), info = await lstat(path).catch(() => null);
           if (!info?.isFile()) continue;
           bytes += info.size;

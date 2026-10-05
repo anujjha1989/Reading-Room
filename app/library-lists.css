@@ -45,3 +45,10 @@
 html .catalog .thumbnail-view .cover:not(.has-cover) .cover-copy {
   display: flex; margin: auto 0; justify-content: center; text-align: center;
 }
+
+/* Labels a reader has to read, not decoration, were 7-9px; lift them to a
+ * legible floor without touching the uppercase eyebrow style or the layout. */
+html .filters label span, html .filter-picker > span { font-size: 11px; letter-spacing: .12em; }
+html .sort-control span { font-size: 10px; }
+html .active-filters span { font-size: 11px; }
+html .cover-progress { font-size: 9px; }

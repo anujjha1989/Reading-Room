@@ -51,7 +51,7 @@ export type ReadAloudApi = {
   canPrevious: boolean;
   canNext: boolean;
   error?: string;
-  voices: { label: string; value: string; current: boolean }[];
+  voices: { label: string; value: string; current: boolean; detail?: string }[];
   toggle: () => void;
   stop: () => void;
   skip: () => void;
@@ -515,6 +515,7 @@ export default function ReadingSheet(props: ReadingSheetProps) {
                 aria-current={voice.current ? "true" : undefined}
                 onClick={() => { aloud.setVoice(voice.value); go("aloud"); }}>
                 <span className={styles.rowLabel}>{voice.label}</span>
+                {voice.detail && <span className={styles.rowDetail}>{voice.detail}</span>}
               </button>
             ))}
           </div>

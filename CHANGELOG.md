@@ -2,6 +2,24 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v200 — 2026-10-05
+
+- Narration from the Pi now travels as MP3 (about a seventh of the WAV) when
+  the reader asks for it; the WAV remains the source and the fallback. The
+  iPhone's own voices are unchanged.
+- Piper's "high" voices are synthesised one at a time. Measured on the Pi 5,
+  two at once gave no more audio per second (1.06x real time against 1.16x)
+  and doubled the wait for each sentence (25 s against 11 s).
+- The voice menu marks each Pi voice Fast or Slower from the Pi's own measured
+  speed (medium Piper about 5x real time, Kokoro about 1.6x, high Piper about
+  1.1x), so a voice that can leave gaps is visible before it is chosen.
+- The library loads more books as you scroll; "Show more books" remains for
+  keyboards.
+- Saved reading state is validated on the server: malformed records and
+  fields are dropped instead of being stored and served to every device.
+- An empty My Books shelf says so, instead of "No books found"; filter and
+  sort labels and the cover progress badge are larger (9-11px, were 7-9px).
+
 ## v199 — 2026-10-05
 
 - Read Aloud now hands downloaded lookahead audio directly to the existing

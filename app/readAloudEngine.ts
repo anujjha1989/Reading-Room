@@ -22,7 +22,7 @@ type ReaderState = {
 };
 type Block = { block: Element; nodes: Array<{ node: Text; at: number }>; text: string };
 type QueueItem = { text: string; range: Range; block: Block; at: number; end: number; startupReady?: boolean };
-type PiperVoice = { id: string; label: string };
+type PiperVoice = { id: string; label: string; speed?: string };
 type SpeechPiece = { text: string; at: number; end: number };
 type HighlightLine = { left: number; right: number; top: number; bottom: number };
 type TestWindow = Window & typeof globalThis & {
@@ -960,7 +960,10 @@ type TestWindow = Window & typeof globalThis & {
   }
 
   function ttsUrl(text: string) {
-    return "/api/tts?v=" + encodeURIComponent(ttsVoice()) + "&t=" + encodeURIComponent(text);
+    // MP3 for the Pi's voices: a seventh of the WAV on the wire. The iPhone's
+    // own voices ("ios:") are made on the phone and keep their native format.
+    var voice = ttsVoice();
+    return "/api/tts?v=" + encodeURIComponent(voice) + "&t=" + encodeURIComponent(text) + (voice.indexOf("ios:") === 0 ? "" : "&f=mp3");
   }
 
   function audioEl() {
@@ -1396,7 +1399,9 @@ type TestWindow = Window & typeof globalThis & {
   function getVoices() {
     var selected = ttsVoice();
     return piperVoices.map(function (voice) {
-      return { label: voice.label, value: voice.id, current: voice.id === selected };
+      // The Pi reports how quickly it can speak each voice; a slow one can
+      // leave gaps between sentences, so say so where the voice is chosen.
+      return { label: voice.label, value: voice.id, current: voice.id === selected, detail: voice.speed === "fast" ? "Fast" : voice.speed === "slow" ? "Slower" : "" };
     });
   }
   function setVoice(value: string) {
@@ -1471,9 +1476,9 @@ type TestWindow = Window & typeof globalThis & {
   // --- Piper voices ---------------------------------------------------------
   function fillVoices() {
     if (piperVoices.length) return;
-    fetch("/api/tts/voices").then(function (r) { return r.json(); }).then(function (d: { voices?: Array<{ id: string; label: string }> }) {
+    fetch("/api/tts/voices").then(function (r) { return r.json(); }).then(function (d: { voices?: Array<{ id: string; label: string; speed?: string }> }) {
       piperVoices = (d.voices || []).map(function (voice) {
-        return { id: String(voice.id || ""), label: String(voice.label || voice.id || "") };
+        return { id: String(voice.id || ""), label: String(voice.label || voice.id || ""), speed: typeof voice.speed === "string" ? voice.speed : "" };
       });
       render();
     }).catch(function () { /* keep the system default */ });

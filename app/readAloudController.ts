@@ -8,7 +8,7 @@ export type ReadAloudState = {
   error?: string;
 };
 
-export type ReadAloudVoice = { label: string; value: string; current: boolean };
+export type ReadAloudVoice = { label: string; value: string; current: boolean; detail?: string };
 
 export type ReadAloudEngine = {
   getState: () => ReadAloudState;
@@ -48,7 +48,7 @@ function sameVoices(a: ReadAloudVoice[], b: ReadAloudVoice[]) {
   return a.length === b.length && a.every((voice, index) => {
     const other = b[index];
     return voice.label === other.label && voice.value === other.value
-      && voice.current === other.current;
+      && voice.current === other.current && voice.detail === other.detail;
   });
 }
 

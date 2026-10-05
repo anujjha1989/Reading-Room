@@ -207,6 +207,21 @@ export default function LibraryClient() {
   const [newListName, setNewListName] = useState("");
 
   // Any change to the query, the filters or the view starts the list again.
+  const moreRef = useRef<HTMLDivElement>(null);
+  // Watches whichever sentinel is currently rendered (it comes and goes with
+  // the filters), so there is one observer however often the list re-renders.
+  const moreWatch = useRef<{ node: Element | null; observer: IntersectionObserver | null }>({ node: null, observer: null });
+  useEffect(() => {
+    const watch = moreWatch.current, node = moreRef.current;
+    if (watch.node === node) return;
+    watch.observer?.disconnect(); watch.observer = null; watch.node = node;
+    if (!node || typeof IntersectionObserver === "undefined") return;
+    watch.observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setVisible((count) => count + 40);
+    }, { rootMargin: "900px 0px" });
+    watch.observer.observe(node);
+  });
+  useEffect(() => () => { moreWatch.current.observer?.disconnect(); }, []);
   useEffect(() => { setVisible(20); }, [query, collection, author, category, series, format, readingStatus, readableOnly, sort, view, shelfFilter]);
 
   // The override layer waits for this before it touches the rendered list.
@@ -760,8 +775,13 @@ export default function LibraryClient() {
           {displayMode === "thumbnails" ? <div className="book-caption"><strong>{book.title}</strong><span className="rr-byline"><small>{book.author || "Author unknown"}</small>{moreButton}</span></div> : <><div className="list-copy"><button onClick={() => openBook(book)} aria-label={`Open ${book.title}${book.author ? ` by ${book.author}` : ""}`}><small>{book.series || book.category || "Book"}</small><strong>{book.title}</strong><em>{book.author || "Author not listed"}</em>{state?.progressLabel && <span>{state.progressLabel}</span>}</button></div>{moreButton}</>}
           {menuFor?.id === book.id && !menuFor.where && <BookMenu book={book} />}
         </article>;
-      })}</div> : <div className="empty"><b>No books found</b><p>Try clearing one or more filters.</p><button onClick={() => { setQuery(""); clearFilters(); }}>Reset search</button></div>}
-      {visible < filtered.length && <button className="load" onClick={() => setVisible((count) => count + 20)}>Show more books</button>}
+      })}</div> : (view === "favorites" && !query && activeFilters.length === 0
+        // An empty shelf of your own is not a failed search.
+        ? <div className="empty"><b>{myShelf === "favorites" ? "No favorites yet" : myShelf === "want" ? "Nothing on Want to Read yet" : myShelf === "finished" ? "No finished books yet" : "This collection is empty"}</b><p>Use the ⋯ on any book to add it here.</p></div>
+        : <div className="empty"><b>No books found</b><p>Try clearing one or more filters.</p><button onClick={() => { setQuery(""); clearFilters(); }}>Reset search</button></div>)}
+      {/* More books arrive as the end of the list comes into view; the button
+          stays for keyboards and for browsers without the observer. */}
+      {visible < filtered.length && <><div ref={moreRef} aria-hidden="true" style={{ height: 1 }} /><button className="load" onClick={() => setVisible((count) => count + 40)}>Show more books</button></>}
     </section>
 
     {seriesFocus && <div className="modal-backdrop" onMouseDown={() => setSeriesFocus(null)} role="presentation"><ModalDialog className="modal series-modal" role="dialog" aria-modal="true" aria-labelledby="series-title" onMouseDown={(event) => event.stopPropagation()}><button autoFocus className="close" onClick={() => setSeriesFocus(null)} aria-label="Close">×</button><p className="eyebrow">READ IN ORDER</p><h2 id="series-title">{seriesFocus}</h2><p className="modal-author">{seriesGroups.get(seriesFocus)?.length || 0} titles in this series</p><div className="series-list">{(seriesGroups.get(seriesFocus) || []).map((book, index) => <button key={book.id} onClick={() => openBook(book)}><b>{String(index + 1).padStart(2, "0")}</b><span><strong>{book.title}</strong><small>{book.author || book.formats.join(" · ")}{savedStates[book.id]?.progressLabel ? ` · ${savedStates[book.id].progressLabel}` : ""}</small></span><em>Read →</em></button>)}</div></ModalDialog></div>}

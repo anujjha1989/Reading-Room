@@ -70,3 +70,31 @@ test("shared TTS route preserves Piper, routes Kokoro, deduplicates and serves c
   const invalid = await fetch(base + "/api/tts?v=../../bad&t=Different"); await invalid.arrayBuffer();
   assert.equal(calls[2].voice, "en_GB-alba-medium");
 });
+
+test("narration is delivered as MP3 on request, falls back to WAV, and reports voice speed as text", async t => {
+  const directory = await mkdtemp(join(tmpdir(), "tts-mp3-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  process.env.READING_ROOM_TTS = directory;
+  const { createTtsRoute, voiceSpeed } = await import(`../server/rr-tts.mjs?mp3=${Date.now()}`);
+  let synthesized = 0, encoded = 0, broken = false;
+  const pool = { synthesize: async (voice, text, out) => { synthesized++; await writeFile(out, Buffer.from("RIFF-test-WAVE-audio")); } };
+  const encode = async (wav, mp3) => { encoded++; if (broken) throw new Error("no encoder"); await writeFile(mp3, Buffer.from("ID3-test-mp3")); };
+  const route = createTtsRoute({ piperPool: pool, kokoroPool: pool, catalogue: async () => [{ id: "en_US-ryan-high", label: "Ryan" }], encode });
+  const server = createServer((req, res) => { void route(req, res, new URL(req.url, "http://localhost")); });
+  server.listen(0, "127.0.0.1"); await once(server, "listening");
+  t.after(() => server.close()); const base = `http://127.0.0.1:${server.address().port}`;
+  const first = await fetch(base + "/api/tts?v=en_US-ryan-high&t=Hello&f=mp3");
+  assert.equal(first.headers.get("content-type"), "audio/mpeg"); assert.equal(await first.text(), "ID3-test-mp3");
+  const again = await fetch(base + "/api/tts?v=en_US-ryan-high&t=Hello&f=mp3"); await again.arrayBuffer();
+  assert.equal(synthesized, 1); assert.equal(encoded, 1, "the MP3 is made once and reused");
+  const plain = await fetch(base + "/api/tts?v=en_US-ryan-high&t=Hello");
+  assert.equal(plain.headers.get("content-type"), "audio/wav", "callers that do not ask still get WAV");
+  await plain.arrayBuffer();
+  broken = true;
+  const fallback = await fetch(base + "/api/tts?v=en_US-ryan-high&t=Other&f=mp3");
+  assert.equal(fallback.status, 200); assert.equal(fallback.headers.get("content-type"), "audio/wav");
+  await fallback.arrayBuffer();
+  // The iPhone app decodes the voice list as string fields only.
+  assert.equal(voiceSpeed("en_US-ryan-high"), "slow"); assert.equal(voiceSpeed("en_US-hfc_female-medium"), "fast");
+  assert.equal(voiceSpeed("kokoro-af_heart"), "steady");
+});

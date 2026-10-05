@@ -15,6 +15,7 @@
 // (or going back a sentence) costs nothing.
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
+import { spawn } from "node:child_process";
 import { mkdir, readdir, rename, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { createSynthesisQueue } from "./synthesis-queue.mjs";
@@ -27,10 +28,48 @@ const TTS_DIR = process.env.READING_ROOM_TTS || "/mnt/seagate/ReadingRoom/tts";
 const VOICE_DIR = join(TTS_DIR, "voices");
 const CACHE_DIR = join(TTS_DIR, "cache");
 
+const FFMPEG = process.env.READING_ROOM_FFMPEG || "/usr/bin/ffmpeg";
 const MAX_TEXT = 1200;          // a sentence or two; the client chunks already
 const MAX_CONCURRENT = 2;       // leave the Pi some room for serving books
 
 const synthesis = createSynthesisQueue({ concurrency: MAX_CONCURRENT, maxPending: 32 });
+// Piper's "high" models already use every core: measured on this Pi 5, two at
+// once produced no more audio per second (1.06x real time against 1.16x for
+// one) and made each clip take 25 s instead of 11 s. One at a time gets the
+// next sentence to the listener in half the time.
+const slowSynthesis = createSynthesisQueue({ concurrency: 1, maxPending: 32 });
+const queueFor = voice => voice.startsWith("kokoro-") ? kokoroSynthesis : /-high$/.test(voice) ? slowSynthesis : synthesis;
+
+// How fast each voice is on this Pi, as audio seconds per second of work
+// (so 1.0 only just keeps up with listening at 1x). Seeded from measurements,
+// then kept current from real synthesis. Reported to the reader as a word,
+// never a number: the iPhone app decodes the voice list as string fields only.
+const pace = new Map();
+const seededPace = voice => voice.startsWith("kokoro-") ? 1.6 : /-high$/.test(voice) ? 1.1 : 5;
+const sampleRate = voice => voice.startsWith("kokoro-") ? 24000 : 22050;
+function notePace(voice, wavBytes, milliseconds) {
+  if (!(milliseconds > 200) || !(wavBytes > 44)) return;
+  const sample = (wavBytes - 44) / (sampleRate(voice) * 2) / (milliseconds / 1000);
+  if (!Number.isFinite(sample) || sample <= 0) return;
+  pace.set(voice, (pace.get(voice) ?? seededPace(voice)) * 0.8 + sample * 0.2);
+}
+export const voiceSpeed = voice => {
+  const value = pace.get(voice) ?? seededPace(voice);
+  return value >= 3 ? "fast" : value >= 1.4 ? "steady" : "slow";
+};
+
+// Narration travels as MP3 when the reader asks for it (f=mp3): about a
+// seventh of the WAV, which matters on the public connection. The WAV stays
+// the source of truth; a failed or missing encoder just serves the WAV.
+function encodeMp3(wav, mp3) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-i", wav, "-ac", "1", "-c:a", "libmp3lame", "-b:a", "48k", "-f", "mp3", mp3], { stdio: "ignore" });
+    const timer = setTimeout(() => child.kill("SIGKILL"), 30_000);
+    child.once("error", error => { clearTimeout(timer); reject(error); });
+    child.once("close", code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}`)); });
+  });
+}
+const encoding = new Map();
 const piper = createPiperPool({ executable: PIPER, voiceDir: VOICE_DIR, size: MAX_CONCURRENT });
 // Kokoro's larger model is shared across voices; one process avoids CPU and
 // memory contention. It keeps the same priority/deduplication scheduler.
@@ -70,10 +109,11 @@ const label = (id) => {
 };
 
 async function voiceCatalogue() {
-  return [...(await voices()).map(id => ({ id, label: label(id) })), ...await installedKokoroVoices()];
+  return [...(await voices()).map(id => ({ id, label: label(id) })), ...await installedKokoroVoices()]
+    .map(voice => ({ ...voice, speed: voiceSpeed(voice.id) }));
 }
 
-export function createTtsRoute({ piperPool = piper, kokoroPool = kokoro, catalogue = voiceCatalogue } = {}) {
+export function createTtsRoute({ piperPool = piper, kokoroPool = kokoro, catalogue = voiceCatalogue, encode = encodeMp3 } = {}) {
 return async function ttsRoute(request, response, url) {
   if (url.pathname === "/api/tts/voices" && request.method === "GET") {
     json(response, 200, { voices: await catalogue() });
@@ -93,9 +133,31 @@ return async function ttsRoute(request, response, url) {
 
   const key = createHash("sha1").update(`${voice}\0${text}`).digest("hex");
   const dir = join(CACHE_DIR, voice);
-  const file = join(dir, `${key}.wav`);
+  const wav = join(dir, `${key}.wav`);
+  const wantsMp3 = url.searchParams.get("f") === "mp3";
+  let file = wav, type = "audio/wav";
+
+  // Make (once) and switch to the MP3 beside a WAV that already exists.
+  const useMp3 = async () => {
+    if (!wantsMp3) return;
+    const mp3 = join(dir, `${key}.mp3`);
+    try { await stat(mp3); } catch {
+      let job = encoding.get(mp3);
+      if (!job) {
+        const tmp = join(dir, `.${key}.${process.pid}.${Date.now()}.mp3`);
+        job = encode(wav, tmp).then(() => rename(tmp, mp3)).then(async () => { cache.wrote((await stat(mp3)).size); })
+          .catch(async error => { try { await unlink(tmp); } catch {} throw error; })
+          .finally(() => encoding.delete(mp3));
+        encoding.set(mp3, job);
+      }
+      try { await job; } catch { return; }       // no encoder: the WAV still plays
+    }
+    file = mp3; type = "audio/mpeg";
+  };
 
   const send = async () => {
+    await stat(wav);
+    await useMp3();
     const release = await cache.pin(file);
     let handedOff = false;
     try {
@@ -110,7 +172,7 @@ return async function ttsRoute(request, response, url) {
     };
     // Content-addressed by voice + text, so it can never go stale.
     const base = {
-      "content-type": "audio/wav",
+      "content-type": type,
       "cache-control": "public, max-age=31536000, immutable",
       "accept-ranges": "bytes",
     };
@@ -150,15 +212,18 @@ return async function ttsRoute(request, response, url) {
   // work already in progress and never loses priority to later prefetches.
   let lease;
   try {
-    lease = (voice.startsWith("kokoro-") ? kokoroSynthesis : synthesis).acquire(key, async () => {
+    lease = queueFor(voice).acquire(key, async () => {
         // The file may have appeared while this job waited for a Piper slot.
-        try { await stat(file); return; } catch {}
+        try { await stat(wav); return; } catch {}
         await mkdir(dir, { recursive: true });
         const tmp = join(dir, `.${key}.${process.pid}.${Date.now()}.wav`);
         try {
+          const started = Date.now();
           await (voice.startsWith("kokoro-") ? kokoroPool : piperPool).synthesize(voice, text, tmp);
-          await rename(tmp, file);
-          cache.wrote((await stat(file)).size);
+          await rename(tmp, wav);
+          const bytes = (await stat(wav)).size;
+          notePace(voice, bytes, Date.now() - started);
+          cache.wrote(bytes);
         } catch (err) {
           try { await unlink(tmp); } catch {}
           throw err;
