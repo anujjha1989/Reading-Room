@@ -16,6 +16,9 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
   All existing visible controls, themes, narration and touch gestures remain.
 - Added Chrome/WebKit desktop input checks in Pages/Scroll modes and timer
   keyboard checks to the required release gates. Book scripts remain disabled.
+- The release check exposed a MOBI iframe-readiness race during mode changes.
+  A pinned, reproducible dependency patch defers layout until the chapter body
+  exists; its normal load handler then renders it. No dependency upgrade.
 
 ## v203 — 2026-10-05
 

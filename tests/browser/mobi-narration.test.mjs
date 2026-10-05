@@ -6,11 +6,13 @@ const pw = await import(process.env.HOME_BOOKS_PLAYWRIGHT ? pathToFileURL(proces
 // Real locally stored MOBI bytes; catalogue/progress and audio are isolated.
 const id = "L091b7166ee02f38cbf7db2f249d9844a9873077c";
 for (const engine of ["chromium", "webkit"]) test(`${engine}: MOBI Previous crosses a section boundary and preserves paused mode changes`, { timeout: 60_000 }, async t => {
-  const preview = await reliabilityPreview(); t.after(() => preview.close());
+  const preview = process.env.HOME_BOOKS_MOBI_ORIGIN
+    ? { url:process.env.HOME_BOOKS_MOBI_ORIGIN, close:async () => {} }
+    : await reliabilityPreview(); t.after(() => preview.close());
   const browser = await pw[engine].launch(engine === "chromium" && process.env.READING_ROOM_CHROME ? { executablePath: process.env.READING_ROOM_CHROME } : {});
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 393, height: 852 }, serviceWorkers: "block" });
-  const errors = []; page.on("pageerror", e => errors.push(e.message));
+  const errors = []; page.on("pageerror", e => { errors.push(e.message); if (process.env.HOME_BOOKS_MOBI_DIAGNOSTIC) console.error(e.stack); });
   await page.route("**/catalog.json", r => r.fulfill({ json: [{ id, title: "Season of the Machete", format: "MOBI", source: "Local", url: `/api/book/${id}` }] }));
   await page.route("**/api/library-state", r => r.fulfill({ json: { states: [] } }));
   await page.route("**/api/tts?**", r => r.fulfill({ body: "fixture" }));
@@ -63,6 +65,16 @@ for (const engine of ["chromium", "webkit"]) test(`${engine}: MOBI Previous cros
   for (const mode of ["Pages", "Scroll"]) {
     await page.getByRole("radio", { name: mode, exact: true }).click();
     await page.waitForFunction(() => document.querySelector("foliate-view")?.renderer?.getContents?.().some(item => item.doc.querySelector('.rr-reading-highlight-overlay')));
+    // Deterministically reproduce the navigation interval that exposed the
+    // renderer's body-null resize race. Restore the same document immediately;
+    // no reading state or book bytes are modified by this test.
+    await page.evaluate(() => {
+      const renderer = document.querySelector('foliate-view').renderer;
+      const doc = renderer.getContents()[0].doc;
+      Object.defineProperty(doc,'body',{configurable:true,get:() => null});
+      try { renderer.render(); }
+      finally { delete doc.body; renderer.render(); }
+    });
   }
   assert.deepEqual(errors, []);
   await page.getByRole("button", { name: "Close book", exact: true }).last().click();

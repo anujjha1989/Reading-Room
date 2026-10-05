@@ -1,0 +1,32 @@
+diff --git a/paginator.js b/paginator.js
+index 95c4d0dae16bd96c3ace91bbd87fd1bea1c9f571..1c9d2d9ec1e07d8b42cd97a88f32056f10495f5c 100644
+--- a/paginator.js
++++ b/paginator.js
+@@ -275,7 +275,9 @@ class View {
+         })
+     }
+     render(layout) {
+-        if (!layout || !this.document) return
++        // Resize/mode changes can arrive between iframe navigation and load.
++        // The load handler renders again once this chapter has a body.
++        if (!layout || !this.document?.body) return
+         this.#column = layout.flow !== 'scrolled'
+         this.#layout = layout
+         if (this.#column) this.columnize(layout)
+@@ -352,6 +354,7 @@ class View {
+         }
+     }
+     expand() {
++        if (!this.document?.body) return
+         const { documentElement } = this.document
+         if (this.#column) {
+             const side = this.#vertical ? 'height' : 'width'
+@@ -770,7 +773,7 @@ export class Paginator extends HTMLElement {
+         return { height, width, margin, gap, columnWidth }
+     }
+     render() {
+-        if (!this.#view) return
++        if (!this.#view?.document?.body) return
+         this.#view.render(this.#beforeRender({
+             vertical: this.#vertical,
+             rtl: this.#rtl,
