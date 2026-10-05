@@ -2,6 +2,12 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v207 — 2026-10-05
+
+- Read Aloud no longer pauses in the middle of sentences in books whose source file is hard-wrapped (a line break every ~80 characters, common in converted EPUBs). Those invisible line breaks were being treated as sentence ends, so clips began and ended wherever the file happened to wrap. They are now read as the spaces they are; blocks that really display their line breaks (verse, preformatted text) keep them.
+- A sentence too long for one clip is now cut at the last comma, semicolon, colon or dash, and between two plain words only when it has no such pause at all.
+- Measured on Atonement: clips ending mid-phrase fell from 1,487 of 4,595 to 5 of 4,913. Affects every voice (Pi and iPhone). Highlight positions are unchanged.
+
 ## v206 — 2026-10-05
 
 - Library thumbnails: author names get about three times the width before truncating. The name was still reserving space for a ⋯ button that used to overlap it, on top of the button's own touch area; the ⋯ pill now lines up with the cover's right edge. Its 44px touch target is unchanged.

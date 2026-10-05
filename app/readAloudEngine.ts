@@ -330,7 +330,13 @@ type TestWindow = Window & typeof globalThis & {
   }
 
   // --- collect the prose, in order -----------------------------------------
-  function speechChunks(text: string, lang: string, limit: number): SpeechPiece[] {
+  function speechChunks(text: string, lang: string, limit: number, keepLines?: boolean): SpeechPiece[] {
+    // Many EPUBs hard-wrap their source every ~80 characters. Those newlines
+    // are ordinary spaces on the page, but a sentence segmenter treats each as
+    // the end of a sentence and the voice engine pauses on it, so narration
+    // broke wherever the file happened to wrap. Swap them one-for-one (offsets
+    // must not move) unless the block really displays its line breaks.
+    if (!keepLines) text = text.replace(/[\t\n\r\f\v\u2028\u2029]/g, " ");
     var sentences: Array<{ text: string; at: number }> = [], segmenter: Intl.Segmenter | null = null;
     try { segmenter = new Intl.Segmenter(lang || "en", { granularity: "sentence" }); } catch (e) { segmenter = null; }
     if (segmenter) {
@@ -347,9 +353,16 @@ type TestWindow = Window & typeof globalThis & {
       while (sentence.text.length - pos > limit) {
         var cut = pos + limit;
         var windowText = sentence.text.slice(pos, cut + 1);
-        var punctuation = Math.max(windowText.lastIndexOf(", "), windowText.lastIndexOf("; "), windowText.lastIndexOf(": "));
+        // A sentence too long for one clip is cut at the last pause a reader
+        // would make anyway - comma, semicolon, colon or dash - and only
+        // between two plain words when the whole window has no such pause.
+        var pause = /[,;:\u2014\u2013]["'\u201d\u2019)]*(?=\s|[^\s\d])\s*/g, hit: RegExpExecArray | null, punctuation = -1;
+        while ((hit = pause.exec(windowText))) {
+          var after = hit.index + hit[0].length;
+          if (after <= limit && after > limit * 0.3) punctuation = after;
+        }
         var space = windowText.lastIndexOf(" ");
-        var localCut = punctuation > limit * 0.55 ? punctuation + 1 : space > limit * 0.55 ? space + 1 : limit;
+        var localCut = punctuation > 0 ? punctuation : space > limit * 0.55 ? space + 1 : limit;
         pieces.push({ text: sentence.text.slice(pos, pos + localCut), at: sentence.at + pos });
         pos += localCut;
       }
@@ -435,7 +448,8 @@ type TestWindow = Window & typeof globalThis & {
     for (var i = 0; i < blocks.length; i += 1) {
       var b = blocks[i];
       if (!isProse(b.text)) continue;
-      var pieces = speechChunks(b.text, lang, MAX_CHARS);
+      var blockSpace = doc.defaultView?.getComputedStyle(b.block).whiteSpace || "";
+      var pieces = speechChunks(b.text, lang, MAX_CHARS, /^(pre|break-spaces)/.test(blockSpace));
       for (var j = 0; j < pieces.length; j += 1) {
         var p = pieces[j];
         if (!p.text.trim()) continue;
