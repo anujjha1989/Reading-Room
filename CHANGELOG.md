@@ -13,6 +13,11 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
   sentence handoffs, pause/resume and buffer cleanup to the release gates.
 - Public browser verification can use an explicit HTTPS proxy when competing
   VPNs prevent direct access; it retains the actual HTTPS URL and certificate.
+- Passed 39 root tests, 38 browser checks, and live LAN/public release gates.
+  In the actual Trevor collection at 1x, public WebKit clip handoffs improved
+  from 1.8–1.9 seconds to 88–101 ms with Ryan and HFC Female. Natural audio
+  pauses remain; light/dark modes and pause/resume passed. Physical iPhone
+  listening and locked-screen playback were not independently tested.
 
 ## v198 — 2026-10-04
 
