@@ -2,6 +2,10 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v202 — 2026-10-05
+
+- The Home catalogue-failure notice now clears the fixed header instead of sitting directly beneath it.
+
 ## v201 — 2026-10-05
 
 - Home now says so when the catalogue cannot be loaded, with a Retry button, instead of showing an empty page (the message previously lived only on the Library tab).
