@@ -205,7 +205,7 @@ export function mountReaderInteractions() {
     var touchDevice = navigator.maxTouchPoints > 0;
     var stage = document.querySelector(".epub-stage");
     var scrollHost = !pagesMode() && document.querySelector(".epub-container, .pdf-scroll, .comic-scroll");
-    var enabled = touchDevice && !!shell() && !!stage && (pagesMode() || !!scrollHost);
+    var enabled = !!shell() && !!stage && (pagesMode() || !!scrollHost);
     if (!enabled) {
       if (tapLayer) tapLayer.style.display = "none";
       return;
@@ -222,6 +222,7 @@ export function mountReaderInteractions() {
         button.addEventListener("click", function (event) {
           event.preventDefault();
           event.stopPropagation();
+          if (!touchDevice) shell()?.focus({preventScroll:true});
           // A link under the finger wins over turning the page or toggling
           // the chrome — checked before the repeat-tap guard so a link never
           // gets swallowed by it either.
@@ -284,6 +285,52 @@ export function mountReaderInteractions() {
         } else if (Math.abs(dx) > SLOP || Math.abs(dy) > SLOP) lastActed = Date.now();
       }, {passive:false});
       tapLayer.addEventListener("touchcancel", function () { swipe = null; cancelHold(); });
+      // Sandboxed book callbacks are unavailable in Safari. Keep mouse input
+      // on the same host surface as touch, but preserve drag/double-click
+      // selection in the book document instead of treating it as a page tap.
+      var mouseSelection = null;
+      function caretAt(x, y) {
+        var docs = documents();
+        for (var d of docs) {
+          var frame = d.defaultView?.frameElement;
+          if (!frame) continue;
+          var rect = frame.getBoundingClientRect();
+          if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) continue;
+          var range = d.caretRangeFromPoint?.((x-rect.left)*frame.clientWidth/rect.width, (y-rect.top)*frame.clientHeight/rect.height);
+          if (range && range.startContainer.nodeType === 3) return {doc:d,range:range};
+        }
+        return null;
+      }
+      tapLayer.addEventListener("pointerdown", function (event) {
+        if (event.pointerType !== "mouse" || event.button !== 0) return;
+        var caret = caretAt(event.clientX,event.clientY);
+        mouseSelection = caret ? { ...caret, x:event.clientX, y:event.clientY, dragging:false } : null;
+        event.target.setPointerCapture(event.pointerId);
+      });
+      tapLayer.addEventListener("pointermove", function (event) {
+        if (!mouseSelection || !(event.buttons & 1)) return;
+        if (Math.hypot(event.clientX-mouseSelection.x,event.clientY-mouseSelection.y) <= SLOP) return;
+        var caret = caretAt(event.clientX,event.clientY);
+        if (!caret || caret.doc !== mouseSelection.doc) return;
+        mouseSelection.dragging = true;
+        var range = mouseSelection.range;
+        caret.doc.getSelection()?.setBaseAndExtent(range.startContainer,range.startOffset,caret.range.startContainer,caret.range.startOffset);
+        lastActed = Date.now();
+      });
+      tapLayer.addEventListener("pointerup", function () {
+        if (mouseSelection?.dragging) {
+          lastActed = Date.now();
+          shell()?.focus({preventScroll:true});
+        }
+        mouseSelection = null;
+      });
+      tapLayer.addEventListener("pointercancel", function () { mouseSelection = null; });
+      tapLayer.addEventListener("dblclick", function (event) {
+        if (typeof window.__rrLongPress === "function" && window.__rrLongPress(event.clientX,event.clientY)) {
+          lastActed = Date.now();
+          shell()?.focus({preventScroll:true});
+        }
+      });
       // Selecting text lifts the layer; clearing the selection puts it back.
       window.__rrTextMode = function (on) {
         textMode = !!on;
@@ -350,6 +397,24 @@ export function mountReaderInteractions() {
     if (!event.repeat) turnPage(direction);
   }
 
+  function readerKey(event) {
+    if (event.defaultPrevented || !shell() || sheetOpen() || root.classList.contains("rr-native-panel-open") || textMode || event.altKey || event.ctrlKey || event.metaKey) return;
+    var target = event.target;
+    if (overInteractive(target)) return;
+    if (documents().some(function (doc) { return !!String(doc.getSelection?.() || "").trim(); })) return;
+    var direction = /^(ArrowRight|ArrowDown|PageDown)$/.test(event.key) ? 1
+      : /^(ArrowLeft|ArrowUp|PageUp)$/.test(event.key) ? -1
+      : event.key === " " && !overInteractive(target) ? (event.shiftKey ? -1 : 1) : 0;
+    if (direction) {
+      event.preventDefault(); event.stopPropagation();
+      turnPage(direction);
+    } else if (event.key.toLowerCase() === "m" && !event.shiftKey) {
+      event.preventDefault(); event.stopPropagation();
+      if (hidden) setHidden(false);
+      document.querySelector(".rr-react-sheet-trigger")?.click();
+    }
+  }
+
   // Safari may cancel pointer events when the ebook engine handles touch.
   // Track touch independently: a pointercancel must not erase a valid touch.
   // Book iframe events do not bubble to the host, so bind each document too.
@@ -381,6 +446,7 @@ export function mountReaderInteractions() {
       target.addEventListener(family + suffix[2], function () { start = null; debug(family + " cancelled"); }, {capture: true, passive: true, signal: signal});
     });
     target.addEventListener("keydown", volumeKey, {capture: true, signal: signal});
+    target.addEventListener("keydown", readerKey, {capture: true, signal: signal});
     debug("Bound " + tag);
     return 1;
   }
@@ -421,11 +487,12 @@ export function mountReaderInteractions() {
   // listener would otherwise close the entire sheet before its click runs.
 
   document.addEventListener("keydown", function (event) {
-    if (event.key !== "Escape") return;
-    if (sheetOpen()) closeSheet();
-    else if (hidden) setHidden(false);
+    if (event.key !== "Escape" || event.defaultPrevented) return;
+    if (sheetOpen()) { event.preventDefault(); closeSheet(); }
+    else if (hidden) { event.preventDefault(); setHidden(false); }
   }, { signal: signal });
   document.addEventListener("keydown", volumeKey, {capture: true, signal: signal});
+  document.addEventListener("keydown", readerKey, {capture: true, signal: signal});
 
   // --- Keep <html> in step with whatever the reader is doing ----------------
   var queued = false;

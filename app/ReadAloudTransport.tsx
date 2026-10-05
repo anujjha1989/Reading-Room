@@ -27,7 +27,13 @@ export default function ReadAloudTransport({ api }: { api?: ReadAloudApi }) {
   <div className="rr-read-extras rr-visible" role="group" aria-label="Reading position and sleep timer">
     {api.sleepMinutes > 0 && <button type="button" className="rr-read-glass rr-read-timer"
       aria-label={`Sleep timer: ${api.sleepMinutes} minutes left. Tap to add 30 minutes; hold for 3 seconds to cancel.`}
-      title="Tap: +30 min · Hold 3 seconds: cancel timer"
+      title="Click or Enter: +30 min · Hold 3 seconds or Shift+Enter: cancel timer"
+      onKeyDown={event => {
+        if (event.key === "Enter" || event.key === " ") cancelled.current = false;
+        if (event.key === "Enter" && event.shiftKey) {
+          event.preventDefault(); releaseHold(); api.clearSleep(); haptic("select");
+        }
+      }}
       onPointerDown={event => {
         if (event.button !== 0) return;
         releaseHold(); cancelled.current = false;

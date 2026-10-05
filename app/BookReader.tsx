@@ -1167,23 +1167,25 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) return;
+      if (event.defaultPrevented) return;
       if (event.key === "Escape") {
-        if (panel) setPanel(null);
+        if (panel) backToReadingMenu();
+        else if (reactSheetOpen) return;
         else onClose();
       }
-      if (isBookReader && event.key === "ArrowLeft") previous();
-      if (isBookReader && event.key === "ArrowRight") next();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isBookReader, onClose, panel]);
+  }, [onClose, panel, reactSheetOpen]);
 
   // Keep keyboard focus inside the reader so Tab cannot reach the frozen library behind it.
   useEffect(() => {
     const shell = shellRef.current;
     if (!shell) return;
     const activeShell: HTMLElement = shell;
+    // A desktop cover click otherwise leaves focus on the frozen library.
+    // Start keyboard reading immediately, without requiring a page click.
+    if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) activeShell.focus({ preventScroll: true });
     const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
     function handleFocusTrap(event: KeyboardEvent) {
       if (event.key !== "Tab") return;
@@ -1478,7 +1480,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
   const sheetProgress = left.book ? `${left.book} left in book` : progress;
 
   return (
-    <section className={`reader-shell reader-theme-${theme}`} ref={shellRef} role="dialog" aria-modal="true" aria-labelledby="reader-title">
+    <section className={`reader-shell reader-theme-${theme}`} ref={shellRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="reader-title">
       <header className="reader-header">
         <div><h1 id="reader-title">{displayTitle}</h1></div>
         <div className="reader-actions">
@@ -1535,6 +1537,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         {isReflowable && <ReaderAnnotations adapter={annotationAdapter} highlights={highlights}
           onChange={(next) => onHighlightsChange?.(next)} title={displayTitle} author={author} host={readingSheetHost} />}
         <button type="button" className="rr-react-sheet-trigger"
+          title="Reading settings (M)" aria-keyshortcuts="M"
           aria-label={reactSheetOpen ? "Close reading settings" : "Open reading settings"}
           aria-expanded={reactSheetOpen}
           onClick={(event) => {

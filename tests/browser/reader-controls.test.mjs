@@ -119,6 +119,18 @@ for (const engine of ["chromium", "webkit"]) test(`${engine}: current reader con
   await page.waitForTimeout(3200);
   await page.mouse.up();
   assert.equal(await timer.count(), 0, 'three-second hold removes timer');
+  await menu.click();
+  await page.locator('[data-view="aloud"]').waitFor();
+  await page.getByRole('button', { name:'Add 30 minutes', exact:true }).click();
+  await menu.click();
+  await page.locator('section[role="dialog"][data-view]').waitFor({state:'detached'});
+  await timer.waitFor();
+  await timer.focus(); await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.querySelector('.rr-read-timer span')?.textContent === '60');
+  assert.equal(await timer.locator('span').textContent(), '60', 'keyboard activation adds thirty minutes');
+  await page.keyboard.press('Shift+Enter');
+  await timer.waitFor({state:'detached'});
+  assert.equal(await timer.count(), 0, 'keyboard cancellation removes timer without requiring a hold');
   assert.equal(await page.getByRole('button', { name:'Resume read aloud', exact:true }).count(), 1, 'timer cancellation does not stop narration');
   const uncaptured = await page.evaluate(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "AudioVolumeDown", bubbles: true, cancelable: true })));
   assert.equal(uncaptured, true, "paused narration must leave volume keys to the device");

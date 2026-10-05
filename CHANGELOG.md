@@ -2,6 +2,21 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v204 — 2026-10-05
+
+- The sandbox-safe page input surface now supports mouse as well as touch:
+  click page edges, click the centre to show/hide controls, drag to select
+  text, or double-click a word for the existing highlight menu.
+- Desktop arrows, Page Up/Down and Space/Shift+Space move through the reader;
+  Scroll mode advances the viewport rather than skipping a chapter. M opens
+  reading settings. Editing fields, selected text and focused controls retain
+  their normal keyboard behaviour. Escape returns from search/marks to the
+  reading menu, closes it, then closes the book.
+- The sleep timer also supports Enter to extend and Shift+Enter to cancel.
+  All existing visible controls, themes, narration and touch gestures remain.
+- Added Chrome/WebKit desktop input checks in Pages/Scroll modes and timer
+  keyboard checks to the required release gates. Book scripts remain disabled.
+
 ## v203 — 2026-10-05
 
 - Corrected desktop navigation to centred icon-and-label rows with 44px
