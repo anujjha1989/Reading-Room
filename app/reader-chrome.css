@@ -1258,6 +1258,13 @@ html .rr-byline > small {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* In the row, so no absolute positioning and nothing to drift. */
+/* The ⋯ now sits in the author row, so the author no longer needs the 34px
+   it once reserved for an overlaid button. The button's 44px touch target has
+   9px of clear space either side of the visible pill: let that overhang the
+   card so the pill lines up with the cover edge and the name gets the room. */
+html .catalog .book-caption .rr-byline > small { padding-right: 0; }
+html .rr-byline { gap: 2px; }
+html .rr-byline .rr-card-more { margin-right: -9px; }
 
 /* --- shelf card: overlay the ⋯ on the author line ------------------------ */
 html .rr-shelf-cell .shelf-book > strong {

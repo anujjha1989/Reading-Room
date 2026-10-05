@@ -2,6 +2,10 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v206 — 2026-10-05
+
+- Library thumbnails: author names get about three times the width before truncating. The name was still reserving space for a ⋯ button that used to overlap it, on top of the button's own touch area; the ⋯ pill now lines up with the cover's right edge. Its 44px touch target is unchanged.
+
 ## v205 — 2026-10-05
 
 - Desktop Library: the search field no longer runs off the right edge of the window. The frozen header kept a full-window width after being moved beside the sidebar; it now ends where the book grid ends, at every desktop width. Phone and tablet layouts are unchanged.
