@@ -19,6 +19,10 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 - The release check exposed a MOBI iframe-readiness race during mode changes.
   A pinned, reproducible dependency patch defers layout until the chapter body
   exists; its normal load handler then renders it. No dependency upgrade.
+- Verified 44 browser checks, LAN/public asset and hydration gates, and real
+  Amsterdam mouse/keyboard/search/wheel input on public HTTPS in WebKit,
+  in Pages/Scroll and light/dark themes. Test saves were isolated from the
+  user's progress and annotations; no physical iPhone retest was required.
 
 ## v203 — 2026-10-05
 
