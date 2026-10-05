@@ -257,7 +257,7 @@ export default function ReadingSheet(props: ReadingSheetProps) {
     const frame = requestAnimationFrame(() => {
       const panel = panelRef.current;
       if (!panel || panel.contains(document.activeElement)) return;
-      panel.querySelector<HTMLElement>("button:not([disabled])")?.focus({ preventScroll: true });
+      panel.focus({ preventScroll: true });
     });
     return () => {
       cancelAnimationFrame(frame);
@@ -297,6 +297,7 @@ export default function ReadingSheet(props: ReadingSheetProps) {
       data-motion-state={open ? "open" : "closed"}
       role="dialog"
       aria-modal="false"
+      tabIndex={-1}
       aria-label={view === "menu" ? "Reading menu" : view}
     >
       {view === "menu" && (

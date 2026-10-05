@@ -458,3 +458,6 @@
   .row, .tile, .swatch, .segment > button { transition: none; }
   .row:active, .tile:active, .swatch:active { transform: none; }
 }
+
+/* The panel takes focus when it opens so Tab continues into its controls. */
+.sheet:focus { outline: none; }
