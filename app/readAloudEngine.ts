@@ -197,7 +197,7 @@ type TestWindow = Window & typeof globalThis & {
               var rect;
               try { rect = range.getBoundingClientRect(); } catch (e) { return; }
               if (!rect || (!rect.height && !rect.width)) return;
-              var wanted = headerBottom() + 20;
+              var wanted = followTop();
               // Already within a sensible band: leave it alone rather than
               // fighting foliate's own scrolling.
               if (Math.abs(rect.top - wanted) <= 24) return;
@@ -260,7 +260,7 @@ type TestWindow = Window & typeof globalThis & {
     // just below the reader header, rather than at the centre. This prevents
     // the "reverts to top" effect: centering a range that has gone off the
     // bottom produces a large backwards scroll; top-aligning it does not.
-    var topPad = headerBottom() + 20;
+    var topPad = followTop();
 
     // Set scrollTop directly rather than trusting Element.scrollTo/scrollBy.
     // Mobile Safari exposes both methods on several EPUB wrapper elements but
@@ -608,6 +608,27 @@ type TestWindow = Window & typeof globalThis & {
     return r.bottom > 0 ? r.bottom : 0;
   }
 
+  // Narration follows the text inside one band: the same clear gap below the
+  // notch (or header) as above the Home indicator. A sentence is brought to
+  // the top edge of the band, and the page moves on only when the sentence
+  // being read would cross its bottom edge.
+  var FOLLOW_GAP = 24;
+  var insetProbe: HTMLElement | null = null;
+  function safeInset(side: "top" | "bottom") {
+    try {
+      if (!insetProbe || !insetProbe.isConnected) {
+        insetProbe = document.createElement("div");
+        insetProbe.setAttribute("aria-hidden", "true");
+        insetProbe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)";
+        document.documentElement.appendChild(insetProbe);
+      }
+      var style = getComputedStyle(insetProbe);
+      return parseFloat(side === "top" ? style.paddingTop : style.paddingBottom) || 0;
+    } catch (e) { return 0; }
+  }
+  function followTop() { return Math.max(headerBottom(), safeInset("top")) + FOLLOW_GAP; }
+  function followBottom() { return window.innerHeight - safeInset("bottom") - FOLLOW_GAP; }
+
   function visibleInHost(frame: HTMLIFrameElement, range: Range) {
     var r, f;
     try { r = range.getBoundingClientRect(); f = frame.getBoundingClientRect(); } catch (e) { return false; }
@@ -620,7 +641,7 @@ type TestWindow = Window & typeof globalThis & {
 
   // Wait until the active sentence reaches the final part of the viewport.
   // The old 50% boundary made the page jump while the highlight was midway
-  // down the screen; the lower 12% is now the reveal safety band.
+  // down the screen; the reveal band is now the same small gap used at the top.
   //
   // The frame of reference has to match the mode's own visibility test. In
   // epub.js scrolled mode the iframe is as tall as the whole chapter and the
@@ -640,8 +661,7 @@ type TestWindow = Window & typeof globalThis & {
       try { f = state.frame.getBoundingClientRect(); } catch (e) { return true; }
       var top = f.top + r.top, bottom = f.top + r.bottom;
       var head = headerBottom();
-      var limit = head + (window.innerHeight - head) * 0.88;
-      return top >= head - 2 && bottom <= limit;
+      return top >= head - 2 && bottom <= followBottom();
     }
 
     // foliate: the iframe is the visible page, so its viewport is correct.
@@ -1160,8 +1180,88 @@ type TestWindow = Window & typeof globalThis & {
     try { window.dispatchEvent(new CustomEvent("rr-narration-chapter", { detail: { delta: delta } })); } catch (e) {}
   }
 
+  // --- natural pauses -------------------------------------------------------
+  // A narrator breathes between sentences, waits longer between paragraphs and
+  // longer still around a heading or a scene break. Targets are the total
+  // silence wanted at 1x; each voice family already leaves some of it at the
+  // edges of its clips (measured: Piper about 0.3 s, Kokoro about 0.15 s), so
+  // only the difference is added. A sentence cut at a comma adds nothing.
+  var PAUSE_TARGET = { sentence: 0.35, paragraph: 0.75, heading: 1.1, scene: 1.4 };
+  function clipEdgeSilence() {
+    var voice = ttsVoice();
+    return voice.indexOf("kokoro-") === 0 ? 0.15 : voice.indexOf("ios:") === 0 ? 0.1 : 0.3;
+  }
+  function isHeading(el: Element) { return /^H[1-6]$/i.test(el.tagName); }
+  function sceneBreakBetween(a: Element, b: Element) {
+    try {
+      // An ornament, rule or empty spacer paragraph between the two blocks...
+      if (a.parentElement && a.parentElement === b.parentElement) {
+        var hops = 0;
+        for (var n = a.nextElementSibling; n && n !== b && hops < 6; n = n.nextElementSibling, hops += 1) {
+          var t = (n.textContent || "").replace(/[\s\u00a0]+/g, "");
+          if (n.tagName === "HR" || !t || !/[A-Za-z0-9\u00c0-\u024f\u0400-\u04ff\u0900-\u097f]/.test(t)) return true;
+        }
+      }
+      // ...or a paragraph set well apart from the one before it.
+      var view = b.ownerDocument.defaultView;
+      if (!view) return false;
+      var sb = view.getComputedStyle(b), sa = view.getComputedStyle(a);
+      var size = parseFloat(sb.fontSize) || 16;
+      return (parseFloat(sb.marginTop) || 0) + (parseFloat(sa.marginBottom) || 0) >= size * 2.6;
+    } catch (e) { return false; }
+  }
+  function pauseAfter(index: number) {
+    var done = queue[index], next = queue[index + 1];
+    if (!done || !next || !done.block || !next.block) return 0;
+    var target = 0;
+    if (done.block === next.block) {
+      target = /[.!?\u2026]["'\u201d\u2019)\]]*\s*$/.test(done.text) ? PAUSE_TARGET.sentence : 0;
+    } else if (isHeading(done.block.block) || isHeading(next.block.block)) target = PAUSE_TARGET.heading;
+    else if (sceneBreakBetween(done.block.block, next.block.block)) target = PAUSE_TARGET.scene;
+    else target = PAUSE_TARGET.paragraph;
+    var add = target - clipEdgeSilence();
+    return add >= 0.06 ? add / Math.max(0.5, rate) : 0;
+  }
+  function silentClip(seconds: number) {
+    var sampleRate = 8000, samples = Math.max(1, Math.round(sampleRate * seconds));
+    var buffer = new ArrayBuffer(44 + samples * 2), view = new DataView(buffer);
+    var tag = function (at: number, text: string) { for (var i = 0; i < text.length; i += 1) view.setUint8(at + i, text.charCodeAt(i)); };
+    tag(0, "RIFF"); view.setUint32(4, 36 + samples * 2, true); tag(8, "WAVEfmt "); view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    tag(36, "data"); view.setUint32(40, samples * 2, true);
+    return URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
+  }
+  var pauseGuard: ReturnType<typeof setTimeout> | undefined;
+  function clearPauseGuard() { if (pauseGuard) { clearTimeout(pauseGuard); pauseGuard = undefined; } }
+  // The pause is real (silent) audio on the same element, not a timer: iOS
+  // suspends timers behind a locked screen but keeps an audio session that is
+  // actually playing, so lock-screen listening carries on through every pause.
+  function playPause(seconds: number, mine: number) {
+    var a = audioEl(), finished = false;
+    var proceed = function () {
+      if (finished) return;
+      finished = true; clearPauseGuard();
+      if (playing && !paused && mine === epoch) step(mine);
+    };
+    var unity = function () { try { a.playbackRate = 1; } catch (e) {} };
+    a.onloadedmetadata = unity; a.onplay = unity;
+    a.onplaying = null; a.ontimeupdate = null; a.onwaiting = null;
+    a.onended = proceed; a.onerror = proceed;
+    var url = silentClip(seconds);
+    a.src = url;
+    releaseActiveAudio();
+    activeAudioUrl = url;
+    clearPauseGuard();
+    // If the silent clip never reports its end, carry on rather than hang.
+    pauseGuard = setTimeout(function () { if (!paused) proceed(); }, seconds * 1000 + 1500);
+    var go = a.play();
+    if (go && go.catch) go.catch(proceed);
+  }
+
   function speak(text: string, mine: number, doc: NarrationDocument) {
     var a = audioEl();
+    clearPauseGuard();
     // playbackRate has to be re-applied after each load. Assigning it before
     // src looks right but iOS resets the rate when new media loads, so every
     // sentence played at 1x however the control was set - which is why the
@@ -1174,8 +1274,9 @@ type TestWindow = Window & typeof globalThis & {
       if (!playing || mine !== epoch) return;
       clearStallWatchdog();
       stallRetries = 0;
+      var gap = pauseAfter(cursor);
       cursor += 1;
-      step(mine);
+      if (gap > 0) playPause(gap, mine); else step(mine);
     };
     a.onerror = function () {
       if (!playing || mine !== epoch) return;
@@ -1318,6 +1419,7 @@ type TestWindow = Window & typeof globalThis & {
 
   function haltCurrentAudio() {
     clearStallWatchdog();
+    clearPauseGuard();
     cancelWarming();
     try {
       if (rrTtsAudio) {

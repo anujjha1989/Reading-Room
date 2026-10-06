@@ -2,6 +2,12 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v208 — 2026-10-06
+
+- Read Aloud now pauses the way a narrator does, with every voice: a breath between sentences, longer between paragraphs (about 0.75 s), longer around a chapter title or heading (about 1.1 s) and longest at a scene break (about 1.4 s). A long sentence cut at a comma adds nothing. Each voice already leaves some silence at the edges of its clips, so only the difference is added, and the pauses shorten with the speed setting.
+- The pauses are real silent audio on the same player rather than timers, so lock-screen and background listening continue through them. Pause, skip and the sleep timer act immediately during a pause.
+- Scroll mode follows narration inside one even band: the highlight is brought to just below the notch (24 px clear of it) instead of under it, and the page moves on only when the sentence being read would come within the same 24 px of the Home indicator, rather than in the bottom 12% of the screen.
+
 ## v207 — 2026-10-05
 
 - Read Aloud no longer pauses in the middle of sentences in books whose source file is hard-wrapped (a line break every ~80 characters, common in converted EPUBs). Those invisible line breaks were being treated as sentence ends, so clips began and ended wherever the file happened to wrap. They are now read as the spaces they are; blocks that really display their line breaks (verse, preformatted text) keep them.
