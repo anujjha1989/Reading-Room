@@ -13,8 +13,15 @@ if [ "${1:-}" = "--no-build" ]; then
   exit 1
 fi
 
-PI=anujjha1989@anujrpi.local
-SSH=(ssh -i "$HOME/.ssh/id_ed25519_anujrpi_codex" -o BatchMode=yes -o IdentitiesOnly=yes)
+# The Pi answers as anujrpi.local at home. Away from home, set
+# READING_ROOM_PI_HOST to its Tailscale name (e.g. anujrpi); the SSH host key
+# is still checked against the one recorded for anujrpi.local.
+PI_HOST="${READING_ROOM_PI_HOST:-anujrpi.local}"
+LAN_ORIGIN="http://$PI_HOST:4311"
+export READING_ROOM_BASE_URL="${READING_ROOM_BASE_URL:-$LAN_ORIGIN}"
+export READING_ROOM_BOOK_ORIGIN="${READING_ROOM_BOOK_ORIGIN:-$LAN_ORIGIN}"
+PI=anujjha1989@$PI_HOST
+SSH=(ssh -i "$HOME/.ssh/id_ed25519_anujrpi_codex" -o BatchMode=yes -o IdentitiesOnly=yes -o HostKeyAlias=anujrpi.local)
 DEPLOY_HISTORY_DIR=${READING_ROOM_DEPLOY_HISTORY:-/Volumes/Seagate/ReadingRoom/deployment-history}
 PUBLIC_ORIGIN=${READING_ROOM_PUBLIC_ORIGIN:-https://anujrpi.tail549492.ts.net}
 if [ -z "${READING_ROOM_CURL_COOKIE_FILE:-}" ] || [ ! -f "$READING_ROOM_CURL_COOKIE_FILE" ] || [ -z "${READING_ROOM_COOKIE_FILE:-}" ] || [ ! -f "$READING_ROOM_COOKIE_FILE" ]; then
@@ -34,7 +41,7 @@ rm "$HISTORY_PROBE"
 SOURCE_VERSION=$(cat overrides/VERSION)
 # A failed pre-install run may already have advanced the source counter. Rollback
 # must verify the version captured from the live release, not that counter.
-PREVIOUS_VERSION=$(curl -fsS --max-time 15 http://anujrpi.local:4311/ | sed -n 's/.*name="rr-app-version" content="\([0-9]*\)".*/\1/p' | head -1)
+PREVIOUS_VERSION=$(curl -fsS --max-time 15 "$LAN_ORIGIN/" | sed -n 's/.*name="rr-app-version" content="\([0-9]*\)".*/\1/p' | head -1)
 [[ "$PREVIOUS_VERSION" =~ ^[0-9]+$ ]] || { echo "FAILED: cannot identify the live rollback version" >&2; exit 1; }
 DEPLOY_COMMIT=$(git rev-parse HEAD)
 DEPLOY_BRANCH=$(git branch --show-current)
@@ -198,8 +205,8 @@ rollback() {
   "${SSH[@]}" "$PI" "sudo -n /usr/local/sbin/reading-room-deploy" >&2
   echo "$PREVIOUS_VERSION" > overrides/VERSION
   echo "$PREVIOUS_VERSION" > "$BUILD_DIR/overrides/VERSION"
-  curl -fsS --max-time 15 "http://anujrpi.local:4311/api/health" | grep -q '"ok":true'
-  for origin in "http://anujrpi.local:4311" "$PUBLIC_ORIGIN"; do
+  curl -fsS --max-time 15 "$LAN_ORIGIN/api/health" | grep -q '"ok":true'
+  for origin in "$LAN_ORIGIN" "$PUBLIC_ORIGIN"; do
     (cd "$BUILD_DIR" && READING_ROOM_BASE_URL="$origin" READING_ROOM_EXPECT_VERSION="$PREVIOUS_VERSION" node deploy/release-smoke.mjs)
   done
   echo "==> rollback verified on both origins; candidate hashed assets remain unreferenced" >&2
@@ -338,21 +345,21 @@ verify_origin() {
 
 # The installer restarts the server after replacing the web client. Prove it
 # came back before checking anything it serves.
-health=$(curl -fsS --max-time 15 "http://anujrpi.local:4311/api/health" || true)
+health=$(curl -fsS --max-time 15 "$LAN_ORIGIN/api/health" || true)
 case "$health" in
   *'"ok":true'*) echo "  server healthy" ;;
   *) fail "server did not come back healthy after install" ;;
 esac
 
-verify_origin "http://anujrpi.local:4311" required
+verify_origin "$LAN_ORIGIN" required
 LAN_RESULT=$VERIFY_RESULT
 verify_origin "$PUBLIC_ORIGIN" required
-for origin in "http://anujrpi.local:4311" "$PUBLIC_ORIGIN"; do
+for origin in "$LAN_ORIGIN" "$PUBLIC_ORIGIN"; do
   (cd "$BUILD_DIR" && READING_ROOM_BASE_URL="$origin" node deploy/check-local-voices.mjs) \
     || fail "local narration engines failed on $origin"
 done
 TAILSCALE_RESULT=$VERIFY_RESULT
-for origin in "http://anujrpi.local:4311" "$PUBLIC_ORIGIN"; do
+for origin in "$LAN_ORIGIN" "$PUBLIC_ORIGIN"; do
   (cd "$BUILD_DIR" && READING_ROOM_BASE_URL="$origin" READING_ROOM_EXPECT_VERSION="$VERSION" node deploy/release-smoke.mjs) \
     || fail "required rendered-route check failed at $origin"
 done

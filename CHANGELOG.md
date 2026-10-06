@@ -7,6 +7,7 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 - Read Aloud no longer pauses in the middle of sentences in books whose source file is hard-wrapped (a line break every ~80 characters, common in converted EPUBs). Those invisible line breaks were being treated as sentence ends, so clips began and ended wherever the file happened to wrap. They are now read as the spaces they are; blocks that really display their line breaks (verse, preformatted text) keep them.
 - A sentence too long for one clip is now cut at the last comma, semicolon, colon or dash, and between two plain words only when it has no such pause at all.
 - Measured on Atonement: clips ending mid-phrase fell from 1,487 of 4,595 to 5 of 4,913. Affects every voice (Pi and iPhone). Highlight positions are unchanged.
+- Release tooling: the deploy script can reach the Pi by its Tailscale name (`READING_ROOM_PI_HOST`) when away from the home network; the default and every check are unchanged.
 
 ## v206 — 2026-10-05
 

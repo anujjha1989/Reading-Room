@@ -48,7 +48,7 @@ if (process.argv.includes("--seed-legacy")) {
 if (process.argv.includes("--reload")) {
   await send("Page.enable");
   await send("Page.navigate", {
-    url: `http://anujrpi.local:4311/?audit=${Date.now()}`,
+    url: `${process.env.READING_ROOM_BASE_URL || "http://anujrpi.local:4311"}/?audit=${Date.now()}`,
   });
   await new Promise((resolve) => setTimeout(resolve, 3500));
 }

@@ -42,7 +42,7 @@ await send("Emulation.setEmulatedMedia", {
 // Use the LAN endpoint for browser geometry. Public-path version and MIME
 // checks belong to deploy.sh; Chrome for Testing can reject the private
 // Tailscale certificate even while Safari and curl trust it.
-await send("Page.navigate", { url: `http://anujrpi.local:4311/?audit=${Date.now()}` });
+await send("Page.navigate", { url: `${process.env.READING_ROOM_BASE_URL || "http://anujrpi.local:4311"}/?audit=${Date.now()}` });
 await new Promise((resolve) => setTimeout(resolve, 3500));
 const result = await evaluate(`(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
