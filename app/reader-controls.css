@@ -65,3 +65,25 @@ html.rr-hide-chrome :is(.rr-react-sheet-trigger,.rr-page-number,.rr-read-transpo
   html.rr-hide-chrome :is(.rr-title-chip,.rr-react-sheet-trigger,.rr-page-number,.rr-read-transport,.rr-read-extras),
   html.rr-books-controls.rr-hide-chrome .rr-close-btn { transform: none !important; }
 }
+
+/* --- sepia panels ---------------------------------------------------------- */
+/* The highlight menu, the note sheet and the search/marks panel follow the
+   reading sheet: warm paper glass on a Sepia page, not Light's cool white. */
+html.rr-reader-sepia .rr-hl-menu, html.rr-reader-sepia .rr-note-sheet {
+  --surface: rgba(247, 239, 222, 0.96);
+  --surface-line: rgba(92, 70, 40, 0.16);
+  --fill: rgba(120, 98, 62, 0.13);
+  --fill-active: rgba(120, 98, 62, 0.24);
+  --ink: #2b2418;
+  --ink-dim: rgba(43, 36, 24, 0.58);
+}
+html.rr-reader-sepia .reader-panel {
+  background: rgba(247, 239, 222, 0.96) !important;
+  border-color: rgba(92, 70, 40, 0.16) !important;
+  color: #2b2418 !important;
+}
+html.rr-reader-sepia .reader-panel button, html.rr-reader-sepia .reader-panel input {
+  color: #2b2418 !important;
+  background: rgba(120, 98, 62, 0.13) !important;
+  border-color: rgba(92, 70, 40, 0.16) !important;
+}

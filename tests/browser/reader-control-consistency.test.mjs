@@ -44,10 +44,21 @@ for (const engine of ['chromium', 'webkit']) for (const theme of ['light', 'sepi
     await dock.dispatchEvent('pointerup', { clientX: box.x + 10, clientY: box.y + 10 });
     await page.waitForFunction(() => !document.querySelector('.rr-press-flash'), null, { timeout: 3000 });
     await dock.click();
-    await page.locator('.book .cover').click();
+    // A book cover is a card: opening one does not flash.
+    await page.waitForFunction(() => !document.querySelector('.rr-press-flash'), null, { timeout: 3000 });   // the dock's own flash
+    const cover = page.locator('.book .cover'), card = await cover.boundingBox();
+    await cover.dispatchEvent('pointerdown', { clientX: card.x + 20, clientY: card.y + 20, button: 0 });
+    await page.waitForTimeout(160);
+    assert.equal(await page.locator('.rr-press-flash').count(), 0, 'covers do not flash');
+    await cover.dispatchEvent('pointerup', { clientX: card.x + 20, clientY: card.y + 20 });
+    await cover.click();
     await page.locator('.epub-viewer iframe').first().waitFor();
     await page.waitForTimeout(1500);
     await page.locator('.rr-react-sheet-trigger').click();
+    // The reading sheet takes the page's theme: warm paper on Sepia, not Light's white.
+    const sheet = await page.locator('section[role="dialog"][data-book-theme]').evaluate(el => getComputedStyle(el).backgroundColor);
+    const expected = { light: '250, 250, 251', sepia: '247, 239, 222', dark: '38, 38, 40' }[theme];
+    assert.ok(sheet.includes(expected), `the reading sheet matches the ${theme} page: ${sheet}`);
     await page.locator('[data-view="menu"] button').filter({ hasText: /^Aloud$/ }).click();
     await page.getByRole('button', { name: 'Start reading', exact: true }).click();
     await page.locator('.rr-read-transport').waitFor({ state: 'attached' });

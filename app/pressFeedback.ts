@@ -4,8 +4,8 @@
  * stays lit long enough to register even on the quickest tap, then fades.
  *
  * Glass controls (the reader's floating chips, the library dock and icon
- * rail) brighten and swell slightly; everything else - rows, text buttons,
- * covers - takes a soft tint. The flash is its own overlay element, so no
+ * rail) brighten and swell slightly; everything else - rows, text buttons -
+ * takes a soft tint. Book covers are cards, not buttons, and do not flash. The flash is its own overlay element, so no
  * button's styling, transition or layout is touched and nothing added later
  * needs to opt in. It sits beside the haptic tap and follows the same rules:
  * a scroll or swipe that starts on a control cancels it.
@@ -26,6 +26,8 @@ function controlAt(target: EventTarget | null): HTMLElement | null {
   // The invisible page-turn zones over the book are buttons, not controls.
   if (control.closest('[aria-label="Page tap controls"]')) return null;
   if ((control as HTMLButtonElement).disabled || control.getAttribute("aria-disabled") === "true") return null;
+  // A book cover is a card, not a button: opening one should not flash.
+  if (control.matches(".cover, .shelf-book") || control.querySelector("img")) return null;
   return control;
 }
 

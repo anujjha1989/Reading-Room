@@ -2,6 +2,11 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v212 — 2026-10-08
+
+- The reading menu and its panels now follow the Sepia theme: warm paper glass with brown-black ink, instead of the Light theme's cool white. The same applies to the highlight menu, the note sheet and the search and marks panels.
+- Book covers no longer flash when tapped. Covers are cards; the press flash is for buttons only.
+
 ## v211 — 2026-10-08
 
 - Reader controls now leave and return together on a centre tap. The title chip, close button, page number, menu button and Read Aloud controls each had their own distance, duration and delay; they now share one 0.24 s fade and one short slide (top controls lift, the rest sink), with no stagger.

@@ -83,6 +83,18 @@
   --accent: #409cff;
 }
 
+/* Sepia pages get warm paper glass, not the Light theme's cool white. */
+.sheet[data-book-theme="sepia"] {
+  --surface: rgba(247, 239, 222, 0.96);
+  --surface-line: rgba(92, 70, 40, 0.16);
+  --fill: rgba(120, 98, 62, 0.13);
+  --fill-active: rgba(120, 98, 62, 0.24);
+  --ink: #2b2418;
+  --ink-dim: rgba(43, 36, 24, 0.58);
+  --invert-bg: #2b2418;
+  --invert-ink: #f7efde;
+}
+
 /* --- header ------------------------------------------------------------- */
 .header {
   display: flex;
