@@ -1,0 +1,67 @@
+/* ==========================================================================
+ * The reader's floating controls: one surface, one ink, one motion.
+ *
+ * The title chip, the close button, the page number, the menu button and the
+ * Read Aloud controls were each styled and animated where they were first
+ * written, so they drifted: the Read Aloud controls took a cream fill beside
+ * neutral glass chips, the close button inherited a pale ink that vanished on
+ * Light and Sepia pages, and on a centre tap each control left and returned
+ * with its own distance, duration and delay. This file is loaded last and is
+ * the single owner of all three.
+ * ========================================================================== */
+
+html {
+  --rr-chip-bg: linear-gradient(145deg,rgba(255,255,255,.32),rgba(255,255,255,.08) 48%,rgba(60,60,65,.18));
+  --rr-chip-border: rgba(255,255,255,.46);
+  --rr-chip-ink: #1c1c1e;
+  --rr-chip-shadow: inset 0 1px 0 rgba(255,255,255,.44),0 4px 18px rgba(0,0,0,.16);
+}
+html.rr-reader-dark {
+  --rr-chip-bg: linear-gradient(145deg,rgba(255,255,255,.26),rgba(142,142,147,.28) 48%,rgba(56,56,62,.52));
+  --rr-chip-border: rgba(255,255,255,.18);
+  --rr-chip-ink: #f5f5f7;
+}
+
+/* --- surface and ink ------------------------------------------------------ */
+html :is(.rr-react-sheet-trigger,.rr-page-number,.rr-title-chip,.rr-read-transport,.rr-read-glass),
+html.rr-books-controls .rr-close-btn {
+  background: var(--rr-chip-bg) !important;
+  border: 1px solid var(--rr-chip-border) !important;
+  color: var(--rr-chip-ink) !important;
+  box-shadow: var(--rr-chip-shadow) !important;
+  -webkit-backdrop-filter: blur(26px) saturate(1.55) !important;
+  backdrop-filter: blur(26px) saturate(1.55) !important;
+}
+/* The play/pause button keeps its faint inner disc, in the same neutral glass. */
+html .rr-read-transport .rr-read-toggle { background: rgba(255,255,255,.22); }
+html.rr-reader-dark .rr-read-transport .rr-read-toggle { background: rgba(255,255,255,.10); }
+
+/* --- leaving and returning together --------------------------------------- */
+/* Same duration, same easing, no stagger. Controls on the top edge lift away,
+   the rest sink, each by the same short distance. */
+html :is(.rr-react-sheet-trigger,.rr-page-number,.rr-title-chip,.rr-read-transport,.rr-read-extras),
+html.rr-books-controls .rr-close-btn {
+  transition: opacity .24s ease, transform .3s cubic-bezier(.22,1,.36,1) !important;
+  transition-delay: 0s !important;
+  will-change: opacity, transform;
+}
+html.rr-hide-chrome .rr-title-chip,
+html.rr-books-controls.rr-hide-chrome .rr-close-btn {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: visible !important;
+  transform: translateY(-16px) scale(.94) !important;
+}
+html.rr-hide-chrome :is(.rr-react-sheet-trigger,.rr-page-number,.rr-read-transport,.rr-read-extras) {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: visible !important;
+  transform: translateY(16px) scale(.94) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html :is(.rr-react-sheet-trigger,.rr-page-number,.rr-title-chip,.rr-read-transport,.rr-read-extras),
+  html.rr-books-controls .rr-close-btn { transition: opacity .12s ease !important; }
+  html.rr-hide-chrome :is(.rr-title-chip,.rr-react-sheet-trigger,.rr-page-number,.rr-read-transport,.rr-read-extras),
+  html.rr-books-controls.rr-hide-chrome .rr-close-btn { transform: none !important; }
+}

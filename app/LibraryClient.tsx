@@ -12,6 +12,7 @@ import HomeBooksMark from "./HomeBooksMark";
 import type { Highlight } from "./annotations";
 import "./library-lists.css";
 import { installHaptics } from "./haptics";
+import { installPressFeedback } from "./pressFeedback";
 import { createStateOutbox, type SyncStatus } from "./libraryStateSync";
 import { hasNativeSummary, readSummary } from "./nativeBridge";
 import { cardTitle, completeLabel, continueProgress, coverOptions, groupShelf, homeShelves, recentlyOpened, type ShelfBook } from "./homeShelves";
@@ -228,6 +229,7 @@ export default function LibraryClient() {
   useEffect(() => {
     document.documentElement.dataset.rrLibraryReady = "1";
     installHaptics();
+    installPressFeedback();
     window.dispatchEvent(new Event("rr-library-ready"));
   }, []);
 

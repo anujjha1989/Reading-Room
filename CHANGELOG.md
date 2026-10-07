@@ -2,6 +2,14 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v211 — 2026-10-08
+
+- Reader controls now leave and return together on a centre tap. The title chip, close button, page number, menu button and Read Aloud controls each had their own distance, duration and delay; they now share one 0.24 s fade and one short slide (top controls lift, the rest sink), with no stagger.
+- All reader controls use the same glass fill and ink. The Read Aloud controls no longer carry a cream tint beside neutral chips, in Light, Sepia and Dark.
+- The close button's ✕ is dark on Light and Sepia pages (it had inherited a pale ink and all but vanished) and light on Dark.
+- Every button in the app now flashes when pressed, on the library and the reader alike: glass controls brighten and swell slightly, everything else takes a soft tint. The flash appears on touch, stays long enough to see on the quickest tap, and is cancelled by a scroll or swipe. It is a separate overlay, so no button's own styling changed.
+- New release check in Chrome and WebKit across the three reading themes: one surface and ink for all controls, opacities in step through hide and show, contrasting close-button ink, and a press flash that covers the button and clears itself.
+
 ## v210 — 2026-10-07
 
 - MOBI books now also carry on reading aloud across chapter ends while the iPhone is locked, the same way EPUBs do since v209: the next section's text is loaded without being drawn, and the page and highlight rejoin the spoken sentence on unlock.

@@ -5,6 +5,7 @@ import "./reader-layout.css";
 import "./reader-chrome.css";
 import "./library-layout.css";
 import "./library-controls.css";
+import "./reader-controls.css";
 
 export const metadata: Metadata = {
   title: "Home Books",
