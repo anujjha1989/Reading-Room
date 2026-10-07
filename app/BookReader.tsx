@@ -1011,6 +1011,34 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
             if (!target) throw new Error("The requested chapter did not open");
             return target;
           },
+          // The same text the reader would draw, parsed without drawing it.
+          offscreen: async (fromIndex, direction) => {
+            if (disposed) return null;
+            const sections = (view.book?.sections ?? []) as Array<{ linear?: string; load?: () => Promise<string> }>;
+            let index = fromIndex + direction;
+            while (index >= 0 && index < sections.length && sections[index].linear === "no") index += direction;
+            const section = index >= 0 ? sections[index] : undefined;
+            if (!section?.load) return null;
+            const load = section.load.bind(section);
+            const doc = await readerDeadline((async () => {
+              const response = await fetch(await load());
+              const source = await response.text();
+              const type = response.headers.get("content-type") || "";
+              const xhtml = type.includes("xhtml") || /^\s*<\?xml/i.test(source);
+              let parsed = new DOMParser().parseFromString(source, xhtml ? "application/xhtml+xml" : "text/html");
+              if (parsed.querySelector("parsererror")) parsed = new DOMParser().parseFromString(source, "text/html");
+              return parsed;
+            })(), controller.signal, 20_000);
+            if (disposed) return null;
+            const at = index;
+            return { doc, index: at, cfiFor: range => { try { return fv.getCFI(at, range); } catch { return null; } } };
+          },
+          show: async index => {
+            if (disposed) return null;
+            await readerDeadline(view.goTo(index), controller.signal);
+            if (disposed) return null;
+            return narrationTargets().find(target => target.index === index) ?? null;
+          },
         });
         const mobiTarget = (item: { doc: Document; index: number }): AnnotationTarget => ({
           doc: item.doc,

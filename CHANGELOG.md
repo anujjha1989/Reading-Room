@@ -2,6 +2,11 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v210 — 2026-10-07
+
+- MOBI books now also carry on reading aloud across chapter ends while the iPhone is locked, the same way EPUBs do since v209: the next section's text is loaded without being drawn, and the page and highlight rejoin the spoken sentence on unlock.
+- The locked-screen release check now covers MOBI in Chrome and WebKit as well, using a real locally stored MOBI.
+
 ## v209 — 2026-10-07
 
 - Read Aloud no longer stops at the end of every chapter when the iPhone is locked. A locked screen draws nothing, and narration was waiting for the next chapter to be displayed before reading it. With the screen off it now loads the next chapter's text straight from the book, bridges the gap with a second of silent audio so iOS keeps the session alive, and carries on.

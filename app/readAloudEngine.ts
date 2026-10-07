@@ -159,6 +159,12 @@ type TestWindow = Window & typeof globalThis & {
 
   // --- which engine is on screen -------------------------------------------
   function reader(): ReaderState | null {
+    // A chapter reached with the screen off is read from its loaded text,
+    // whichever engine (EPUB or MOBI) will draw it later.
+    if (detached && playing) {
+      return { doc: detached.doc as NarrationDocument, mode: readingMode(),
+        visible: () => true, turn: () => undefined, reveal: () => undefined };
+    }
     var v = document.querySelector<FoliateView>("foliate-view");
     if (v && v.renderer && typeof v.renderer.getContents === "function") {
       var c = v.renderer.getContents()[0];
@@ -209,10 +215,6 @@ type TestWindow = Window & typeof globalThis & {
           },
         };
       }
-    }
-    if (detached && playing) {
-      return { doc: detached.doc as NarrationDocument, mode: readingMode(),
-        visible: () => true, turn: () => undefined, reveal: () => undefined };
     }
     const adapter = getEpubNarrationAdapter();
     if (adapter) {

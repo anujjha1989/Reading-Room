@@ -74,3 +74,68 @@ for (const engine of ['chromium', 'webkit']) for (const mode of ['scroll', 'page
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 }
+
+// MOBI draws through a different engine, so it gets its own crossing. Real
+// locally stored MOBI bytes; catalogue, progress and audio are isolated.
+const mobiId = 'L091b7166ee02f38cbf7db2f249d9844a9873077c';
+for (const engine of ['chromium', 'webkit']) {
+  test(`${engine} MOBI: narration crosses a section with the screen off and rejoins the page on wake`, { timeout: 90000 }, async t => {
+    const preview = await reliabilityPreview(); t.after(() => preview.close());
+    const browser = await pw[engine].launch(engine === 'chromium' && process.env.READING_ROOM_CHROME ? { executablePath: process.env.READING_ROOM_CHROME } : {});
+    t.after(() => browser.close());
+    const page = await browser.newPage({ viewport: { width: 393, height: 852 }, serviceWorkers: 'block' });
+    page.setDefaultTimeout(25000);
+    const errors = []; page.on('pageerror', e => errors.push(e.message));
+    await page.route('**/catalog.json', r => r.fulfill({ json: [{ id: mobiId, title: 'Season of the Machete', format: 'MOBI', source: 'Local', url: `/api/book/${mobiId}` }] }));
+    await page.route('**/api/library-state', r => r.fulfill({ json: { states: [] } }));
+    await page.route('**/api/tts?**', r => r.fulfill({ body: 'fixture' }));
+    await page.addInitScript(() => {
+      if (window.top !== window) return;
+      localStorage.setItem('reading-room-reader-mode', 'scroll');
+      window.heard = [];
+      // Each clip "plays" for a few milliseconds so a whole section passes quickly.
+      Object.defineProperty(HTMLMediaElement.prototype, 'src', { configurable: true, get() { return this.fixtureSrc || ''; }, set(value) { this.fixtureSrc = value; } });
+      HTMLMediaElement.prototype.load = function () {};
+      HTMLMediaElement.prototype.pause = function () { clearTimeout(this.fixtureTimer); };
+      HTMLMediaElement.prototype.play = function () {
+        clearTimeout(this.fixtureTimer); this.onplaying?.();
+        this.fixtureTimer = setTimeout(() => this.onended?.(), 8);
+        return Promise.resolve();
+      };
+      let hidden = false; const held = [];
+      const frame = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = callback => { if (hidden) { held.push(callback); return 0; } return frame(callback); };
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => hidden ? 'hidden' : 'visible' });
+      window.__screen = off => { hidden = off; if (!off) held.splice(0).forEach(callback => frame(callback)); document.dispatchEvent(new Event('visibilitychange')); };
+      window.addEventListener('rr-narration', e => {
+        if (e.detail.kind !== 'sentence') return;
+        const drawn = document.querySelector('foliate-view')?.renderer?.getContents?.().find(item => item.doc === e.detail.doc);
+        window.heard.push({ drawn: drawn ? drawn.index : null, offscreen: Boolean(e.detail.cfi), hidden });
+      });
+    });
+    await page.goto(preview.url); await page.locator('.rr-library-dock button[data-view="Library"]').click();
+    await page.locator('.book .cover').click();
+    await page.waitForFunction(() => document.querySelector('foliate-view')?.renderer?.getContents?.().length);
+    await page.locator('.rr-react-sheet-trigger').click();
+    await page.locator('[data-view="menu"] button').filter({ hasText: /^Contents/ }).click();
+    await page.locator('[data-view="contents"] button').filter({ hasText: /^CHAPTER TWO$/ }).click();
+    await page.locator('[data-view="contents"]').waitFor({ state: 'detached' });
+    await page.locator('.rr-react-sheet-trigger').click();
+    await page.locator('[data-view="menu"] button').filter({ hasText: /^Aloud$/ }).click();
+    await page.getByRole('button', { name: 'Start reading', exact: true }).click();
+    await page.waitForFunction(() => window.heard.length > 0);
+    const start = await page.evaluate(() => window.heard.at(-1).drawn);
+    await page.evaluate(() => window.__screen(true));
+    try {
+      await page.waitForFunction(() => window.heard.filter(item => item.offscreen).length >= 6, null, { timeout: 45000, polling: 200 }); // frames are stopped, so poll on a timer
+    } catch (error) {
+      throw new Error(JSON.stringify(await page.evaluate(() => ({ count: window.heard.length, tail: window.heard.slice(-5), statuses: [...document.querySelectorAll('[role="status"]')].map(item => item.textContent) }))), { cause: error });
+    }
+    await page.evaluate(() => window.__screen(false));
+    await page.waitForFunction(start => { const last = window.heard.at(-1); return !last.hidden && last.drawn !== null && last.drawn > start; }, start, { timeout: 25000 });
+    assert.notEqual(await page.evaluate(id => localStorage.getItem(`reading-room-position-${id}`), mobiId), null, 'the saved place follows the voice');
+    assert.deepEqual(errors, []);
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+}
