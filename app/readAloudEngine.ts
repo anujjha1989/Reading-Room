@@ -212,7 +212,7 @@ type TestWindow = Window & typeof globalThis & {
     }
     if (detached && playing) {
       return { doc: detached.doc as NarrationDocument, mode: readingMode(),
-        visible: function () { return true; }, turn: function () {}, reveal: function () {} };
+        visible: () => true, turn: () => undefined, reveal: () => undefined };
     }
     const adapter = getEpubNarrationAdapter();
     if (adapter) {

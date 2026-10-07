@@ -28,7 +28,9 @@ t(/typeof\s+p\.catch\s*===\s*"function"/.test(code) || /\.catch\(/.test(code),
 const reveal = code.slice(code.indexOf("reveal: function"), code.indexOf("turn:", code.indexOf("reveal: function")));
 t(/requestAnimationFrame/.test(reveal), "re-measures on the next frame instead of trusting the call");
 t(/getBoundingClientRect/.test(reveal), "checks where the sentence actually landed");
-t(/headerBottom\(\)/.test(reveal), "targets the band below the reader header");
+// The band's top edge is followTop(): the reader header or the notch, plus a gap.
+t(/followTop\(\)/.test(reveal) && /function followTop\(\)\s*\{[^}]*headerBottom\(\)[^}]*safeInset\("top"\)/.test(code),
+  "targets the band below the reader header");
 t(/scrollContainerBy/.test(reveal), "has a fallback that scrolls when foliate did not");
 
 // The fallback needs foliate's shadow container; assert the coupling is explicit
