@@ -1,5 +1,5 @@
 import { notifyReadAloudChange, registerReadAloudEngine } from "./readAloudController";
-import { getEpubNarrationAdapter, visibleEpubNarrationTarget } from "./epubNarration";
+import { type EpubOffscreenSection, getEpubNarrationAdapter, visibleEpubNarrationTarget } from "./epubNarration";
 
 type NarrationDocument = Document & {
   __rrSteering?: boolean;
@@ -94,6 +94,9 @@ type TestWindow = Window & typeof globalThis & {
   var cursor = 0;
   var queueDoc: string | null = null;
   var queueDocument: NarrationDocument | null = null;
+  // A chapter narration reached while the screen was off: its text was loaded
+  // straight from the book and has not been drawn. Cleared once it is on screen.
+  var detached: EpubOffscreenSection | null = null;
   var playbackError: string | undefined;
   var keepAlive: ReturnType<typeof setInterval> | null = null;
   var sweeper: ReturnType<typeof setInterval> | null = null;
@@ -206,6 +209,10 @@ type TestWindow = Window & typeof globalThis & {
           },
         };
       }
+    }
+    if (detached && playing) {
+      return { doc: detached.doc as NarrationDocument, mode: readingMode(),
+        visible: function () { return true; }, turn: function () {}, reveal: function () {} };
     }
     const adapter = getEpubNarrationAdapter();
     if (adapter) {
@@ -820,7 +827,7 @@ type TestWindow = Window & typeof globalThis & {
       return;
     }
 
-    highlight(state.doc, item.range);
+    if (!detached) highlight(state.doc, item.range);
     announce("sentence", state.doc, item.range);
     speak(item.text, mine, state.doc);
   }
@@ -833,7 +840,8 @@ type TestWindow = Window & typeof globalThis & {
     if (doc && range) lastSpoken = { doc: doc, range: range };
     try {
       window.dispatchEvent(new CustomEvent("rr-narration", {
-        detail: { kind: kind, doc: lastSpoken ? lastSpoken.doc : null, range: lastSpoken ? lastSpoken.range : null },
+        detail: { kind: kind, doc: lastSpoken ? lastSpoken.doc : null, range: lastSpoken ? lastSpoken.range : null,
+          cfi: detached && lastSpoken && lastSpoken.doc === detached.doc ? detached.cfiFor(lastSpoken.range) : null },
       }));
     } catch (e) { /* the reader is gone */ }
   }
@@ -845,7 +853,7 @@ type TestWindow = Window & typeof globalThis & {
     epoch += 1;
     var mine = epoch;
     haltCurrentAudio();
-    queueDoc = null;
+    queueDoc = null; detached = null;
     render();
     setTimeout(function () { if (playing && mine === epoch) { paused = false; step(mine); } }, 450);
   }
@@ -919,6 +927,42 @@ type TestWindow = Window & typeof globalThis & {
 
   async function advanceSection(state: ReaderState, mine: number) {
     const adapter = getEpubNarrationAdapter();
+    if (adapter && adapter.offscreen && (detached || screenAsleep())) {
+      // With the screen off nothing is drawn, so a chapter that has to be
+      // displayed first never arrives and listening stopped at every chapter
+      // end. Read the next chapter's text straight from the book instead, and
+      // keep the audio session alive with silence while it loads.
+      var index = detached ? detached.index : -1;
+      if (index < 0) {
+        var shown = adapter.targets().find(function (target) { return target.doc === state.doc; });
+        index = shown ? shown.index : -1;
+      }
+      if (index >= 0) {
+        try {
+          var bridge = new Promise<void>(function (resolve) { playSilence(PAUSE_TARGET.heading, mine, resolve); });
+          for (let empty = 0; empty < 64; empty += 1) {
+            const section = await adapter.offscreen(index, 1);
+            if (!playing || mine !== epoch) return;
+            if (!section) { await bridge; if (playing && mine === epoch) stop(); return; }
+            index = section.index;
+            if (!section.doc.body) continue;
+            detached = section;
+            ensureQueue(section.doc as NarrationDocument);
+            if (!queue.length) continue;
+            cursor = 0;
+            prepareStartupClip(section.doc as NarrationDocument, cursor);
+            if (queue[cursor]) warmUrl(ttsUrl(queue[cursor].text));
+            await bridge;
+            if (playing && !paused && mine === epoch) void step(mine);
+            return;
+          }
+          pauseForRecovery("No readable sentence was found in the next chapters.");
+        } catch {
+          if (playing && mine === epoch) pauseForRecovery("The next chapter could not be opened.");
+        }
+        return;
+      }
+    }
     if (adapter) {
       try {
         let from = state.doc;
@@ -958,6 +1002,61 @@ type TestWindow = Window & typeof globalThis & {
       }
     }
     stop();                                              // nothing left to read
+  }
+
+  // When the screen comes back, put the chapter being spoken on the page and
+  // move narration from the loaded text onto the drawn one, sentence for
+  // sentence, so the highlight and taps work again without a break in audio.
+  var reattaching = false;
+  function blockOrder(items: QueueItem[], item: QueueItem) {
+    var seen: Block[] = [];
+    for (var i = 0; i < items.length; i += 1) {
+      if (seen[seen.length - 1] !== items[i].block) seen.push(items[i].block);
+      if (items[i] === item) return seen.length - 1;
+    }
+    return -1;
+  }
+  async function reattach() {
+    if (reattaching) return;
+    reattaching = true;
+    try {
+      const adapter = getEpubNarrationAdapter(), want = detached;
+      if (!adapter || !want) return;
+      let target = null, asked = false;
+      for (let waited = 0; waited < 8000 && detached === want && !document.hidden; waited += 200) {
+        target = adapter.targets().find(function (item) { return item.index === want.index; }) ?? null;
+        if (target) break;
+        // The reader normally returns to the spoken place by itself on wake;
+        // ask for the chapter directly only if that has not happened.
+        if (!asked && waited >= 1000 && adapter.show) { asked = true; adapter.show(want.index).catch(function () { return null; }); }
+        await sleep(200);
+      }
+      if (!target || detached !== want) return;
+      var old = queue, oldCursor = cursor, speaking = old[oldCursor];
+      var order = speaking ? blockOrder(old, speaking) : -1, at = speaking ? speaking.at : 0;
+      detached = null;
+      queue = []; queueDoc = null;
+      ensureQueue(target.doc as NarrationDocument);
+      if (oldCursor >= old.length) cursor = queue.length;
+      else {
+        var match = -1;
+        for (var i = 0; i < queue.length && match < 0; i += 1) {
+          if (blockOrder(queue, queue[i]) === order && queue[i].at <= at && at < queue[i].end) match = i;
+        }
+        if (match < 0 && speaking) match = queue.findIndex(function (item) { return item.text === speaking.text; });
+        cursor = match >= 0 ? match : Math.min(oldCursor, Math.max(0, queue.length - 1));
+      }
+      var item = queue[cursor], state = reader();
+      if (playing && item && state) {
+        if (state.mode === "scroll" && state.reveal) state.reveal(item.range);
+        highlight(target.doc as NarrationDocument, item.range);
+        announce("sentence", target.doc as NarrationDocument, item.range);
+      }
+      render();
+    } finally { reattaching = false; }
+  }
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", function () { if (!document.hidden && detached) void reattach(); });
   }
 
   // --- narration through Piper -------------------------------------------
@@ -1238,11 +1337,14 @@ type TestWindow = Window & typeof globalThis & {
   // suspends timers behind a locked screen but keeps an audio session that is
   // actually playing, so lock-screen listening carries on through every pause.
   function playPause(seconds: number, mine: number) {
+    playSilence(seconds, mine, function () { if (playing && !paused && mine === epoch) step(mine); });
+  }
+  function playSilence(seconds: number, mine: number, done: () => void) {
     var a = audioEl(), finished = false;
     var proceed = function () {
       if (finished) return;
       finished = true; clearPauseGuard();
-      if (playing && !paused && mine === epoch) step(mine);
+      done();
     };
     var unity = function () { try { a.playbackRate = 1; } catch (e) {} };
     a.onloadedmetadata = unity; a.onplay = unity;
@@ -1355,7 +1457,7 @@ type TestWindow = Window & typeof globalThis & {
     paused = false;
     playbackError = undefined;
     epoch += 1;
-    queueDoc = null;
+    queueDoc = null; detached = null;
     render();
     step(epoch);
     // Each utterance is deliberately kept short. Do not use the traditional
@@ -1378,7 +1480,7 @@ type TestWindow = Window & typeof globalThis & {
     cancelWarming();
     if (rrWarmTimer) clearTimeout(rrWarmTimer);
     rrWarmTimer = null;
-    queue = []; queueDoc = null; queueDocument = null; cursor = 0;
+    queue = []; queueDoc = null; queueDocument = null; cursor = 0; detached = null;
     clearSleepTimer();
     clearStallWatchdog();
     try { if (rrTtsAudio) { rrTtsAudio.pause(); rrTtsAudio.removeAttribute('src'); rrTtsAudio.load(); } } catch (e) { /* ignore */ }
@@ -1465,7 +1567,7 @@ type TestWindow = Window & typeof globalThis & {
     stallRetries = 0;
     haltCurrentAudio();
     clearHighlights();
-    if (delta < 0 && cursor === 0 && state && getEpubNarrationAdapter()) {
+    if (delta < 0 && cursor === 0 && state && !detached && getEpubNarrationAdapter()) {
       const adapter = getEpubNarrationAdapter();
       try {
         let from = state.doc;
@@ -1543,7 +1645,7 @@ type TestWindow = Window & typeof globalThis & {
     var mine = epoch;
     haltCurrentAudio();
     clearHighlights();
-    queue = []; queueDoc = null; cursor = 0;
+    queue = []; queueDoc = null; cursor = 0; detached = null;
     if (!wasPlaying || !anchorText) { render(); return; }
 
     (async function restoreAfterModeChange() {

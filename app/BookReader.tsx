@@ -788,6 +788,30 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
             if (disposed) return null;
             return narrationTargets().find(target => target.index === section!.index) ?? null;
           },
+          offscreen: async (fromIndex, direction) => {
+            if (disposed) return null;
+            type RawSection = { index: number; href: string; linear?: boolean; document?: Document;
+              load: (request: unknown) => Promise<unknown>; cfiFromRange: (range: Range) => string };
+            const spine = book.spine as unknown as { get: (index: number) => RawSection | null };
+            let section = fromIndex + direction < 0 ? null : spine.get(fromIndex + direction);
+            while (section?.linear === false) section = section.index + direction < 0 ? null : spine.get(section.index + direction);
+            if (!section) return null;
+            const loader = (book as unknown as { load: (path: string) => Promise<unknown> }).load.bind(book);
+            await readerDeadline(section.load(loader), controller.signal, 20_000);
+            const doc = section.document;
+            if (disposed || !doc) return null;
+            const loaded = section;
+            return { doc, index: loaded.index, cfiFor: range => { try { return loaded.cfiFromRange(range); } catch { return null; } } };
+          },
+          show: async index => {
+            if (disposed) return null;
+            const spine = book.spine as unknown as { get: (index: number) => { index: number; href: string } | null };
+            const section = spine.get(index);
+            if (!section) return null;
+            await readerDeadline(rendition.display(section.href), controller.signal);
+            if (disposed) return null;
+            return narrationTargets().find(target => target.index === index) ?? null;
+          },
         });
         const epubTarget = (item: EpubContents): AnnotationTarget => ({
           doc: item.document,
@@ -1430,12 +1454,14 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
       reportLocation({ ...currentLocationRef.current, label: currentLocationRef.current.label || "In progress", position: lastCfi, status: "reading" });
     };
     const onNarration = (event: Event) => {
-      const detail = (event as CustomEvent<{ kind: string; doc?: Document | null; range?: Range | null }>).detail || { kind: "" };
+      const detail = (event as CustomEvent<{ kind: string; doc?: Document | null; range?: Range | null; cfi?: string | null }>).detail || { kind: "" };
       if (detail.kind === "sentence") {
         narratingRef.current = true;
         const adapter = annotationAdapterRef.current;
         const target = adapter && detail.doc ? adapter.targets().find((item) => item.doc === detail.doc) : null;
-        const cfi = adapter && target && detail.range ? adapter.cfiFor(target, detail.range) : null;
+        // A chapter reached with the screen off is not drawn yet; narration
+        // supplies its place directly so the saved position still follows.
+        const cfi = detail.cfi || (adapter && target && detail.range ? adapter.cfiFor(target, detail.range) : null);
         if (cfi) lastCfi = cfi;
         if (Date.now() - savedAt > 5000) { savedAt = Date.now(); save(); }
       } else if (detail.kind === "return") {

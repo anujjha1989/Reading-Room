@@ -2,6 +2,12 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v209 — 2026-10-07
+
+- Read Aloud no longer stops at the end of every chapter when the iPhone is locked. A locked screen draws nothing, and narration was waiting for the next chapter to be displayed before reading it. With the screen off it now loads the next chapter's text straight from the book, bridges the gap with a second of silent audio so iOS keeps the session alive, and carries on.
+- On unlock the reader opens the chapter being spoken and the highlight rejoins the current sentence without interrupting the audio. The saved reading position follows the voice across chapters while locked.
+- Applies to EPUB in both Scroll and Pages modes. A new release check stops screen frames mid-chapter in Chrome and WebKit and requires narration to cross into the next chapter and rejoin the page on wake; it fails without this change.
+
 ## v208 — 2026-10-06
 
 - Read Aloud now pauses the way a narrator does, with every voice: a breath between sentences, longer between paragraphs (about 0.75 s), longer around a chapter title or heading (about 1.1 s) and longest at a scene break (about 1.4 s). A long sentence cut at a comma adds nothing. Each voice already leaves some silence at the edges of its clips, so only the difference is added, and the pauses shorten with the speed setting.

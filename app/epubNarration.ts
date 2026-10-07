@@ -4,7 +4,13 @@ export type EpubNarrationAdapter = {
   targets: () => EpubNarrationTarget[];
   navigate: (doc: Document, direction: -1 | 1) => Promise<EpubNarrationTarget | null>;
   canPrevious: (doc: Document) => boolean;
+  /** The next readable section's text, loaded without drawing it. A locked
+   *  screen draws nothing, so narration cannot wait for a chapter to render. */
+  offscreen?: (fromIndex: number, direction: -1 | 1) => Promise<EpubOffscreenSection | null>;
+  /** Draw a section that narration reached while the screen was off. */
+  show?: (index: number) => Promise<EpubNarrationTarget | null>;
 };
+export type EpubOffscreenSection = { doc: Document; index: number; cfiFor: (range: Range) => string | null };
 let adapter: EpubNarrationAdapter | null = null;
 export const getEpubNarrationAdapter = () => adapter;
 export function registerEpubNarrationAdapter(next: EpubNarrationAdapter) {
