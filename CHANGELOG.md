@@ -2,6 +2,11 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v214 — 2026-10-08
+
+- Read Aloud in Scroll mode now follows the voice in MOBI books. A MOBI chapter is one tall frame inside its own scroller, and the reader was judging "on screen" from inside that frame, where everything always looked visible; so the page never moved and the highlight ran off the bottom. Scroll mode is now judged against the screen, as EPUBs are. Pages mode is unchanged.
+- New release check in Chrome and WebKit on a real MOBI: every spoken sentence starts on screen and the page moves on.
+
 ## v213 — 2026-10-08
 
 - Read Aloud in Scroll mode: whether the screen is on is now judged by whether it is actually drawing frames, not by the page's visibility flag alone. If that flag stayed "hidden" after an unlock, narration kept skipping the follow-scroll, so the highlight ran to the bottom of the page and the page never moved on. The same check now decides when a chapter change must be made without drawing, and brings the page back as soon as frames resume.

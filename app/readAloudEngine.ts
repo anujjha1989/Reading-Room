@@ -169,12 +169,21 @@ type TestWindow = Window & typeof globalThis & {
     if (v && v.renderer && typeof v.renderer.getContents === "function") {
       var c = v.renderer.getContents()[0];
       if (c && c.doc && c.doc.body) {
+        // In pages mode foliate's iframe is the visible page, so its own
+        // viewport is the frame of reference. In scroll mode the iframe is as
+        // tall as the whole chapter and foliate's container scrolls it, so
+        // everything looked "visible" from inside, no follow-scroll ever
+        // fired and the highlight ran off the bottom of the screen. Scroll
+        // mode is judged against the window instead, as EPUBs are.
+        var foliateFrame: HTMLIFrameElement | null = null;
+        if (readingMode() === "scroll") {
+          try { foliateFrame = (c.doc.defaultView && c.doc.defaultView.frameElement) as HTMLIFrameElement | null; } catch (e) { foliateFrame = null; }
+        }
         return {
           doc: c.doc,
           mode: readingMode(),
-          // foliate's iframe *is* the visible page in both flows, so its own
-          // viewport is the right frame of reference.
-          visible: function (range: Range) { return visibleInDoc(c.doc, range); },
+          frame: foliateFrame || undefined,
+          visible: function (range: Range) { return foliateFrame ? visibleInHost(foliateFrame, range) : visibleInDoc(c.doc, range); },
           turn: function () { return v!.next(); },
           reveal: function (range: Range) {
             // foliate owns its scroller, so asking it to bring the range into
@@ -203,14 +212,18 @@ type TestWindow = Window & typeof globalThis & {
             } catch (e) { /* fall through to the measured fallback */ }
 
             requestAnimationFrame(function () {
-              var rect;
-              try { rect = range.getBoundingClientRect(); } catch (e) { return; }
+              var rect, offset = 0;
+              try {
+                rect = range.getBoundingClientRect();
+                // Where the sentence sits on the screen, not inside the chapter.
+                if (foliateFrame) offset = foliateFrame.getBoundingClientRect().top;
+              } catch (e) { return; }
               if (!rect || (!rect.height && !rect.width)) return;
-              var wanted = followTop();
+              var wanted = followTop(), top = rect.top + offset;
               // Already within a sensible band: leave it alone rather than
               // fighting foliate's own scrolling.
-              if (Math.abs(rect.top - wanted) <= 24) return;
-              scrollContainerBy(renderer, rect.top - wanted);
+              if (Math.abs(top - wanted) <= 24) return;
+              scrollContainerBy(renderer, top - wanted);
             });
           },
         };

@@ -196,3 +196,54 @@ for (const engine of ['chromium', 'webkit']) {
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 }
+
+// MOBI in scroll mode: the chapter is one tall frame inside foliate's own
+// scroller, so "on screen" has to be judged against the window. Judged from
+// inside the frame, nothing ever needed revealing and the page never moved.
+for (const engine of ['chromium', 'webkit']) {
+  test(`${engine} MOBI: scroll mode keeps the spoken sentence on screen`, { timeout: 70000 }, async t => {
+    const preview = await reliabilityPreview(); t.after(() => preview.close());
+    const browser = await pw[engine].launch(engine === 'chromium' && process.env.READING_ROOM_CHROME ? { executablePath: process.env.READING_ROOM_CHROME } : {});
+    t.after(() => browser.close());
+    const page = await browser.newPage({ viewport: { width: 393, height: 852 }, serviceWorkers: 'block' });
+    page.setDefaultTimeout(25000);
+    const errors = []; page.on('pageerror', e => errors.push(e.message));
+    await page.route('**/catalog.json', r => r.fulfill({ json: [{ id: mobiId, title: 'Season of the Machete', format: 'MOBI', source: 'Local', url: `/api/book/${mobiId}` }] }));
+    await page.route('**/api/library-state', r => r.fulfill({ json: { states: [] } }));
+    await page.route('**/api/tts?**', r => r.fulfill({ body: 'fixture' }));
+    await page.addInitScript(() => {
+      if (window.top !== window) return;
+      localStorage.setItem('reading-room-reader-mode', 'scroll');
+      window.heard = [];
+      Object.defineProperty(HTMLMediaElement.prototype, 'src', { configurable: true, get() { return this.fixtureSrc || ''; }, set(value) { this.fixtureSrc = value; } });
+      HTMLMediaElement.prototype.load = function () {};
+      HTMLMediaElement.prototype.pause = function () { clearTimeout(this.fixtureTimer); };
+      HTMLMediaElement.prototype.play = function () { clearTimeout(this.fixtureTimer); this.onplaying?.(); this.fixtureTimer = setTimeout(() => this.onended?.(), 130); return Promise.resolve(); };
+      window.addEventListener('rr-narration', e => {
+        if (e.detail.kind !== 'sentence' || !e.detail.range) return;
+        const range = e.detail.range;
+        setTimeout(() => { try {
+          const frame = range.startContainer.ownerDocument.defaultView.frameElement.getBoundingClientRect(), box = range.getBoundingClientRect();
+          window.heard.push({ top: Math.round(frame.top + box.top), bottom: Math.round(frame.top + box.bottom) });
+        } catch { window.heard.push({ top: NaN, bottom: NaN }); } }, 100);
+      });
+    });
+    await page.goto(preview.url); await page.locator('.rr-library-dock button[data-view="Library"]').click();
+    await page.locator('.book .cover').click();
+    await page.waitForFunction(() => document.querySelector('foliate-view')?.renderer?.getContents?.().length);
+    await page.locator('.rr-react-sheet-trigger').click();
+    await page.locator('[data-view="menu"] button').filter({ hasText: /^Contents/ }).click();
+    await page.locator('[data-view="contents"] button').filter({ hasText: /^CHAPTER TWO$/ }).click();
+    await page.locator('[data-view="contents"]').waitFor({ state: 'detached' });
+    await page.locator('.rr-react-sheet-trigger').click();
+    await page.locator('[data-view="menu"] button').filter({ hasText: /^Aloud$/ }).click();
+    await page.getByRole('button', { name: 'Start reading', exact: true }).click();
+    await page.waitForFunction(() => window.heard.length >= 40, null, { timeout: 45000 });
+    const heard = (await page.evaluate(() => window.heard)).slice(1);
+    const off = heard.filter(item => !(item.top >= 0 && item.top < 852 - 24));
+    assert.ok(off.length <= 1, `spoken sentences start on screen: ${JSON.stringify(heard)}`);
+    assert.ok(heard.some((item, index) => index > 0 && item.top < heard[index - 1].top), 'the page moved on at least once');
+    assert.deepEqual(errors, []);
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+}
