@@ -708,8 +708,32 @@ type TestWindow = Window & typeof globalThis & {
   // guard and returns false, which stops playback after a page or two. While
   // hidden, skip the geometry entirely and let speech continue - the text is
   // not being looked at, and position is reconciled on the next wake.
+  //
+  // "Asleep" is judged by whether the screen is actually drawing, not by
+  // document.hidden alone. Inside the iPhone app the page's visibility flag is
+  // not a reliable witness: if it stays "hidden" after an unlock, narration
+  // would keep skipping the follow-scroll on a screen the reader is looking
+  // at; if it stays "visible" under a locked screen, a chapter change would
+  // wait for a drawing that never comes. A frame callback is the direct
+  // evidence, so a heartbeat runs while narration plays.
+  var lastFrameAt = 0, frameLoop = false, FRAME_STALE = 2000;
+  function watchFrames() {
+    lastFrameAt = Date.now();
+    if (frameLoop || typeof requestAnimationFrame !== "function") return;
+    frameLoop = true;
+    var tick = function () {
+      lastFrameAt = Date.now();
+      if (!playing) { frameLoop = false; return; }
+      // Frames are flowing again: put a chapter reached in the dark on the page.
+      if (detached) void reattach();
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
   function screenAsleep() {
-    return typeof document !== "undefined" && document.hidden;
+    if (typeof document === "undefined") return false;
+    if (!frameLoop) return document.hidden;
+    return Date.now() - lastFrameAt > FRAME_STALE;
   }
 
   async function bringIntoView(state: ReaderState, item: QueueItem, mine: number) {
@@ -929,7 +953,10 @@ type TestWindow = Window & typeof globalThis & {
 
   async function advanceSection(state: ReaderState, mine: number) {
     const adapter = getEpubNarrationAdapter();
-    if (adapter && adapter.offscreen && (detached || screenAsleep())) {
+    // Either witness is enough here: the flag turns at once on a lock, the
+    // heartbeat only after a moment, and reading a chapter undrawn is harmless
+    // (it is put on the page as soon as frames flow).
+    if (adapter && adapter.offscreen && (detached || screenAsleep() || document.hidden)) {
       // With the screen off nothing is drawn, so a chapter that has to be
       // displayed first never arrives and listening stopped at every chapter
       // end. Read the next chapter's text straight from the book instead, and
@@ -1025,7 +1052,7 @@ type TestWindow = Window & typeof globalThis & {
       const adapter = getEpubNarrationAdapter(), want = detached;
       if (!adapter || !want) return;
       let target = null, asked = false;
-      for (let waited = 0; waited < 8000 && detached === want && !document.hidden; waited += 200) {
+      for (let waited = 0; waited < 8000 && detached === want && !screenAsleep(); waited += 200) {
         target = adapter.targets().find(function (item) { return item.index === want.index; }) ?? null;
         if (target) break;
         // The reader normally returns to the spoken place by itself on wake;
@@ -1460,6 +1487,7 @@ type TestWindow = Window & typeof globalThis & {
     playbackError = undefined;
     epoch += 1;
     queueDoc = null; detached = null;
+    watchFrames();
     render();
     step(epoch);
     // Each utterance is deliberately kept short. Do not use the traditional

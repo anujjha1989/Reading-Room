@@ -139,3 +139,60 @@ for (const engine of ['chromium', 'webkit']) {
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 }
+
+// Inside the iPhone app the page's visibility flag can stay "hidden" on a
+// screen that is plainly on. Following the voice must rely on frames actually
+// being drawn, or the highlight runs off the bottom and the page never moves.
+for (const engine of ['chromium', 'webkit']) {
+  test(`${engine}: scroll mode keeps following the voice when the visibility flag is stuck hidden`, { timeout: 70000 }, async t => {
+    const preview = await reliabilityPreview(); t.after(() => preview.close());
+    const browser = await pw[engine].launch(engine === 'chromium' && process.env.READING_ROOM_CHROME ? { executablePath: process.env.READING_ROOM_CHROME } : {});
+    t.after(() => browser.close());
+    const page = await browser.newPage({ viewport: { width: 393, height: 852 }, serviceWorkers: 'block' });
+    page.setDefaultTimeout(20000);
+    const errors = []; page.on('pageerror', e => errors.push(e.message));
+    const fixture = await narrationEpub({ chapterCount: 2, paragraphCount: 30 });
+    await page.route('**/catalog.json', r => r.fulfill({ json: [{ id: 'stuck-fixture', title: 'Stuck flag', format: 'EPUB', source: 'Local' }] }));
+    await page.route('**/api/library-state', r => r.fulfill({ json: { states: [] } }));
+    await page.route('**/api/book/**', r => r.fulfill({ contentType: 'application/epub+zip', body: fixture }));
+    await page.route('**/api/tts/voices', r => r.fulfill({ json: { voices: [{ id: 'en_US-ryan-high', label: 'Ryan' }] } }));
+    await page.route('**/api/tts?**', r => r.fulfill({ body: 'fixture' }));
+    await page.addInitScript(() => {
+      if (window.top !== window) return;
+      localStorage.setItem('reading-room-reader-mode', 'scroll'); localStorage.setItem('reading-room-voice', 'en_US-ryan-high');
+      window.heard = [];
+      Object.defineProperty(HTMLMediaElement.prototype, 'src', { configurable: true, get() { return this.fixtureSrc || ''; }, set(value) { this.fixtureSrc = value; } });
+      HTMLMediaElement.prototype.load = function () {};
+      HTMLMediaElement.prototype.pause = function () { clearTimeout(this.fixtureTimer); };
+      HTMLMediaElement.prototype.play = function () { clearTimeout(this.fixtureTimer); this.onplaying?.(); this.fixtureTimer = setTimeout(() => this.onended?.(), 110); return Promise.resolve(); };
+      let hidden = false;
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => hidden ? 'hidden' : 'visible' });
+      window.__stickHidden = () => { hidden = true; };          // frames keep flowing
+      window.addEventListener('rr-narration', e => {
+        if (e.detail.kind !== 'sentence' || !e.detail.range) return;
+        const range = e.detail.range;
+        setTimeout(() => { try {
+          const frame = range.startContainer.ownerDocument.defaultView.frameElement.getBoundingClientRect(), box = range.getBoundingClientRect();
+          window.heard.push({ top: Math.round(frame.top + box.top), bottom: Math.round(frame.top + box.bottom) });
+        } catch { window.heard.push({ top: NaN, bottom: NaN }); } }, 80);
+      });
+    });
+    await page.goto(preview.url);
+    await page.locator('.rr-library-dock button[data-view="Library"]').click();
+    await page.locator('.book .cover').click();
+    await page.locator('.epub-viewer iframe').first().waitFor();
+    await page.waitForTimeout(1500);
+    await page.locator('.rr-react-sheet-trigger').click();
+    await page.locator('[data-view="menu"] button').filter({ hasText: /^Aloud$/ }).click();
+    await page.getByRole('button', { name: 'Start reading', exact: true }).click();
+    await page.waitForFunction(() => window.heard.length >= 2);
+    await page.evaluate(() => window.__stickHidden());
+    await page.waitForFunction(() => window.heard.length >= 28, null, { timeout: 40000 });
+    const heard = (await page.evaluate(() => window.heard)).slice(2);
+    assert.ok(heard.every(item => item.bottom <= 852 && item.top >= 0), `every spoken sentence is on screen: ${JSON.stringify(heard)}`);
+    assert.ok(heard.some((item, index) => index > 0 && item.top < heard[index - 1].top), 'the page moved on at least once');
+    assert.deepEqual(errors, []);
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+}

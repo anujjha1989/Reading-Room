@@ -2,6 +2,10 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v213 — 2026-10-08
+
+- Read Aloud in Scroll mode: whether the screen is on is now judged by whether it is actually drawing frames, not by the page's visibility flag alone. If that flag stayed "hidden" after an unlock, narration kept skipping the follow-scroll, so the highlight ran to the bottom of the page and the page never moved on. The same check now decides when a chapter change must be made without drawing, and brings the page back as soon as frames resume.
+
 ## v212 — 2026-10-08
 
 - The reading menu and its panels now follow the Sepia theme: warm paper glass with brown-black ink, instead of the Light theme's cool white. The same applies to the highlight menu, the note sheet and the search and marks panels.
