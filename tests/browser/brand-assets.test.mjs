@@ -9,7 +9,9 @@ test("brand icons retain geometry and use neutral near-white, not cream or pure 
   assert.equal(APP_ICON_TRANSFORM, "translate(128 128) scale(1.024) translate(-127.5 -110.75)");
   const browser = await launchBrowser();
   t.after(() => browser.close());
-  await browser.goto("data:text/html,<html></html>");
+  // This pixel-only check stays on the browser's blank page; no library origin
+  // or authenticated session is needed, even when release cookies are provided.
+  await browser.waitFor("document.readyState === 'complete'");
   const files = [["icon-192.png", 192], ["icon-512.png", 512], ["apple-touch-icon.png", 180]];
   if (process.env.HOME_BOOKS_NATIVE_ICON) files.push([process.env.HOME_BOOKS_NATIVE_ICON, 1024]);
   for (const [file, size] of files) {
