@@ -2,11 +2,17 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
-## Unreleased
+## v215 — 2026-10-09
 
 - Changing the voice while Read Aloud is paused now resumes the same passage in the selected voice, not the previous voice's retained audio. The paused state, page, highlight and existing punctuation pauses are retained. This applies to both web and iOS book reading; native TV and summary playback already invalidate old-voice audio.
 - Read Aloud protects unusually long unbroken text from splitting a Unicode character. Its clip size is explicitly bounded by the same server limit used by the native TV reader; normal sentence phrasing, pauses and low-latency clip sizes are unchanged.
 - Reader fixes now have a cross-platform checklist and repeatable regression gate for desktop/mobile web, the iOS wrapper and native summary player, and tvOS. Web release checks now include Unicode/length safety and paused Piper-to-Kokoro voice switching in Chrome and WebKit.
+
+### Deployment
+
+- Source `fe7e4ef`, previous v214. The canonical full-build installer passed its required checks, backed up the complete previous release, installed v215 and verified the live asset bytes, MIME types, version and legacy Settings redirect on LAN and public HTTPS.
+- Chrome and WebKit verified the actual live routes, hydration, menus and Settings in both themes on both origins. Piper and Kokoro audio and cached range requests passed on both origins. Release tag `deploy-v215`; automatic provenance: `deployment-history/v215.json`. Rollback: `deployment-backups/20261009-182453-before-v215`.
+- Cross-platform verification: 56 web checks, 49 TV checks and five iOS UI tests passed. Native production sources did not change; TV build 10 already contains the corresponding narration protections, and iOS book reading receives this shared web release. Native summary playback was checked on a dedicated simulator; a physical iPhone playback test is not claimed. No layout, punctuation pause targets or cross-device progress synchronization changes.
 
 ## v214 — 2026-10-08
 
