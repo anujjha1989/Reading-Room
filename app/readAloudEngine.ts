@@ -353,6 +353,9 @@ type TestWindow = Window & typeof globalThis & {
 
   // --- collect the prose, in order -----------------------------------------
   function speechChunks(text: string, lang: string, limit: number, keepLines?: boolean): SpeechPiece[] {
+    // Same transport contract as the native TV reader: the server measures
+    // UTF-16 units, not visible characters. Keep callers below its 413 limit.
+    limit = Math.max(2, Math.min(1200, Math.floor(limit) || MAX_CHARS));
     // Many EPUBs hard-wrap their source every ~80 characters. Those newlines
     // are ordinary spaces on the page, but a sentence segmenter treats each as
     // the end of a sentence and the voice engine pauses on it, so narration
@@ -385,6 +388,11 @@ type TestWindow = Window & typeof globalThis & {
         }
         var space = windowText.lastIndexOf(" ");
         var localCut = punctuation > 0 ? punctuation : space > limit * 0.55 ? space + 1 : limit;
+        // An unbroken word can force the last-resort cut. Never send half of
+        // an emoji/non-BMP character to the voice engine (or URL encoder).
+        var before = sentence.text.charCodeAt(pos + localCut - 1);
+        var after = sentence.text.charCodeAt(pos + localCut);
+        if (before >= 0xD800 && before <= 0xDBFF && after >= 0xDC00 && after <= 0xDFFF) localCut -= 1;
         pieces.push({ text: sentence.text.slice(pos, pos + localCut), at: sentence.at + pos });
         pos += localCut;
       }

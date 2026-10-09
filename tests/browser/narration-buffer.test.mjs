@@ -28,7 +28,7 @@ for (const engine of ['chromium', 'webkit']) test(`${engine}: buffered narration
   await page.route('**/catalog.json', r => r.fulfill({ json: [{ id: 'buffer-fixture', title: 'Buffered narration', format: 'EPUB', source: 'Local' }] }));
   await page.route('**/api/library-state', r => r.fulfill({ json: { states: [] } }));
   await page.route('**/api/book/**', r => r.fulfill({ contentType: 'application/epub+zip', body: fixture }));
-  await page.route('**/api/tts/voices', r => r.fulfill({ json: { voices: [{ id: 'en_US-ryan-high', label: 'Ryan' }] } }));
+  await page.route('**/api/tts/voices', r => r.fulfill({ json: { voices: [{ id: 'en_US-ryan-high', label: 'Ryan' }, { id: 'kokoro-af_heart', label: 'Heart · Kokoro' }] } }));
   const requests = [];
   await page.route('**/api/tts?**', async r => {
     requests.push({ url: r.request().url(), warm: r.request().headers()['x-home-books-prefetch'] === '1' });
@@ -68,6 +68,17 @@ for (const engine of ['chromium', 'webkit']) test(`${engine}: buffered narration
   assert.equal(await page.locator('#rr-tts-audio').evaluate(a => a.paused), true);
   await page.getByRole('button', { name: 'Resume reading', exact: true }).click();
   assert.equal(await page.locator('#rr-tts-audio').evaluate(a => a.src), src, 'resume retains the same buffered clip');
+  // Match the TV chooser: a paused voice change must not resume speech or
+  // reuse audio prepared for the old voice.
+  await page.getByRole('button', { name: 'Pause reading', exact: true }).click();
+  await page.getByRole('button', { name: 'Ryan', exact: true }).click();
+  await page.getByRole('button', { name: 'Heart · Kokoro', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: 'Resume reading', exact: true }).count(), 1);
+  const playingBefore = await page.evaluate(() => window.audioAudit.sources.length);
+  await page.getByRole('button', { name: 'Resume reading', exact: true }).click();
+  await page.waitForFunction(n => window.audioAudit.sources.length > n, playingBefore);
+  assert.ok(requests.some(r => new URL(r.url).searchParams.get('v') === 'kokoro-af_heart'), 'selected Kokoro voice must reach the server');
+  assert.notEqual(await page.locator('#rr-tts-audio').evaluate(a => a.src), src, 'old voice audio is not reused');
   await page.getByRole('button', { name: 'Stop reading', exact: true }).click();
   assert.ok((await page.evaluate(() => window.audioAudit.revoked)).includes(src), 'stop releases buffered audio');
   assert.deepEqual(errors, []);

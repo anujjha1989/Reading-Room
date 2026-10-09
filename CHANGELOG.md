@@ -2,6 +2,11 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## Unreleased
+
+- Read Aloud protects unusually long unbroken text from splitting a Unicode character. Its clip size is explicitly bounded by the same server limit used by the native TV reader; normal sentence phrasing, pauses and low-latency clip sizes are unchanged.
+- Reader fixes now have a cross-platform checklist and repeatable regression gate for desktop/mobile web, the iOS wrapper and native summary player, and tvOS. Web release checks now include Unicode/length safety and paused Piper-to-Kokoro voice switching in Chrome and WebKit.
+
 ## v214 — 2026-10-08
 
 - Read Aloud in Scroll mode now follows the voice in MOBI books. A MOBI chapter is one tall frame inside its own scroller, and the reader was judging "on screen" from inside that frame, where everything always looked visible; so the page never moved and the highlight ran off the bottom. Scroll mode is now judged against the screen, as EPUBs are. Pages mode is unchanged.
