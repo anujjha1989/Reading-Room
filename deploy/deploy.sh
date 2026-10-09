@@ -29,7 +29,7 @@ if [ -z "${READING_ROOM_CURL_COOKIE_FILE:-}" ] || [ ! -f "$READING_ROOM_CURL_COO
   exit 1
 fi
 # Catch unavailable authentication/network/browser prerequisites before install.
-curl -fsS --max-time 15 --cookie "$READING_ROOM_CURL_COOKIE_FILE" "$PUBLIC_ORIGIN/catalog.json" -o /dev/null
+curl -fsS --compressed --max-time 15 --cookie "$READING_ROOM_CURL_COOKIE_FILE" "$PUBLIC_ORIGIN/catalog.json" -o /dev/null
 mkdir -p "$DEPLOY_HISTORY_DIR"
 HISTORY_PROBE=$(mktemp "$DEPLOY_HISTORY_DIR/.release-check.XXXXXX")
 rm "$HISTORY_PROBE"
