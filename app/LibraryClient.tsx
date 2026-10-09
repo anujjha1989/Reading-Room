@@ -18,6 +18,7 @@ import { hasNativeSummary, readSummary } from "./nativeBridge";
 import { cardTitle, completeLabel, continueProgress, coverOptions, groupShelf, homeShelves, recentlyOpened, type ShelfBook } from "./homeShelves";
 import { normalized, cleanTitle, isReference, canReadHere, type RawBook, type Book, type Copy } from "./catalogModel";
 import { useCatalogModel } from "./useCatalogModel";
+import { mergeReadingStates, remapFileStates } from "./sharedReadingState";
 
 type LibraryView = "library" | "continue" | "favorites" | "recent";
 type DisplayMode = "thumbnails" | "list";
@@ -31,6 +32,7 @@ type SavedState = {
   /** The reader's own collections this book is in, by name. */
   lists?: string[];
   highlights?: Highlight[];
+  portablePosition?: string | null;
 };
 /** Which of the reader's own shelves My Books shows. */
 type MyShelf = "favorites" | "want" | "finished" | `list:${string}`;
@@ -273,16 +275,25 @@ export default function LibraryClient() {
       if (savedDisplay === "thumbnails" || savedDisplay === "list") setDisplayMode(savedDisplay);
     } catch { /* Saves must still reach the server when device storage is unavailable. */ }
     outbox.start();
-    fetch("/api/library-state").then((response) => response.ok ? response.json() : { states: [] }).then((payload: { states?: SavedState[] }) => {
-      if (!payload.states?.length) return;
-      setSavedStates((current) => {
-        const merged = { ...current };
-        for (const item of payload.states || []) if (!merged[item.bookId] || item.updatedAt >= merged[item.bookId].updatedAt) merged[item.bookId] = item;
-        savedStatesRef.current = merged;
-        setLocalSaveFailed(!persistLocal(merged));
-        return merged;
-      });
-    }).catch(() => {});
+    let alive = true;
+    let lastRefresh = 0;
+    const refreshState = () => {
+      if (document.visibilityState !== "visible" || document.querySelector(".reader-shell") || Date.now() - lastRefresh < 2000) return;
+      lastRefresh = Date.now();
+      void fetch("/api/library-state").then((response) => response.ok ? response.json() : { states: [] }).then((payload: { states?: SavedState[] }) => {
+        if (!alive || !payload.states?.length) return;
+        setSavedStates((current) => {
+          const merged = mergeReadingStates(current, payload.states || []);
+          savedStatesRef.current = merged;
+          setLocalSaveFailed(!persistLocal(merged));
+          return merged;
+        });
+      }).catch(() => {});
+    };
+    refreshState();
+    window.addEventListener("focus", refreshState);
+    document.addEventListener("visibilitychange", refreshState);
+    window.addEventListener("rr-reader-closed", refreshState);
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); document.querySelector<HTMLInputElement>(".search input")?.focus(); }
       if (event.key === "Escape" && !document.querySelector(".reader-shell")) { setSelected(null); setSeriesFocus(null); }
@@ -292,6 +303,10 @@ export default function LibraryClient() {
     window.addEventListener("online", retrySync);
     window.addEventListener("pagehide", retrySync);
     return () => {
+      alive = false;
+      window.removeEventListener("focus", refreshState);
+      document.removeEventListener("visibilitychange", refreshState);
+      window.removeEventListener("rr-reader-closed", refreshState);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("online", retrySync);
       window.removeEventListener("pagehide", retrySync);
@@ -300,6 +315,16 @@ export default function LibraryClient() {
       if (outboxRef.current === outbox) outboxRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const mapped = remapFileStates(savedStatesRef.current, allBooks);
+    if (mapped === savedStatesRef.current) return;
+    savedStatesRef.current = mapped;
+    setSavedStates(mapped);
+    setLocalSaveFailed(!persistLocal(mapped));
+  }, [allBooks, savedStates]);
+
+  useEffect(() => { if (!reader) window.dispatchEvent(new Event("rr-reader-closed")); }, [reader]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -518,7 +543,8 @@ export default function LibraryClient() {
 
   function handleReaderLocation(location: ReaderLocation) {
     if (!reader) return;
-    saveState(reader.bookId, { fileId: reader.file.id, status: location.status || "reading", progressLabel: location.label, ...(location.progress !== undefined ? { progress: location.progress } : {}), position: location.position });
+    saveState(reader.bookId, { fileId: reader.file.id, status: location.status || "reading", progressLabel: location.label, ...(location.progress !== undefined ? { progress: location.progress } : {}), position: location.position,
+      ...(location.portablePosition !== undefined ? { portablePosition: location.portablePosition } : {}) });
   }
 
   function handleBookmarksChange(bookmarks: ReaderBookmark[]) {

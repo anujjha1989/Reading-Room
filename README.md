@@ -62,6 +62,27 @@ or adjusts scrolling. Optional cached lengths are invalidated by the archive's
 text/manifest CRCs; no book text is stored in this cache. Opening does not wait
 for indexing. Image-only opening covers show page 1.
 
+### Apple TV shared resume
+
+The native TV app saves progress through the same authenticated state API.
+EPUB locations additionally carry a versioned portable passage anchor (file,
+spine section, word offset and a short quote). The web/iPhone reader keeps its
+existing CFI and emits the portable anchor; incoming TV anchors are resolved
+against detached archive HTML before initial display. No live scroll manager,
+sentence/punctuation rules or screen-specific page numbers are replaced.
+Text-token caches are weakly held and invalidated when annotations change the
+document. Grouped file states merge into their catalogue title without removing
+bookmarks/highlights; a newer local action wins over older incoming state.
+
+Foreground library refresh picks up other-device changes but never relocates
+an already-open reader. Historical CFI-only bookmarks need one opening in the
+updated web/iPhone reader before TV can resolve them; TV does not guess a page
+or overwrite that old position on opening alone. Other TV-supported formats
+share progress but retain device-specific exact locations. Concurrent active
+reading on two devices follows the latest saved action, not live collaboration.
+`shared-reading-state.test.mjs` and the Chromium/WebKit `shared-resume.test.mjs`
+cover identity mapping, annotation preservation and portable round trips.
+
 ## Deployment
 
 The Mac builds the app and deploys to the Pi using `deploy/deploy.sh`. The

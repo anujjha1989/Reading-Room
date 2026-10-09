@@ -18,6 +18,7 @@ import { recordReading, timeLeft, type TimeLeft } from "./readingPace";
 import { restartReadAloudFromView } from "./readAloudController";
 import ComicReader, { type ComicReaderHandle } from "./ComicReader";
 import { resolveEpubSavedPosition } from "./epubSavedPosition";
+import { portableFromRange } from "./portableReadingPosition";
 import { loadReaderToc } from "./readerToc";
 import { readerDeadline } from "./readerDeadline";
 import { continuousEpubManager, type ContinuousManagerConstructor } from "./continuousEpubManager";
@@ -34,6 +35,7 @@ export type ReaderLocation = {
   /** Whole-book fraction, independent of chapter names or section page counts. */
   progress?: number;
   position?: string;
+  portablePosition?: string | null;
   status?: "reading" | "finished";
 };
 
@@ -634,10 +636,11 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         // preference and left the A-/A+ buttons fighting a stale baseline.
         rendition.themes.fontSize(`${fontSizeRef.current}%`);
 
-        const saved = localStorage.getItem(`reading-room-position-${file.id}`) || initialPosition || undefined;
+        const saved = initialPosition || localStorage.getItem(`reading-room-position-${file.id}`) || undefined;
         // EPUB.js leaves display() pending after some invalid-CFI errors. Check
         // the actual HTML first, preserving the chapter if its offset is stale.
-        const target = await resolveEpubSavedPosition(book, saved, (cfi, doc) => new EpubPosition(cfi).toRange(doc));
+        const target = await resolveEpubSavedPosition(book, saved, (cfi, doc) => new EpubPosition(cfi).toRange(doc),
+          (range, base) => new EpubPosition(range, base).toString(), file.id);
         if (disposed) return;
         if (target !== saved) {
           if (target) localStorage.setItem(`reading-room-position-${file.id}`, target);
@@ -865,7 +868,12 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
           setLocationHref(location.start.href || "");
           if (location.start.cfi) {
             localStorage.setItem(`reading-room-position-${file.id}`, location.start.cfi);
-            reportLocation({ label, progress: fraction, position: location.start.cfi, status: atEnd ? "finished" : "reading" });
+            let portablePosition: string | null = null;
+            try {
+              const range = (rendition as unknown as { getRange: (cfi: string) => Range | null }).getRange(location.start.cfi);
+              if (range) portablePosition = portableFromRange(file.id, location.start.index, range);
+            } catch { /* Image-only covers have no text anchor; the CFI remains valid. */ }
+            reportLocation({ label, progress: fraction, position: location.start.cfi, portablePosition, status: atEnd ? "finished" : "reading" });
           }
         });
         // Initial display can emit before this listener is installed. Measure
@@ -1475,11 +1483,15 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
   useEffect(() => {
     if (!isReflowable) return;
     let lastCfi: string | null = null;
+    let lastPortable: string | null = null;
+    let portableSource: { spine: number; range: Range } | null = null;
     let savedAt = 0;
     const save = () => {
       if (!lastCfi) return;
+      if (portableSource) lastPortable = portableFromRange(file.id, portableSource.spine, portableSource.range);
       try { localStorage.setItem(`reading-room-position-${file.id}`, lastCfi); } catch { /* storage off */ }
-      reportLocation({ ...currentLocationRef.current, label: currentLocationRef.current.label || "In progress", position: lastCfi, status: "reading" });
+      reportLocation({ ...currentLocationRef.current, label: currentLocationRef.current.label || "In progress", position: lastCfi,
+        ...(isEpub ? { portablePosition: lastPortable } : {}), status: "reading" });
     };
     const onNarration = (event: Event) => {
       const detail = (event as CustomEvent<{ kind: string; doc?: Document | null; range?: Range | null; cfi?: string | null }>).detail || { kind: "" };
@@ -1491,6 +1503,10 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         // supplies its place directly so the saved position still follows.
         const cfi = detail.cfi || (adapter && target && detail.range ? adapter.cfiFor(target, detail.range) : null);
         if (cfi) lastCfi = cfi;
+        if (isEpub && detail.range) {
+          const index = target?.index ?? Number(cfi?.match(/^epubcfi\(\/\d+\/(\d+)/)?.[1]) / 2 - 1;
+          if (Number.isInteger(index) && index >= 0) portableSource = { spine: index, range: detail.range.cloneRange() };
+        }
         if (Date.now() - savedAt > 5000) { savedAt = Date.now(); save(); }
       } else if (detail.kind === "return") {
         if (lastCfi) annotationAdapterRef.current?.go(lastCfi);
