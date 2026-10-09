@@ -1,10 +1,10 @@
 // One outline owns the header, favicon and installable app icons.
 import { writeFile } from "node:fs/promises";
 import { isAbsolute } from "node:path";
-import { HOUSE_PATH, BOOK_PAGES, APP_ICON_TRANSFORM } from "../app/bookBrand.js";
+import { HOUSE_PATH, BOOK_PAGES, APP_ICON_TRANSFORM, ICON_WHITE } from "../app/bookBrand.js";
 import { launchBrowser } from "../tests/browser/cdp-browser.mjs";
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Home Books"><rect width="256" height="256" fill="#ffffff"/><g transform="${APP_ICON_TRANSFORM}"><path d="${HOUSE_PATH}" fill="#f50916"/><path d="${BOOK_PAGES}" fill="#ffffff"/></g></svg>`;
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Home Books"><rect width="256" height="256" fill="${ICON_WHITE}"/><g transform="${APP_ICON_TRANSFORM}"><path d="${HOUSE_PATH}" fill="#f50916"/><path d="${BOOK_PAGES}" fill="${ICON_WHITE}"/></g></svg>`;
 for (const name of ["home-books-icon.svg", "favicon.svg"]) {
   await writeFile(new URL(`../public/${name}`, import.meta.url), svg + "\n");
 }

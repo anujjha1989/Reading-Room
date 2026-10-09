@@ -2,6 +2,11 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## Unreleased
+
+- Home Books icons use neutral near-white `#FAFAFA` for the background and book pages, replacing pure white without a cream tint. The red, geometry and spacing are unchanged. Shared web branding and generated installable/iPhone assets use the same source-owned color; the native TV icon and mark match it.
+- Added a required icon check for exact color, opaque pixels, dimensions and unchanged vector placement.
+
 ## v215 — 2026-10-09
 
 - Changing the voice while Read Aloud is paused now resumes the same passage in the selected voice, not the previous voice's retained audio. The paused state, page, highlight and existing punctuation pauses are retained. This applies to both web and iOS book reading; native TV and summary playback already invalidate old-voice audio.

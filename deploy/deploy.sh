@@ -136,6 +136,7 @@ fi
 # shipped four times without taking effect.
 (cd "$BUILD_DIR" &&
   node --test tests/browser/narration-contract.test.mjs &&
+  node --test tests/browser/brand-assets.test.mjs &&
   node deploy/check-overrides.mjs &&
   node deploy/check-motion.mjs &&
   node deploy/check-contrast.mjs &&
