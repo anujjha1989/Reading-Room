@@ -4,6 +4,7 @@ User-visible Reading Room changes are documented here. Git remains the detailed 
 
 ## Unreleased
 
+- Changing the voice while Read Aloud is paused now resumes the same passage in the selected voice, not the previous voice's retained audio. The paused state, page, highlight and existing punctuation pauses are retained. This applies to both web and iOS book reading; native TV and summary playback already invalidate old-voice audio.
 - Read Aloud protects unusually long unbroken text from splitting a Unicode character. Its clip size is explicitly bounded by the same server limit used by the native TV reader; normal sentence phrasing, pauses and low-latency clip sizes are unchanged.
 - Reader fixes now have a cross-platform checklist and repeatable regression gate for desktop/mobile web, the iOS wrapper and native summary player, and tvOS. Web release checks now include Unicode/length safety and paused Piper-to-Kokoro voice switching in Chrome and WebKit.
 

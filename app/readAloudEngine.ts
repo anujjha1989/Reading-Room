@@ -1674,10 +1674,20 @@ type TestWindow = Window & typeof globalThis & {
     });
   }
   function setVoice(value: string) {
+    var changed = ttsVoice() !== (value || "");
     try { localStorage.setItem("reading-room-voice", value || ""); } catch (e) {}
+    if (changed && playing && paused) {
+      // Pause normally retains the current audio so resume is gapless. A new
+      // voice is different: keeping that source silently resumes the OLD
+      // voice until the following sentence. Invalidate audio only, retaining
+      // the sentence cursor, highlight, scroll and paused state.
+      epoch += 1;
+      haltCurrentAudio();
+      clearAudioBuffers();
+    }
     scheduleWarmFirstSentence(40);
     render();
-    if (playing && !paused) restartCurrentSentence();
+    if (changed && playing && !paused) restartCurrentSentence();
   }
 
   window.addEventListener("rr-reading-mode-change", function (event) {
