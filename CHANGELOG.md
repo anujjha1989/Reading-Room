@@ -2,10 +2,16 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
-## Unreleased
+## v217 — 2026-10-09
 
 - Home Books icons use neutral near-white `#FAFAFA` for the background and book pages, replacing pure white without a cream tint. The red, geometry and spacing are unchanged. Shared web branding and generated installable/iPhone assets use the same source-owned color; the native TV icon and mark match it.
 - Added a required icon check for exact color, opaque pixels, dimensions and unchanged vector placement.
+
+### Deployment
+
+- Source `b3c650b`, previous live v215. Full canonical build and required checks passed: 41 node checks, two narration-contract checks, one exact icon check and 60 browser checks. The installer verified icon bytes/MIME types and the complete release on both LAN and authenticated public HTTPS, including Chrome/WebKit routes, hydration, menus and Settings in light/dark and real Piper/Kokoro playback.
+- Tag `deploy-v217`; automatic manifest `deployment-history/v217.json`. Complete rollback: `deployment-backups/20261009-185950-before-v217`. The earlier v216 candidate stopped before installation because the standalone pixel test attempted to apply a public cookie to a data URL; the isolated check now stays on its blank browser page. No release check was bypassed.
+- The iPhone icon was installed as native build 9, and the Apple TV icon as build 11. TV build 12 then fixed the oversized Search-to-Refresh gap, with focused remote layout/search/settings checks and confirmed Living Room installation. Native provenance and preserved bundles are recorded in the native checkout's `ICON-RELEASE.md`. Reader/listening sources, pauses and page state are unchanged.
 
 ## v215 — 2026-10-09
 
