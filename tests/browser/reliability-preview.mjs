@@ -18,7 +18,10 @@ export async function reliabilityPreview() {
       if (path.startsWith("/api/book/") || path === "/api/cover") {
         const upstream = process.env.READING_ROOM_BOOK_ORIGIN || "http://anujrpi.local:4311";
         const reply = await fetch(upstream + req.url, { signal: AbortSignal.timeout(30_000) });
-        res.writeHead(reply.status, { "content-type": reply.headers.get("content-type") || "application/octet-stream" }).end(Buffer.from(await reply.arrayBuffer())); return;
+        // Buffer before committing headers: a timed-out upstream body must
+        // produce one 502, not an unhandled second writeHead exception.
+        const data = Buffer.from(await reply.arrayBuffer());
+        res.writeHead(reply.status, { "content-type": reply.headers.get("content-type") || "application/octet-stream" }).end(data); return;
       }
       res.writeHead(404).end();
     } catch { res.writeHead(502).end("Preview data unavailable"); }
