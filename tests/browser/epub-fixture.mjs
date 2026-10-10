@@ -2,6 +2,16 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 // epub.js already owns this zip dependency; no extra production dependency.
 const Zip = createRequire(require.resolve("epubjs/package.json"))("jszip");
+export async function encodedContentsEpub() {
+  const zip = new Zip();
+  zip.file("mimetype", "application/epub+zip", {compression:"STORE"});
+  zip.file("META-INF/container.xml", '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+  const entries = [["start.xhtml", "The Pickwick Papers"], ["CR!history.xhtml", "A Child’s History of England"], ["Café book.xhtml", "Another work"]];
+  zip.file("book.opf", `<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">encoded-contents</dc:identifier><dc:title>Encoded collection</dc:title><dc:language>en</dc:language></metadata><manifest><item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>${entries.map(([href],i)=>`<item id="c${i}" href="${href}" media-type="application/xhtml+xml"/>`).join("")}</manifest><spine toc="toc">${entries.map((_,i)=>`<itemref idref="c${i}"/>`).join("")}</spine></package>`);
+  zip.file("toc.ncx", `<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head/><docTitle><text>Encoded collection</text></docTitle><navMap>${entries.map(([href,title],i)=>`<navPoint id="n${i}" playOrder="${i+1}"><navLabel><text>${title}</text></navLabel><content src="${encodeURIComponent(href).replace(/!/g,"%21")}#begin"/></navPoint>`).join("")}</navMap></ncx>`);
+  for (const [href,title] of entries) zip.file(href, `<html xmlns="http://www.w3.org/1999/xhtml"><head><title>${title}</title></head><body><h1 id="begin">${title}</h1>${Array.from({length:24},(_,i)=>`<p>${title}: paragraph ${i+1} remains readable after choosing this work from the contents.</p>`).join("")}</body></html>`);
+  return zip.generateAsync({type:"nodebuffer",compression:"DEFLATE"});
+}
 export async function narrationEpub({ emptyMiddle = false, imageOnlyFirst = false, chapterCount = 3, paragraphCount = 18 } = {}) {
   const zip = new Zip();
   zip.file("mimetype", "application/epub+zip", { compression: "STORE" });

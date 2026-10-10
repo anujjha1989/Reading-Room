@@ -149,7 +149,7 @@ fi
   node deploy/check-reader-consolidation.mjs &&
   node deploy/check-reference-room.mjs &&
   node deploy/check-haptics.mjs)
-(cd "$BUILD_DIR" && node --test --test-concurrency=1 tests/browser/reliability.test.mjs tests/browser/mobi-narration.test.mjs tests/browser/shelf-card-layout.test.mjs tests/browser/continuous-scroll.test.mjs tests/browser/reader-controls.test.mjs tests/browser/book-pages.test.mjs tests/browser/narration-position.test.mjs tests/browser/narration-buffer.test.mjs tests/browser/narration-locked-screen.test.mjs tests/browser/reader-control-consistency.test.mjs tests/browser/desktop-navigation.test.mjs tests/browser/desktop-reader-input.test.mjs)
+(cd "$BUILD_DIR" && node --test --test-concurrency=1 tests/browser/encoded-toc.test.mjs tests/browser/reliability.test.mjs tests/browser/mobi-narration.test.mjs tests/browser/shelf-card-layout.test.mjs tests/browser/continuous-scroll.test.mjs tests/browser/reader-controls.test.mjs tests/browser/book-pages.test.mjs tests/browser/narration-position.test.mjs tests/browser/narration-buffer.test.mjs tests/browser/narration-locked-screen.test.mjs tests/browser/reader-control-consistency.test.mjs tests/browser/desktop-navigation.test.mjs tests/browser/desktop-reader-input.test.mjs)
 
 echo "==> staging"
 rm -rf "$BUILD_DIR/dist/stage" && mkdir -p "$BUILD_DIR/dist/stage/assets"
@@ -364,6 +364,8 @@ TAILSCALE_RESULT=$VERIFY_RESULT
 for origin in "$LAN_ORIGIN" "$PUBLIC_ORIGIN"; do
   (cd "$BUILD_DIR" && READING_ROOM_BASE_URL="$origin" READING_ROOM_EXPECT_VERSION="$VERSION" node deploy/release-smoke.mjs) \
     || fail "required rendered-route check failed at $origin"
+  (cd "$BUILD_DIR" && READING_ROOM_TOC_LIVE_ORIGIN="$origin" READING_ROOM_EXPECT_VERSION="$VERSION" node --test --test-concurrency=1 tests/browser/encoded-toc.test.mjs) \
+    || fail "encoded collection contents navigation failed at $origin"
 done
 
 served=$("${SSH[@]}" "$PI" "grep -o 'name=\"rr-app-version\" content=\"[0-9]*\"' /opt/reading-room/current/site/index.html | head -1")

@@ -83,6 +83,16 @@ reading on two devices follows the latest saved action, not live collaboration.
 `shared-reading-state.test.mjs` and the Chromium/WebKit `shared-resume.test.mjs`
 cover identity mapping, annotation preservation and portable round trips.
 
+### Collection contents links
+
+NCX/nav filenames are resolved against the EPUB manifest before entering the
+reader's contents tree. Exact matches take priority; otherwise a single safe
+decode handles links such as Dickens's `CR%21…` pointing to a `CR!…` file.
+Chapter fragments remain unchanged. Unit tests and Chromium/WebKit tests cover
+encoded names, spaces, Unicode, fragments and the real Dickens collection's
+A Child's History of England. The latter also runs on both live release origins,
+with catalogue/progress requests isolated so checks cannot change reading history.
+
 ## Deployment
 
 The Mac builds the app and deploys to the Pi using `deploy/deploy.sh`. The

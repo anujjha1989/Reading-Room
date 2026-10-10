@@ -1,6 +1,22 @@
 import type { Book } from "epubjs";
 
 export type ReaderTocItem = { href: string; label: string; subitems?: ReaderTocItem[] };
+/** NCX/nav links may percent-encode characters left literal in the manifest
+ * (Dickens uses CR%21… for CR!…). EPUB.js does not decode those lookups.
+ * Prefer the exact manifest match, then decode once; retain fragments verbatim. */
+export function resolveReaderTocHref(book: Pick<Book, "spine">, href: string): string {
+  const hash = href.indexOf("#");
+  const path = hash < 0 ? href : href.slice(0, hash);
+  const fragment = hash < 0 ? "" : href.slice(hash);
+  try {
+    const exact = book.spine.get(path);
+    if (exact) return exact.href + fragment;
+    const decoded = decodeURI(path);
+    const section = decoded !== path ? book.spine.get(decoded) : null;
+    if (section) return section.href + fragment;
+  } catch { /* malformed optional links must not hide the rest of the contents */ }
+  return href;
+}
 const clean = (text: string) => text.replace(/\u00ad/g, "").replace(/\s+/g, " ").trim();
 const isFurniture = (label: string) => /^(contents|table of contents|books included here|copyright|title page)$/i.test(clean(label));
 const relativeHref = (base: string, href: string) => {
@@ -22,6 +38,10 @@ function listItems(list: Element, base: string): ReaderTocItem[] {
 /** Keep navigation hierarchical. Collection group pages are release-generated
  * EPUB navigation documents, not book content to be guessed from headings. */
 export async function loadReaderToc(book: Book, navigation: ReaderTocItem[], title: string): Promise<ReaderTocItem[]> {
+  const resolveItems = (items: ReaderTocItem[]): ReaderTocItem[] => items.map(item => ({
+    ...item, href: resolveReaderTocHref(book, item.href), subitems: resolveItems(item.subitems || []),
+  }));
+  navigation = resolveItems(navigation);
   const collection = /complete (?:works|collection)|collected works|omnibus/i.test(title);
   const read = async (href: string) => {
     const section = book.spine.get(href.split("#")[0]);
