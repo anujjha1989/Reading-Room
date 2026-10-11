@@ -196,11 +196,18 @@ function epubStyles(
     },
     "pre, code": { "white-space": "pre-wrap !important", "overflow-wrap": "anywhere !important" },
     table: { display: "block !important", width: "100% !important", "max-width": "100% !important", "overflow-x": "auto !important" },
+    // Word-exported EPUBs put black/windowtext on nested spans, so body
+    // inheritance alone cannot theme headings or inline contents. Restrict
+    // this to HTML text: SVG artwork, image colours and layout stay intact.
+    // Emit the same selectors for every theme because epub.js appends rules
+    // when switching themes in an already-open chapter.
+    "body :is(h1, h2, h3, h4, h5, h6, p, li, dt, dd, td, th, span, font, b, strong, i, em, small)": { color: `${colors.ink} !important` },
     // Only real links. 1Q84 (and many EPUBs) wrap ordinary paragraphs in
     // anchors without href - for footnote targets and ids - so colouring every
     // <a> turned whole pages blue-green. Anchors with an href are links; the
     // rest are structure and must inherit the body colour.
     "a[href]": { color: `${colors.link} !important` },
+    "body a[href], body a[href] :is(span, font, b, strong, i, em, small)": { color: `${colors.link} !important` },
     "a:not([href])": { color: "inherit !important" },
     "img, svg, video": { "max-width": "100% !important", height: "auto !important", "max-height": "92vh !important", "object-fit": "contain !important" },
   };

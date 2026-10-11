@@ -15,6 +15,7 @@ for (const engine of ["webkit", "chromium"]) for (const real of [false, true]) {
       await context.addCookies([{name,value,expires,httpOnly,secure,sameSite,url:preview.url}]);
     }
     const page = await context.newPage();
+    await context.addInitScript(()=>{localStorage.setItem("reading-room-reader-theme","dark");localStorage.setItem("reading-room-reader-theme-set","1");});
     const errors=[]; page.on("pageerror",e=>errors.push(e.message));
     const id=real ? "L28a240771460ca037123d22ebcba7b0110b387b7" : "encoded-toc-fixture";
     await page.route("**/catalog.json*",r=>r.fulfill({json:[{id,title:"The Complete Works of Charles Dickens",author:"Charles Dickens",format:"EPUB",source:"Local",titleCorrected:true,authorCorrected:true}]}));
@@ -44,6 +45,23 @@ for (const engine of ["webkit", "chromium"]) for (const real of [false, true]) {
       assert.ok(await page.evaluate(s=>window.tocAuditRendition.getContents().some(c=>window.tocAuditRendition.book.spine.get(c.sectionIndex)?.href.endsWith(s)&&c.document.body.textContent.trim().length>80),suffix));
     }
     assert.deepEqual(errors,[],"contents taps must not reject with No Section Found");
+    if (real) {
+      for (const suffix of ["_1511.html", "_1512.html"]) {
+        await page.evaluate(async suffix=>{
+          const r=window.tocAuditRendition;
+          const section=r.book.spine.spineItems.find(s=>s.href.endsWith(suffix));
+          await r.display(section.href);
+        },suffix);
+        await page.waitForFunction(suffix=>window.tocAuditRendition.getContents().some(c=>window.tocAuditRendition.book.spine.get(c.sectionIndex)?.href.endsWith(suffix)),suffix);
+        const colours=await page.evaluate(suffix=>{
+          const r=window.tocAuditRendition;
+          const c=r.getContents().find(c=>r.book.spine.get(c.sectionIndex)?.href.endsWith(suffix));
+          return [...c.document.querySelectorAll("h1,h2,p,span,a[href]")].filter(e=>e.textContent.trim()&&!e.children.length).map(e=>({text:e.textContent.trim().slice(0,80),color:c.window.getComputedStyle(e).color,link:!!e.closest("a[href]")}));
+        },suffix);
+        assert.ok(colours.length>0,"real contents/chapter text must be present");
+        for(const item of colours) assert.equal(item.color,item.link?"rgb(168, 200, 183)":"rgb(232, 228, 216)",`${suffix}: ${item.text}`);
+      }
+    }
     if (real && process.env.READING_ROOM_E2E_ARTIFACTS) {
       await mkdir(process.env.READING_ROOM_E2E_ARTIFACTS,{recursive:true});
       await page.screenshot({path:`${process.env.READING_ROOM_E2E_ARTIFACTS}/dickens-contents-${engine}.png`});
