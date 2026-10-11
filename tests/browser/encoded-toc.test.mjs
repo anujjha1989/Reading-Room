@@ -83,6 +83,9 @@ for (const engine of ["webkit", "chromium"]) for (const real of [false, true]) {
       await page.setViewportSize({width:1280,height:900});
       await page.waitForFunction(()=>window.tocAuditRendition.getContents().some(c=>c.window.getComputedStyle(c.document.body).color==="rgb(232, 228, 216)"));
       await page.setViewportSize({width:393,height:852});
+      // Resize repagination and sheet dismissal are animated; capture only
+      // after the phone layout has settled, not its transient empty frame.
+      await page.waitForTimeout(1200);
     }
     if (real && process.env.READING_ROOM_E2E_ARTIFACTS) {
       await mkdir(process.env.READING_ROOM_E2E_ARTIFACTS,{recursive:true});
