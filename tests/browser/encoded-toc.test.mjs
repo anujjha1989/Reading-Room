@@ -70,6 +70,19 @@ for (const engine of ["webkit", "chromium"]) for (const real of [false, true]) {
         assert.ok(colours.length>0,"real contents/chapter text must be present");
         for(const item of colours) assert.equal(item.color,item.link?"rgb(168, 200, 183)":"rgb(232, 228, 216)",`${suffix}: ${item.text}`);
       }
+      await page.locator(".rr-react-sheet-trigger").click();
+      await page.locator('[data-view="menu"] button').filter({hasText:/^Text$/}).click();
+      for (const [theme,ink] of [["Light","rgb(32, 33, 35)"],["Dark","rgb(232, 228, 216)"]]) {
+        await page.getByRole("radio",{name:theme,exact:true}).click();
+        await page.waitForFunction(ink=>window.tocAuditRendition.getContents().some(c=>{
+          const text=[...c.document.querySelectorAll("p,span,h1,h2")].find(e=>e.textContent.trim()&&!e.children.length);
+          return text&&c.window.getComputedStyle(text).color===ink;
+        }),ink);
+      }
+      await page.keyboard.press("Escape");
+      await page.setViewportSize({width:1280,height:900});
+      await page.waitForFunction(()=>window.tocAuditRendition.getContents().some(c=>c.window.getComputedStyle(c.document.body).color==="rgb(232, 228, 216)"));
+      await page.setViewportSize({width:393,height:852});
     }
     if (real && process.env.READING_ROOM_E2E_ARTIFACTS) {
       await mkdir(process.env.READING_ROOM_E2E_ARTIFACTS,{recursive:true});

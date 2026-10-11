@@ -12,6 +12,18 @@ if [ "${1:-}" = "--no-build" ]; then
   echo "FAILED: reusing a build without verified source identity is not supported. Run a full deploy." >&2
   exit 1
 fi
+# Explicit issue-specific scope authorised by Anuj on 11 October 2026.
+# Always build a fresh complete candidate; this is not cached test reuse.
+TEST_SCOPE=full
+case "${1:-}" in
+  "") ;;
+  --focus=epub-loading-contrast) TEST_SCOPE=epub-loading-contrast ;;
+  *) echo "FAILED: unknown deployment scope: $1" >&2; exit 1 ;;
+esac
+UNIT_TESTS=(tests/*.test.mjs)
+if [ "$TEST_SCOPE" = epub-loading-contrast ]; then
+  UNIT_TESTS=(tests/reader-deadline.test.mjs tests/reader-toc.test.mjs tests/preview-download.test.mjs tests/rendered-html.test.mjs tests/deploy-epub-scope.test.mjs)
+fi
 
 # The Pi answers as anujrpi.local at home. Away from home, set
 # READING_ROOM_PI_HOST to its Tailscale name (e.g. anujrpi); the SSH host key
@@ -51,7 +63,8 @@ if [ "$SOURCE_CLEAN" != true ]; then
   echo "FAILED: commit the complete reviewed candidate before deployment." >&2
   exit 1
 fi
-DEPLOY_MODE=full-build
+DEPLOY_MODE="full-build-$TEST_SCOPE"
+echo "==> verification scope: $TEST_SCOPE"
 
 # Each deploy gets a new version. Asset filenames are content hashed, but the
 # override bundle is not, and /assets/book-art is served immutable for a year,
@@ -99,7 +112,7 @@ if [ "${1:-}" != "--no-build" ]; then
   (cd "$BUILD_DIR" && npx --yes pnpm@10 install --prefer-offline --frozen-lockfile \
     && ./node_modules/.bin/tsc --noEmit \
     && npx --yes pnpm@10 run build \
-    && node --experimental-loader ./tests/cloudflare-loader.mjs --test tests/*.test.mjs)
+    && node --experimental-loader ./tests/cloudflare-loader.mjs --test "${UNIT_TESTS[@]}")
 else
   [ -f "$BUILD_DIR/dist/server/__vite_rsc_assets_manifest.js" ] || {
     echo "FAILED: no cached build for --no-build; run a full deploy first" >&2
@@ -134,6 +147,7 @@ fi
 # Static checks the syntax parser cannot do: a function defined and never
 # called is valid JavaScript and silently does nothing, which is how a fix
 # shipped four times without taking effect.
+if [ "$TEST_SCOPE" = full ]; then
 (cd "$BUILD_DIR" &&
   node --test tests/browser/narration-contract.test.mjs &&
   node --test tests/browser/brand-assets.test.mjs &&
@@ -150,6 +164,9 @@ fi
   node deploy/check-reference-room.mjs &&
   node deploy/check-haptics.mjs)
 (cd "$BUILD_DIR" && node --test --test-concurrency=1 tests/browser/encoded-toc.test.mjs tests/browser/reliability.test.mjs tests/browser/mobi-narration.test.mjs tests/browser/shelf-card-layout.test.mjs tests/browser/continuous-scroll.test.mjs tests/browser/reader-controls.test.mjs tests/browser/book-pages.test.mjs tests/browser/narration-position.test.mjs tests/browser/narration-buffer.test.mjs tests/browser/narration-locked-screen.test.mjs tests/browser/reader-control-consistency.test.mjs tests/browser/desktop-navigation.test.mjs tests/browser/desktop-reader-input.test.mjs)
+else
+  (cd "$BUILD_DIR" && node deploy/check-contrast.mjs && node deploy/check-reader-consolidation.mjs && node --test --test-concurrency=1 tests/browser/encoded-toc.test.mjs)
+fi
 
 echo "==> staging"
 rm -rf "$BUILD_DIR/dist/stage" && mkdir -p "$BUILD_DIR/dist/stage/assets"
@@ -356,10 +373,12 @@ esac
 verify_origin "$LAN_ORIGIN" required
 LAN_RESULT=$VERIFY_RESULT
 verify_origin "$PUBLIC_ORIGIN" required
+if [ "$TEST_SCOPE" = full ]; then
 for origin in "$LAN_ORIGIN" "$PUBLIC_ORIGIN"; do
   (cd "$BUILD_DIR" && READING_ROOM_BASE_URL="$origin" node deploy/check-local-voices.mjs) \
     || fail "local narration engines failed on $origin"
 done
+fi
 TAILSCALE_RESULT=$VERIFY_RESULT
 for origin in "$LAN_ORIGIN" "$PUBLIC_ORIGIN"; do
   (cd "$BUILD_DIR" && READING_ROOM_BASE_URL="$origin" READING_ROOM_EXPECT_VERSION="$VERSION" node deploy/release-smoke.mjs) \

@@ -73,6 +73,16 @@ for them, not as a blanket requirement for unrelated edits.
 
 ## Current tooling gap — do not claim the speed-up is implemented
 
+Exception added with Anuj's explicit direction on 11 October 2026:
+`deploy/deploy.sh --focus=epub-loading-contrast` builds a fresh complete candidate
+and runs deadline/cancellation, TOC, preview/download, hydration and release-scope
+unit checks, contrast/consolidation checks and the real Dickens browser tests.
+Both actual-origin rendered/asset/contents gates and complete backup, hashes and
+rollback remain mandatory. The release manifest records the focused scope.
+It does not reuse old builds/results or implement a generic fast path. Default
+deployments retain full coverage; unknown scopes fail closed. The interrupted
+blanket v221 attempt stopped before staging/install at Anuj's request.
+
 This document changes future test planning, not the release executables.
 `deploy/deploy.sh` still rebuilds and runs its full fixed candidate suite, and
 `scripts/check-reader-parity.sh` still runs the broad web/TV/iOS suites serially.
