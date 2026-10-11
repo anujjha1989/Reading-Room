@@ -4,9 +4,10 @@ import { pathToFileURL } from "node:url";
 import { readFile, mkdir } from "node:fs/promises";
 import { reliabilityPreview } from "./reliability-preview.mjs";
 import { encodedContentsEpub } from "./epub-fixture.mjs";
+import { readerDownloadTimeout } from "../../app/readerDeadline.ts";
 const pw = await import(process.env.HOME_BOOKS_PLAYWRIGHT ? pathToFileURL(process.env.HOME_BOOKS_PLAYWRIGHT).href : "playwright");
 for (const engine of ["webkit", "chromium"]) for (const real of [false, true]) {
-  test(`${engine}: ${real ? "real Dickens collection" : "encoded NCX filenames and fragments"} opens selected works`, {timeout:120000}, async t => {
+  test(`${engine}: ${real ? "real Dickens collection" : "encoded NCX filenames and fragments"} opens selected works`, {timeout:real?720000:120000}, async t => {
     const preview = process.env.READING_ROOM_TOC_LIVE_ORIGIN ? {url:process.env.READING_ROOM_TOC_LIVE_ORIGIN,close:async()=>{}} : await reliabilityPreview(); t.after(()=>preview.close());
     const browser = await pw[engine].launch({headless:true}); t.after(()=>browser.close());
     const context = await browser.newContext({viewport:{width:393,height:852},isMobile:true,hasTouch:true,serviceWorkers:"block"});
@@ -24,8 +25,16 @@ for (const engine of ["webkit", "chromium"]) for (const real of [false, true]) {
     await page.goto(preview.url);
     if (process.env.READING_ROOM_EXPECT_VERSION) assert.equal(await page.locator('meta[name="rr-app-version"]').getAttribute("content"),process.env.READING_ROOM_EXPECT_VERSION);
     await page.locator('.rr-library-dock button[data-view="Library"]').click();
+    const started=Date.now();
+    const download=page.waitForResponse(r=>r.url().includes(`/api/book/${id}`),{timeout:30000});
     await page.locator(".book .cover").click();
-    await page.locator(".epub-viewer iframe").first().waitFor({timeout:60000});
+    const response=await download;
+    assert.equal(response.status(),200,"book download must succeed, not redirect to login or return a server error");
+    const bytes=response.headers()["content-length"];
+    const budget=readerDownloadTimeout(bytes??null)+60000;
+    t.diagnostic(`book headers: ${bytes??"unknown"} bytes, ${Date.now()-started}ms; body/render allowance ${budget}ms`);
+    response.finished().then(error=>t.diagnostic(`book transfer ${error?"failed":"finished"} after ${Date.now()-started}ms${error?`: ${error}`:""}`));
+    await page.locator(".epub-viewer iframe").first().waitFor({timeout:budget});
     await page.waitForFunction(()=>!document.querySelector(".reader-message"));
     await page.locator(".epub-viewer").evaluate(node=>{
       let f=node[Object.keys(node).find(k=>k.startsWith("__reactFiber"))];

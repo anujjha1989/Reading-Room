@@ -20,7 +20,7 @@ import ComicReader, { type ComicReaderHandle } from "./ComicReader";
 import { resolveEpubSavedPosition } from "./epubSavedPosition";
 import { portableFromRange } from "./portableReadingPosition";
 import { loadReaderToc } from "./readerToc";
-import { readerDeadline } from "./readerDeadline";
+import { readerDeadline, readerDownloadTimeout } from "./readerDeadline";
 import { continuousEpubManager, type ContinuousManagerConstructor } from "./continuousEpubManager";
 import { createEpubPageIndex } from "./epubPageIndex";
 
@@ -604,7 +604,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         setStatus("Loading the book…");
         const response = await readerDeadline(fetch(readerUrl(file.id, file.format), { signal: controller.signal }), controller.signal);
         if (!response.ok) throw new Error("The book could not be downloaded");
-        const data = await readerDeadline(response.arrayBuffer(), controller.signal);
+        const data = await readerDeadline(response.arrayBuffer(), controller.signal, readerDownloadTimeout(response.headers.get("content-length")));
         const { default: ePub, EpubCFI: EpubPosition, Rendition: EpubRendition } = await import("epubjs");
         if (disposed || !viewerRef.current) return;
 
@@ -964,7 +964,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         setStatus("Loading the book…");
         const response = await readerDeadline(fetch(readerUrl(file.id, file.format), { signal: controller.signal }), controller.signal);
         if (!response.ok) throw new Error("The book could not be downloaded");
-        const blob = await readerDeadline(response.blob(), controller.signal);
+        const blob = await readerDeadline(response.blob(), controller.signal, readerDownloadTimeout(response.headers.get("content-length")));
         const extension = format === "AZW3" || format === "KF8" ? "azw3" : "mobi";
         const mobiFile = new File([blob], `${title}.${extension}`, { type: "application/x-mobipocket-ebook" });
         await import("foliate-js/view.js");
