@@ -1,9 +1,7 @@
 import { createElement as h } from "react";
 
-import { HOUSE_PATH, BOOK_PAGES, ICON_WHITE } from "./bookBrand.js";
 
 export default function HomeBooksMark() {
   return h("svg", { className: "home-books-mark", viewBox: "0 0 256 256", "aria-hidden": "true" },
-    h("path", { d: HOUSE_PATH, fill: "#f50916" }),
-    h("path", { d: BOOK_PAGES, fill: ICON_WHITE }));
+    h("image", { href: "/icon-192.png?brand=golden-book-20261011", width:256, height:256 }));
 }

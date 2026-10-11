@@ -2,11 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { launchBrowser } from "./cdp-browser.mjs";
-import { APP_ICON_TRANSFORM, ICON_WHITE } from "../../app/bookBrand.js";
 
-test("brand icons retain geometry and use neutral near-white, not cream or pure white", { timeout: 60000 }, async (t) => {
-  assert.equal(ICON_WHITE, "#fafafa");
-  assert.equal(APP_ICON_TRANSFORM, "translate(128 128) scale(1.024) translate(-127.5 -110.75)");
+test("brand icons use supplied green/gold open-book artwork at every release size", { timeout: 60000 }, async (t) => {
   const browser = await launchBrowser();
   t.after(() => browser.close());
   // This pixel-only check stays on the browser's blank page; no library origin
@@ -26,13 +23,14 @@ test("brand icons retain geometry and use neutral near-white, not cream or pure 
         page: pixel(0.35, 0.6), house: pixel(0.5, 0.25) };
     })()`);
     assert.equal(result.width, size, file); assert.equal(result.height, size, file);
-    assert.deepEqual(result.background, [250, 250, 250, 255], file);
-    assert.deepEqual(result.page, [250, 250, 250, 255], file);
-    assert.deepEqual(result.house, [245, 9, 22, 255], file);
+    assert.equal(result.background[3],255,file);
+    assert.ok(result.background[1]>result.background[0]&&result.background[1]>result.background[2],`${file}: green background`);
+    assert.ok(result.page[0]>200&&result.page[1]>190&&result.page[2]>160,`${file}: light book pages`);
   }
   for (const file of ["favicon.svg", "home-books-icon.svg"]) {
     const svg = await readFile(new URL(`../../public/${file}`, import.meta.url), "utf8");
-    assert.equal((svg.match(/fill="#fafafa"/g) || []).length, 2, file);
-    assert.ok(svg.includes(APP_ICON_TRANSFORM), file);
+    assert.ok(svg.includes('href="data:image/png;base64,'),file);
+    const embedded=svg.match(/base64,([^" ]+)/)[1];
+    assert.equal(embedded,(await readFile(new URL("../../public/icon-512.png",import.meta.url))).toString("base64"),file);
   }
 });

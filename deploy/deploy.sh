@@ -18,11 +18,15 @@ TEST_SCOPE=full
 case "${1:-}" in
   "") ;;
   --focus=epub-loading-contrast) TEST_SCOPE=epub-loading-contrast ;;
+  --focus=branding) TEST_SCOPE=branding ;;
   *) echo "FAILED: unknown deployment scope: $1" >&2; exit 1 ;;
 esac
 UNIT_TESTS=(tests/*.test.mjs)
 if [ "$TEST_SCOPE" = epub-loading-contrast ]; then
   UNIT_TESTS=(tests/reader-deadline.test.mjs tests/reader-toc.test.mjs tests/preview-download.test.mjs tests/rendered-html.test.mjs tests/deploy-epub-scope.test.mjs)
+fi
+if [ "$TEST_SCOPE" = branding ]; then
+  UNIT_TESTS=(tests/rendered-html.test.mjs tests/deploy-epub-scope.test.mjs)
 fi
 
 # The Pi answers as anujrpi.local at home. Away from home, set
@@ -164,8 +168,10 @@ if [ "$TEST_SCOPE" = full ]; then
   node deploy/check-reference-room.mjs &&
   node deploy/check-haptics.mjs)
 (cd "$BUILD_DIR" && node --test --test-concurrency=1 tests/browser/encoded-toc.test.mjs tests/browser/reliability.test.mjs tests/browser/mobi-narration.test.mjs tests/browser/shelf-card-layout.test.mjs tests/browser/continuous-scroll.test.mjs tests/browser/reader-controls.test.mjs tests/browser/book-pages.test.mjs tests/browser/narration-position.test.mjs tests/browser/narration-buffer.test.mjs tests/browser/narration-locked-screen.test.mjs tests/browser/reader-control-consistency.test.mjs tests/browser/desktop-navigation.test.mjs tests/browser/desktop-reader-input.test.mjs)
-else
+elif [ "$TEST_SCOPE" = epub-loading-contrast ]; then
   (cd "$BUILD_DIR" && node deploy/check-contrast.mjs && node deploy/check-reader-consolidation.mjs && node --test --test-concurrency=1 tests/browser/encoded-toc.test.mjs)
+else
+  (cd "$BUILD_DIR" && node --test tests/browser/brand-assets.test.mjs && node deploy/check-reader-consolidation.mjs)
 fi
 
 echo "==> staging"
@@ -383,8 +389,10 @@ TAILSCALE_RESULT=$VERIFY_RESULT
 for origin in "$LAN_ORIGIN" "$PUBLIC_ORIGIN"; do
   (cd "$BUILD_DIR" && READING_ROOM_BASE_URL="$origin" READING_ROOM_EXPECT_VERSION="$VERSION" node deploy/release-smoke.mjs) \
     || fail "required rendered-route check failed at $origin"
+  if [ "$TEST_SCOPE" != branding ]; then
   (cd "$BUILD_DIR" && READING_ROOM_TOC_LIVE_ORIGIN="$origin" READING_ROOM_EXPECT_VERSION="$VERSION" node --test --test-concurrency=1 tests/browser/encoded-toc.test.mjs) \
     || fail "encoded collection contents navigation failed at $origin"
+  fi
 done
 
 served=$("${SSH[@]}" "$PI" "grep -o 'name=\"rr-app-version\" content=\"[0-9]*\"' /opt/reading-room/current/site/index.html | head -1")
