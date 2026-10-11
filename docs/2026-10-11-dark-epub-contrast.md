@@ -30,4 +30,18 @@ release gates. iOS shares the web reader. TV uses native text/theme rendering,
 not these EPUB CSS rules or JavaScript download deadlines; no native source
 changes or installations are required for this release.
 
-Release status: awaiting successful supported deployment and both live gates.
+Released as v222 from commit 743e680 using the explicitly authorised
+`--focus=epub-loading-contrast` scope. All 14 selected unit checks and four
+candidate browser checks passed. Both actual origins passed rendered-route,
+theme, asset MIME/hash and four Dickens navigation/contrast tests each.
+The final public Chromium archive transfer took 31.764 seconds (past the old
+30-second body limit) and the complete reader check passed in 42.106 seconds.
+Light/dark switching and phone/desktop sizing passed in both engines.
+
+Release record: `/Volumes/Seagate/ReadingRoom/deployment-history/v222.json`.
+Rollback backup:
+`/Volumes/Seagate/ReadingRoom/deployment-backups/20261011-101540-before-v222`.
+The blanket v221 run was interrupted before installation at Anuj's request;
+the first focused candidate failed before installation on the preview proxy's
+own buffering timeout. That proxy now streams with backpressure and its own
+size-aware deadline; early/streamed failure and first-chunk tests passed.
