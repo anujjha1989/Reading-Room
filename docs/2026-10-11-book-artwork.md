@@ -21,4 +21,14 @@ large-book, narration and shelf suites are excluded. Default releases remain
 full-scope; build reuse is still prohibited. Native checks cover asset geometry,
 opaque background, signing, version and device installation/launch.
 
-Release status: pending.
+Released: web v223, from 55f3d05, with both actual origins passing assets,
+hashes, MIME, Chrome/WebKit light/dark/library/Settings smoke checks. The
+additional live homepage wordmark/layout/glass/Settings test passed. Manifest:
+`/Volumes/Seagate/ReadingRoom/deployment-history/v223.json`.
+
+Native commit 56b7e4c: signed iOS build 10 and tvOS build 15 installed on the
+paired iPhone and Living Room TV; device app listings confirmed both versions.
+Launch checks were refused because the iPhone was locked and the TV asleep,
+not because builds or installations failed. User was asked to wake/unlock.
+Previous native app outputs were preserved at
+`/tmp/home-books-native-icons-rollback.7eSeZ3`.
