@@ -95,6 +95,10 @@ with catalogue/progress requests isolated so checks cannot change reading histor
 
 ## Deployment
 
+Select verification scope with the [risk-based testing plan](docs/testing-plan.md).
+It distinguishes the approved future plan from the fixed full gates still present
+in the current scripts; no unverified build reuse or manual gate bypass is allowed.
+
 The Mac builds the app and deploys to the Pi using `deploy/deploy.sh`. The
 script increments `overrides/VERSION`, validates the built app, captures a
 rollback, and installs through the restricted Pi helper. Both LAN and the actual

@@ -5,9 +5,14 @@ not need to report the same bug for each app. iOS book reading uses this web
 reader through WKWebView; native summary playback and tvOS live in the canonical
 native checkout `/Users/anuj-mac/Developer/readingroom-ios-src`.
 
-For a reader/narration change, use that checkout's
+Select risk-based coverage using `docs/testing-plan.md` (Anuj approved this
+optimisation on 11 October 2026). Narrow fixes require focused regression checks
+and cross-platform assessment, not automatic full-book pagination in every app.
+For broad reader/narration changes, use the native checkout's
 `scripts/check-reader-parity.sh` with this canonical source and dedicated iOS/TV
-simulators. Record each platform's coverage and any blocker. Retain natural
+simulators. Record each platform's coverage and any blocker. The existing release
+scripts still have fixed full gates; do not bypass them before a verified,
+source-owned fast path is implemented. Retain natural
 punctuation, Unicode, bounded audio requests/prefetch, voice selection,
 pause/resume position, chapter continuity, page numbering and existing themes.
 Keep necessary device-specific input/focus mechanics; parity does not by itself
