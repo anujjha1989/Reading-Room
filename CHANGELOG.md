@@ -2,6 +2,14 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v224 — 2026-10-12
+
+- Graphic Novels now holds only comics. About 780 text books (Ludlum, Terry Brooks, travel guides, the whole "[HaWk] kindle ebooks" folder and similar) that were filed as graphic novels because they sat inside a Graphic Novels folder are filed as Fiction, Non-Fiction or General by their other folders. Comic archives (CBR/CBZ), Sin City, Calvin and Hobbes, Persepolis, Bheriya and a few comics saved as ebooks stay, and comics filed elsewhere (Watchmen, Jimmy Corrigan, Fun Home) now appear there too.
+- A book saved more than once (EPUB and MOBI, or in several folders) shows once. The kept copy joins every collection of the copies it replaces, so Booker Prize, Pulitzer, Reading Lists and other collections keep every book. The EPUB is kept, then MOBI, then PDF. This also fixes the duplicate 1Q84. The library files themselves are untouched, and a removed copy still opens from an old link.
+- Repaired titles and authors: about 380 books whose title and author were swapped by an "Author - Title" file name, Star Wars entries whose author field held "Title (Author)", and titles ending in "by Name" with no author (D. H. Lawrence's Collected Short Stories).
+- The clean-up runs in the library server whenever the catalogue is loaded, so web, iPhone and Apple TV share it and a rescan cannot bring the problems back.
+- Added unit tests for duplicates, collections, the graphic novel rule and the title and author repairs.
+
 ## v217 — 2026-10-09
 
 - Home Books icons use neutral near-white `#FAFAFA` for the background and book pages, replacing pure white without a cream tint. The red, geometry and spacing are unchanged. Shared web branding and generated installable/iPhone assets use the same source-owned color; the native TV icon and mark match it.

@@ -528,8 +528,115 @@ async function loadCatalogAndCaches() {
   rebuildCatalog();
 }
 
+// <catalog-tidy>
+// Presentation-time clean-up of the catalogue. The scan output is left alone
+// (and stays the source of truth); everything below is derived on load so a
+// rescan can never bring the problems back.
+//  1. Obvious metadata slips are repaired: author and title swapped by an
+//     "Author - Title" file name, an author field holding "Title (Author)",
+//     and an author hidden at the end of the title ("... by Name").
+//  2. Graphic Novel is only for real comics: comic archive formats, the known
+//     comic series folders, and a few comics saved as ebooks. Text books that
+//     merely sit inside a "Graphic Novels" folder are filed by their other
+//     folders instead, and lose the Graphic Novels collection tag.
+//  3. The same work saved more than once (EPUB + MOBI, or several collection
+//     folders) is shown once. The kept copy inherits every collection of the
+//     copies it replaces, so Booker Prize, Pulitzer etc. stay complete.
+function tidyCatalog(rows) {
+  const rank = { EPUB: 0, AZW3: 1, AZW: 1, MOBI: 2, PDF: 3, DOCX: 4, DOC: 4, RTF: 5, TXT: 6, CBZ: 7, CBR: 8 };
+  const norm = (s) => String(s || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const comicSeriesPath = /\b(?:sin city|calvin and hobbes|persepolis|bheriya)\b/;
+  const comicTitle = /^(?:habibi|blankets|watchmen full 1 to 12|fun home\b|stephen king s the dark tower beginnings\b|paul auster city of glass graphic novel\b)/;
+  const isComic = (b) => {
+    const format = String(b.format || "").toUpperCase();
+    if (format === "CBR" || format === "CBZ") return true;
+    if (!["PDF", "EPUB", "MOBI", "AZW3", "AZW"].includes(format)) return false;
+    return comicSeriesPath.test(norm(`${b.path} ${(b.collections || []).join(" ")}`)) || comicTitle.test(norm(b.title));
+  };
+  const textCategory = (b) => {
+    const place = norm(`${(b.path || "").replace(/graphic novels?|comics?/gi, " ")} ${(b.collections || []).filter((c) => !/^graphic novels?(?: collections)?$/i.test(c)).join(" ")}`);
+    if (/\bscripts?\b/.test(place)) return "Script";
+    if (/non fiction|biograph|autobiograph|history|true crime|technical|travel|science collection|self improvement/.test(place)) return "Non-Fiction";
+    if (/poetry|poems?/.test(place)) return "Poetry";
+    if (/fiction|novels?|short stories|fantasy|classics|top 100|top books|ludlum|xanth|shannara/.test(place)) return "Fiction";
+    return "General";
+  };
+
+  // --- 1. metadata slips -------------------------------------------------
+  const folderSize = new Map();
+  const lastFolder = (b) => norm(String(b.path || "").split(" / ").pop());
+  for (const b of rows) folderSize.set(lastFolder(b), (folderSize.get(lastFolder(b)) || 0) + 1);
+  const notAPerson = /collection|prize|books?|list|classics|stories|novels?|series|works|script|archive|imports|inbox|fiction|history|science|comics?|library|edition|reading|best|top|awards?|biograph|memoir/i;
+  const personLike = (t) => /^[A-Z][A-Za-z.'-]*(?:\s+[A-Z][A-Za-z.'-]*){1,3}$/.test(String(t).trim()) && !notAPerson.test(t);
+  const stats = { demoted: 0, promoted: 0, merged: 0, swapped: 0, authorsFromTitle: 0 };
+  const repaired = rows.map((b) => {
+    let { title, author } = b;
+    let touched = false;
+    if (author && personLike(title) && lastFolder(b) === norm(title) && (folderSize.get(norm(title)) || 0) >= 4 && norm(author) !== norm(title)) {
+      [title, author] = [author, title]; touched = true; stats.swapped++;
+    }
+    const paren = /^(.+?)\s*\(([^()]+)\)\s*$/.exec(author || "");
+    if (paren && personLike(paren[2].replace(/\s*&\s*/g, " ")) ) {
+      const generic = /^(?:unknown|episode\s+\w+|droids?)$/i.test(title);
+      if (generic || norm(title) === norm(paren[1])) { title = generic && /^episode/i.test(title) ? `${title}: ${paren[1]}` : paren[1]; }
+      author = paren[2].trim(); touched = true; stats.authorsFromTitle++;
+    }
+    if (!author) {
+      const by = /^(.{3,}?)\s+by\s+((?:[A-Z][A-Za-z.'-]*\.?\s*){1,4})$/.exec(title || "");
+      if (by && personLike(by[2].trim()) && !/\bscript\b/i.test(by[1] + title)) { title = by[1].trim(); author = by[2].trim(); touched = true; stats.authorsFromTitle++; }
+    }
+    return touched ? { ...b, title, author, incomplete: !author } : b;
+  });
+  const keyOf = (b) => {
+    if (/^(?:CBR|CBZ)$/i.test(b.format)) return b.workKey;
+    return b.author ? `${norm(b.title)}|${norm(b.author)}` : "";
+  };
+
+  // --- 2. categories -----------------------------------------------------
+  const fixed = repaired.map((b) => {
+    const comic = isComic(b);
+    if (comic && b.category !== "Graphic Novel") { stats.promoted++; return { ...b, category: "Graphic Novel" }; }
+    if (!comic && b.category === "Graphic Novel") {
+      stats.demoted++;
+      return { ...b, category: textCategory(b), collections: (b.collections || []).filter((c) => !/^graphic novels?(?: collections)?$/i.test(c)) };
+    }
+    return b;
+  });
+
+  // --- 3. one entry per work ---------------------------------------------
+  const groups = new Map();
+  for (const b of fixed) {
+    const key = keyOf(b);
+    if (!key) continue;
+    (groups.get(key) || groups.set(key, []).get(key)).push(b);
+  }
+  const drop = new Set();
+  const replace = new Map();
+  for (const [key, copies] of groups) {
+    if (copies.length < 2) continue;
+    const ordered = [...copies].sort((a, c) =>
+      (rank[String(a.format).toUpperCase()] ?? 9) - (rank[String(c.format).toUpperCase()] ?? 9)
+      || (c.collections || []).length - (a.collections || []).length
+      || String(a.id).localeCompare(String(c.id)));
+    const keep = ordered[0];
+    const collections = [...new Set(ordered.flatMap((b) => b.collections || []))];
+    const category = keep.category !== "General" ? keep.category : (ordered.find((b) => b.category !== "General")?.category || "General");
+    replace.set(keep.id, { ...keep, collections, category, workKey: key, incomplete: false,
+      author: keep.author || ordered.find((b) => b.author)?.author || "", series: keep.series || ordered.find((b) => b.series)?.series || "" });
+    for (const other of ordered.slice(1)) { drop.add(other.id); stats.merged++; }
+  }
+  const out = fixed.filter((b) => !drop.has(b.id)).map((b) => {
+    const r = replace.get(b.id);
+    if (r) return r;
+    const key = keyOf(b);
+    return key && b.workKey !== key && !/^(?:CBR|CBZ)$/i.test(b.format) ? { ...b, workKey: key, incomplete: false } : b;
+  });
+  return { rows: out, stats };
+}
+// </catalog-tidy>
+
 function rebuildCatalog() {
-  const merged = catalog.filter((b) => !hiddenIds[b.id]).map((b) => {
+  const merged = tidyCatalog(catalog.filter((b) => !hiddenIds[b.id])).rows.map((b) => {
     const t = titleFixes[b.id];
     const a = authorFixes[b.id];
     if (!t && !a) return b;
