@@ -167,7 +167,7 @@ if [ "$TEST_SCOPE" = full ]; then
   node deploy/check-reader-consolidation.mjs &&
   node deploy/check-reference-room.mjs &&
   node deploy/check-haptics.mjs)
-(cd "$BUILD_DIR" && node --test --test-concurrency=1 tests/browser/encoded-toc.test.mjs tests/browser/reliability.test.mjs tests/browser/mobi-narration.test.mjs tests/browser/shelf-card-layout.test.mjs tests/browser/continuous-scroll.test.mjs tests/browser/reader-controls.test.mjs tests/browser/book-pages.test.mjs tests/browser/narration-position.test.mjs tests/browser/narration-buffer.test.mjs tests/browser/narration-locked-screen.test.mjs tests/browser/reader-control-consistency.test.mjs tests/browser/desktop-navigation.test.mjs tests/browser/desktop-reader-input.test.mjs)
+(cd "$BUILD_DIR" && node --test --test-concurrency=1 tests/browser/encoded-toc.test.mjs tests/browser/reliability.test.mjs tests/browser/mobi-narration.test.mjs tests/browser/shelf-card-layout.test.mjs tests/browser/continuous-scroll.test.mjs tests/browser/reader-controls.test.mjs tests/browser/book-pages.test.mjs tests/browser/narration-position.test.mjs tests/browser/narration-buffer.test.mjs tests/browser/narration-locked-screen.test.mjs tests/browser/reader-control-consistency.test.mjs tests/browser/shrunk-book-text.test.mjs tests/browser/desktop-navigation.test.mjs tests/browser/desktop-reader-input.test.mjs)
 elif [ "$TEST_SCOPE" = epub-loading-contrast ]; then
   (cd "$BUILD_DIR" && node deploy/check-contrast.mjs && node deploy/check-reader-consolidation.mjs && node --test --test-concurrency=1 tests/browser/encoded-toc.test.mjs)
 else

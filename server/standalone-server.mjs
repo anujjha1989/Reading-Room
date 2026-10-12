@@ -587,10 +587,14 @@ function tidyCatalog(rows) {
     }
     return touched ? { ...b, title, author, incomplete: !author } : b;
   });
+  // Grouping ignores spacing, so "TheScarletLetter.pdf" matches "The Scarlet
+  // Letter" and "Ghost Writer" matches "Ghostwriter".
+  const compact = (v) => norm(v).replace(/ /g, "");
   const keyOf = (b) => {
     if (/^(?:CBR|CBZ)$/i.test(b.format)) return b.workKey;
-    return b.author ? `${norm(b.title)}|${norm(b.author)}` : "";
+    return b.author ? `${compact(b.title)}|${compact(b.author)}` : "";
   };
+  const workKeyOf = (b) => `${norm(b.title)}|${norm(b.author)}`;
 
   // --- 2. categories -----------------------------------------------------
   const fixed = repaired.map((b) => {
@@ -621,7 +625,7 @@ function tidyCatalog(rows) {
     const keep = ordered[0];
     const collections = [...new Set(ordered.flatMap((b) => b.collections || []))];
     const category = keep.category !== "General" ? keep.category : (ordered.find((b) => b.category !== "General")?.category || "General");
-    replace.set(keep.id, { ...keep, collections, category, workKey: key, incomplete: false,
+    replace.set(keep.id, { ...keep, collections, category, workKey: /^(?:CBR|CBZ)$/i.test(keep.format) ? keep.workKey : workKeyOf(keep), incomplete: false,
       author: keep.author || ordered.find((b) => b.author)?.author || "", series: keep.series || ordered.find((b) => b.series)?.series || "" });
     for (const other of ordered.slice(1)) { drop.add(other.id); stats.merged++; }
   }
@@ -629,19 +633,22 @@ function tidyCatalog(rows) {
     const r = replace.get(b.id);
     if (r) return r;
     const key = keyOf(b);
-    return key && b.workKey !== key && !/^(?:CBR|CBZ)$/i.test(b.format) ? { ...b, workKey: key, incomplete: false } : b;
+    return key && b.workKey !== workKeyOf(b) && !/^(?:CBR|CBZ)$/i.test(b.format) ? { ...b, workKey: workKeyOf(b), incomplete: false } : b;
   });
   return { rows: out, stats };
 }
 // </catalog-tidy>
 
 function rebuildCatalog() {
-  const merged = tidyCatalog(catalog.filter((b) => !hiddenIds[b.id])).rows.map((b) => {
+  // Your own title/author corrections go in first so the tidy-up sees what
+  // you see (a corrected copy and an uncorrected copy are then the same book).
+  const corrected = catalog.filter((b) => !hiddenIds[b.id]).map((b) => {
     const t = titleFixes[b.id];
     const a = authorFixes[b.id];
     if (!t && !a) return b;
     return { ...b, ...(t ? { title: t, titleCorrected: true } : {}), ...(a ? { author: a, authorCorrected: true } : {}) };
   });
+  const merged = tidyCatalog(corrected).rows;
   catalogBuffer = Buffer.from(JSON.stringify(merged));
   catalogGzip = gzipSync(catalogBuffer, { level: 6 });
   catalogEtag = `"${createHash("sha1").update(catalogBuffer).digest("hex").slice(0, 16)}"`;

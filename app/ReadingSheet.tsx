@@ -131,7 +131,7 @@ const THEMES: { value: SheetTheme; label: string; swatch: string; ink: string }[
 ];
 
 const FONT_MIN = 75;
-const FONT_MAX = 160;
+const FONT_MAX = 220;
 const FONT_STEP = 10;
 
 /** Icons live here rather than as ASCII stand-ins, which read as placeholders. */

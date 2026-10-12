@@ -98,9 +98,59 @@
     return out;
   }
 
+  // Body text must follow the size the reader chose. Some books (or browser
+  // quirks) leave the text inside a paragraph at a fraction of the paragraph's
+  // own size - the page then shows tiny letters with the spacing of the large
+  // size, and A+ appears not to work. Anything that holds real sentences and is
+  // drawn at under 60% of its surroundings is put back to its parent's size.
+  // Real superscripts, subscripts and small print are left alone.
+  var SHRUNK = 0.6;
+  function px(view, el) { return parseFloat(view.getComputedStyle(el).fontSize) || 0; }
+  function isSmallPrint(view, el) {
+    var tag = el.tagName;
+    if (tag === "SUP" || tag === "SUB" || tag === "SMALL") return true;
+    if (el.closest && el.closest("sup, sub, small")) return true;
+    var align = view.getComputedStyle(el).verticalAlign;
+    return align !== "baseline" && align !== "";
+  }
+  function hasOwnText(el) {
+    for (var n = el.firstChild; n; n = n.nextSibling) {
+      if (n.nodeType === 3 && n.nodeValue.replace(/\s+/g, "").length > 3) return true;
+    }
+    return false;
+  }
+  function rescueShrunkText(doc) {
+    var view = doc && doc.defaultView;
+    if (!view || !doc.body) return 0;
+    var base = px(view, doc.body);
+    if (!base) return 0;
+    if (doc.__rrRescueBase !== base) { doc.__rrRescueBase = base; doc.__rrRescueSeen = new WeakSet(); }
+    var seen = doc.__rrRescueSeen, fixed = 0, budget = 400;
+    var blocks = doc.querySelectorAll("p, li, blockquote, dd, dt, td");
+    for (var i = 0; i < blocks.length && budget > 0; i += 1) {
+      var block = blocks[i];
+      if (seen.has(block)) continue;
+      seen.add(block); budget -= 1;
+      try {
+        if (block.textContent.length > 40 && px(view, block) < base * SHRUNK && !isSmallPrint(view, block)) {
+          block.style.setProperty("font-size", "inherit", "important"); fixed += 1;
+        }
+        var inner = block.querySelectorAll("span, font, a, em, i, b, strong, u");
+        for (var j = 0; j < inner.length && j < 60; j += 1) {
+          var el = inner[j];
+          if (!hasOwnText(el) || !el.parentElement) continue;
+          if (px(view, el) < px(view, el.parentElement) * SHRUNK && !isSmallPrint(view, el)) {
+            el.style.setProperty("font-size", "inherit", "important"); fixed += 1;
+          }
+        }
+      } catch (e) { /* a detached node mid-render; the next pass retries */ }
+    }
+    return fixed;
+  }
+
   function scan() {
     var docs = documents();
-    for (var i = 0; i < docs.length; i += 1) normalise(docs[i]);
+    for (var i = 0; i < docs.length; i += 1) { normalise(docs[i]); rescueShrunkText(docs[i]); }
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", scan);

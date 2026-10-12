@@ -2,6 +2,13 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v225 — 2026-10-12
+
+- Book text always follows the chosen text size. Some pages drew the sentences at less than half the size of their paragraph (tiny letters with large-size spacing, as in The Clifton Chronicles at 160%), so A+ looked dead. Text holding real sentences that is drawn at under 60% of its surroundings is now brought back to the chosen size; superscripts, subscripts and ordinary small print are left alone. Works for EPUB and MOBI.
+- The largest text size is now 220% (was 160%).
+- Library clean-up: your own title and author corrections are applied before duplicates are matched, and matching ignores spacing, so "TheScarletLetter.pdf" and "The Scarlet Letter" (or "Ghost Writer" and "Ghostwriter") are shown once. Every collection keeps its books.
+- Added a browser test for shrunken text (WebKit and Chromium) that also checks small print stays small.
+
 ## v224 — 2026-10-12
 
 - Graphic Novels now holds only comics. About 780 text books (Ludlum, Terry Brooks, travel guides, the whole "[HaWk] kindle ebooks" folder and similar) that were filed as graphic novels because they sat inside a Graphic Novels folder are filed as Fiction, Non-Fiction or General by their other folders. Comic archives (CBR/CBZ), Sin City, Calvin and Hobbes, Persepolis, Bheriya and a few comics saved as ebooks stay, and comics filed elsewhere (Watchmen, Jimmy Corrigan, Fun Home) now appear there too.
