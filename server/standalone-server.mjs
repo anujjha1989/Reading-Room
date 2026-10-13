@@ -816,6 +816,24 @@ const COVER_ART_DIR = process.env.READING_ROOM_COVER_ART
 const localCoverPath = (id) =>
   driveIdPattern.test(id) ? join(COVER_ART_DIR, `${id}.jpg`) : null;
 
+// Generic app logos some EPUBs embed as their "cover" (Feedbooks, Calibre,
+// a PDA icon). They are not covers, so fall through to the designed fallback.
+const PLACEHOLDER_COVER_MD5 = new Set([
+  "7e522607d655cc6e9ec077a2c9b39dfd",
+  "9488fd1ce286ac72d8152552b4353894",
+  "037cd2eb8839b58e20108f0199dbe2a1",
+]);
+const placeholderVerdict = new Map();
+async function isPlaceholderCover(file, info) {
+  const key = `${file}|${info.mtimeMs}|${info.size}`;
+  if (placeholderVerdict.has(key)) return placeholderVerdict.get(key);
+  let verdict = false;
+  try { verdict = PLACEHOLDER_COVER_MD5.has(createHash("md5").update(await readFile(file)).digest("hex")); } catch { /* keep art */ }
+  if (placeholderVerdict.size > 20000) placeholderVerdict.clear();
+  placeholderVerdict.set(key, verdict);
+  return verdict;
+}
+
 async function sendLocalCover(response, id) {
   const file = localCoverPath(id);
   if (!file) return false;
@@ -824,6 +842,7 @@ async function sendLocalCover(response, id) {
     info = await stat(file);
     if (!info.isFile() || info.size < 256) return false;
   } catch { return false; }
+  if (await isPlaceholderCover(file, info)) return false;
   response.writeHead(200, {
     "content-type": "image/jpeg",
     "content-length": info.size,

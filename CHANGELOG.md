@@ -2,6 +2,11 @@
 
 User-visible Reading Room changes are documented here. Git remains the detailed source history, while machine-readable deployment manifests live in `/Volumes/Seagate/ReadingRoom/deployment-history/`.
 
+## v226 — 2026-10-13
+
+- Generic app logos that some EPUBs embed as their cover (Feedbooks, Calibre, a PDA icon — e.g. on "2 B R 0 2 B") are no longer shown; those books get the designed cover instead.
+- Arthur C. Clarke's "Stories Collected" is now titled "The Collected Stories".
+
 ## v225 — 2026-10-12
 
 - Book text always follows the chosen text size. Some pages drew the sentences at less than half the size of their paragraph (tiny letters with large-size spacing, as in The Clifton Chronicles at 160%), so A+ looked dead. Text holding real sentences that is drawn at under 60% of its surroundings is now brought back to the chosen size; superscripts, subscripts and ordinary small print are left alone. Works for EPUB and MOBI.
