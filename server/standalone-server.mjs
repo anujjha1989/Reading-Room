@@ -598,6 +598,12 @@ function tidyCatalog(rows) {
 
   // --- 2. categories -----------------------------------------------------
   const fixed = repaired.map((b) => {
+    // Actual screenplays belong in Scripts even when imported under Books.
+    // Do not confuse screenwriting instruction with the screenplay itself.
+    const title = String(b.title || "");
+    const instruction = /^(?:screenplay$|four screenplays\b|the art of plotting\b|good scripts,? bad scripts\b)|\b(?:foundations of screenwriting|learning the craft|guide to screenwriting|studies in the american screenplay)\b/i.test(title);
+    const screenplay = !instruction && /\b(?:screenplay|shooting script|first draft script)\b|\bscript(?: book)?\s*\d*$/i.test(title);
+    if (screenplay || /^(?:FDX)$/i.test(b.format)) return { ...b, category: "Script" };
     const comic = isComic(b);
     if (comic && b.category !== "Graphic Novel") { stats.promoted++; return { ...b, category: "Graphic Novel" }; }
     if (!comic && b.category === "Graphic Novel") {

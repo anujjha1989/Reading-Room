@@ -12,6 +12,19 @@ const row = (over) => ({ id: over.id, title: "T", author: "A", series: "", incom
   source: "Books", collections: [], category: "Fiction", path: "Books / Books / Fiction", workKey: "", ...over });
 const key = (b) => `${b.title.toLowerCase()}|${b.author.toLowerCase()}`;
 
+test("screenplays imported under Books remain Scripts after category cleanup", () => {
+  for (const title of ["The Great Gatsby: First Draft Screenplay", "Never Let Me Go The Screenplay", "Lincoln the Screenplay", "Hamlet A Screenplay Adaptation", "The White Witch Script", "The Walking Dead - Script Book 01"]) {
+    assert.equal(tidyCatalog([row({id:title,title,category:"Non-Fiction"})]).rows[0].category,"Script",title);
+  }
+  assert.equal(tidyCatalog([row({id:"fdx",title:"Untitled Film",format:"FDX"})]).rows[0].category,"Script");
+});
+
+test("screenwriting instruction and unrelated manuscript titles are not screenplays", () => {
+  for (const title of ["Screenplay", "Four Screenplays", "The Art of Plotting Add Emotion, Suspense, and Depth to Your Screenplay", "Good Scripts, Bad Scripts Learning the Craft of Screenwriting", "The Chancellor Manuscript"]) {
+    assert.equal(tidyCatalog([row({id:title,title,category:"Non-Fiction"})]).rows[0].category,"Non-Fiction",title);
+  }
+});
+
 test("a book saved twice is shown once and keeps every collection", () => {
   const a = row({ id: "a", title: "Life of Pi", author: "Yann Martel", format: "MOBI", collections: ["Booker Prize"] });
   const b = row({ id: "b", title: "Life of Pi", author: "Yann Martel", format: "EPUB", collections: ["Reading Lists"] });
