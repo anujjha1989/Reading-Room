@@ -4,6 +4,16 @@ import json,os,re,subprocess,time,urllib.parse,urllib.request
 from pathlib import Path
 out=Path(os.environ.get('CATALOG_REVIEW_OUTPUT','/mnt/seagate/ReadingRoom/library-repair-backups/scrub-2026-10-13'))
 def get(base,params):
+    if 'wikidata.org' in base and params.get('action')=='wbgetentities':
+        entities={}
+        for id in params['ids'].split('|'):
+            cache=out/('entity-'+id+'.json')
+            if cache.exists():value=json.loads(cache.read_text())
+            else:
+                result=subprocess.run(['curl','-fsSL','--retry','1','--max-time','15','https://www.wikidata.org/wiki/Special:EntityData/'+id+'.json'],capture_output=True,timeout=35,check=True)
+                value=json.loads(result.stdout);cache.write_text(json.dumps(value))
+            entities.update(value['entities'])
+        return dict(entities=entities)
     response=subprocess.run(['curl','-fsSL','--max-time','15',base+'?'+urllib.parse.urlencode(params)],capture_output=True,timeout=20,check=True)
     return json.loads(response.stdout)
 aliases={'following script':'Following','munich':'Munich (2005 film)','28 Weeks Later':'28 Weeks Later',
@@ -22,9 +32,11 @@ aliases={'following script':'Following','munich':'Munich (2005 film)','28 Weeks 
 'picnic-at-hanging-rock-1975':'Picnic at Hanging Rock (film)','the-tree-of-life-2011':'The Tree of Life (film)',
 'treasureofthesierramadre':'The Treasure of the Sierra Madre (film)'}
 rows=json.load(urllib.request.urlopen(os.environ.get('CATALOG_ORIGIN','http://127.0.0.1:4311')+'/catalog.json'))
-results=[]
+target=out/'online-film-credits.json'
+results=json.loads(target.read_text()) if target.exists() else []
 for row in rows:
     if row.get('author','').strip() or row.get('category')!='Script':continue
+    if any(r['id']==row['id'] for r in results):continue
     title=re.sub(r'\s*\((?:19|20)\d{2}[^)]*\)|\s*\[p\..*?\]','',row['title']).strip()
     page=aliases.get(title,title)
     if not page or page.startswith(('New Microsoft','2019 BLACK','Memories of Murder (Kor')):continue
@@ -36,8 +48,8 @@ for row in rows:
         entity=get('https://www.wikidata.org/w/api.php',dict(action='wbgetentities',ids=q,props='claims',format='json'))['entities'][q]
         claims=entity.get('claims',{})
         types=[v.get('mainsnak',{}).get('datavalue',{}).get('value',{}).get('id') for v in claims.get('P31',[])]
-        if 'Q11424' not in types and 'Q229390' not in types:continue
-        ids=[v.get('mainsnak',{}).get('datavalue',{}).get('value',{}).get('id') for v in claims.get('P58',[])]
+        if not claims.get('P58'):continue
+        ids=[v.get('mainsnak',{}).get('datavalue',{}).get('value',{}).get('id') for v in claims.get('P58',[]) if v.get('rank')!='deprecated']
         ids=[x for x in ids if x]
         if not ids:continue
         names=get('https://www.wikidata.org/w/api.php',dict(action='wbgetentities',ids='|'.join(ids),props='labels',languages='en',format='json'))['entities']

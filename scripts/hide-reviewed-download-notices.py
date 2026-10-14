@@ -7,6 +7,12 @@ lock=open(out/'apply.lock','a');fcntl.flock(lock,fcntl.LOCK_EX)
 rows={r['id']:r for r in json.load(urllib.request.urlopen('http://127.0.0.1:4311/catalog.json'))}
 log=json.loads((out/'applied.json').read_text())
 notices={
+'Lc46ee67dabafc09cd11c486b8892e5e5dc51206b':'Novelty Xavier Institute graduation diploma, not a comic or book',
+'Led4f5b8123d8eb7c233c99d907d5ec2f2dad5f15':'List of Kindle ebook filenames, not book content',
+'L51abb56b7feb70f5b8e6b36c730835700f88722f':'Identifier-only text file (87-01), no book content',
+'Ld233e2ea35545d4039a33d762d58fc07ebe35af3':'Ebookism download-site advertisement, not a book',
+'L8ce6a8e9a27791aee99b84b452817405964f2e3a':'BBC Hollow Crown television episode listings, not a book',
+'L11852a179d31a6c78699053905096cbf877662fe':'List of bestselling book filenames, not book content',
 'Ld24810c03119b5a98ada2ac9a04e43b3d5a16627':'List of torrent download sites, not a book',
 'L21ff0c8efa3309c7976bb95182d2f8a3647e65a0':'Sharing/seeding thank-you notice, not a book',
 'L674162c875c96d14485de8b5bcd8b49b28ff1426':'Demonoid tracker notice, not a book',

@@ -8,6 +8,64 @@ catalog=json.load(urllib.request.urlopen('http://127.0.0.1:4311/catalog.json'))
 # Specific collected works precede franchise-level creators. Existing credits
 # and user corrections are never overwritten by this fallback pass.
 rules=[
+('title',r'^Icons - Chamber\b','Brian K. Vaughan; Lee Ferguson','https://atomicavenue.com/atomic/series/17941/ComicBook/Chamber'),
+('title',r'^House Of M Sketchbook$','Brian Michael Bendis; Olivier Coipel','https://en.wikipedia.org/wiki/House_of_M'),
+('title',r'^Marvel Team-Up V1 #149$','Louise Simonson','https://fichas.universomarvel.com/usa/mtu1149.html'),
+('title',r'^Avengers V3\b','Kurt Busiek; George Pérez','https://www.marvel.com/articles/comics/captain-marvel-s-history-with-the-avengers'),
+('title',r'^Phoenix Resurrection\b','Ian Edginton; Dan Abnett','https://www.mightyavengers.net/comics/issue/the-phoenix-resurrection-genesis-1'),
+('title',r'^Hellbound\b','Christopher Yost; Harvey Tolibao','https://www.mightyavengers.net/node/18558'),
+('title',r'^Icons - Iceman\b','Dan Abnett; Andy Lanning; Karl Kerschl','https://www.mightyavengers.net/comics/collection/x-men-icons-iceman'),
+('title',r'^Legends of the Dark Knight 178$','Devin Grayson','https://www.dcuguide.com/Batman%3A_Legends_of_the_Dark_Knight_178'),
+('title',r'^X-Men[ _]Vs\.?[ _]','Jeff Parker','https://www.marvel.com/comics/issue/28973/x-men_vs_agents_of_atlas_2009_1'),
+('title',r'^Marvel Team-Up V3\b','Robert Kirkman','https://www.marvel.com/comics/issue/76/marvel_team-up_2004_1'),
+('title',r'^Icons - Cyclops\b','Brian K. Vaughan; Mark Texeira','https://en.wikipedia.org/wiki/Brian_K._Vaughan'),
+('path',r'/ Sin City','Frank Miller','https://images.darkhorse.com/common/salestools/catalogs/DH_Backlist_2009.pdf'),
+('title',r'^Beauty And The Beast\b','Ann Nocenti','https://www.marvel.com/comics/issue/62749/beauty_and_the_beast_1985_1'),
+('title',r'^X-Terminators\b','Louise Simonson; Jon Bogdanove','https://fichas.universomarvel.com/usa/xtm102.html'),
+('path',r'/ Bone$','Jeff Smith','https://catalog.wake.gov/GroupedWork/f89f6448-d08e-b61c-73f0-70bde0292865'),
+('path',r'/ Calvin and Hobbes','Bill Watterson','https://www.simonandschuster.com/authors/Bill-Watterson/19962368'),
+('title',r'^Captain Marvel V2\b','Fabian Nicieza','https://fichas.universomarvel.com/usa/capmar201.html'),
+('title',r'^Ghost Rider V2\b','Howard Mackie; Javier Saltares','https://www.comics.org/character/2323/'),
+('title',r'^Heroes Reborn - The Return\b','Peter David','https://www.marvel.com/comics/issue/58429/heroes_reborn_the_return_1997_4'),
+('title',r'^X-Babies\b|^X-Babies_','Gregg Schigiel','https://www.penguinrandomhouse.com/authors/48757/gregg-schigiel/'),
+('title',r'^Soldier X\b','Darko Macan; Igor Kordey','https://www.astiberri.com/authors/darko-macan'),
+('title',r'^Dead Avengers\b','Fred Van Lente; Tom Grummett','https://www.comics.org/issue/787957/'),
+('title',r'^Morlocks\b','Geoff Johns; Shawn Martinbrough','https://www.marvel.com/comics/issue/73223/morlocks_2002_3'),
+('title',r'^Chaos War\b','Greg Pak; Fred Van Lente','https://gregpak.com/cosmic-book-news-interviews-greg-pak-and-fred-van-lente-about-chaos-war/'),
+('title',r'^Onslaught Unleashed\b','Sean McKeever; Filipe Andrade','https://en.wikipedia.org/wiki/List_of_X-Men_limited_series_and_one-shots'),
+('title',r'^Adventure Comics\b','Geoff Johns','https://www.dc.com/comics/adventure-comics-2009/adventure-comics-5'),
+('title',r'^Muties\b','Karl Bollers','https://www.marvel.com/comics/issue/73226/muties_2002_1'),
+('title',r'^Mekanix\b','Chris Claremont; Juan Bobillo','https://en.wikipedia.org/wiki/Mekanix'),
+('title',r'^X-Calibre\b','Warren Ellis; Ken Lashley','https://www.marvel.com/comics/guides/147/discover-creator-warren-ellis'),
+('title',r'^X-Universe\b','Terry Kavanagh; Scott Lobdell','https://www.comics.org/issue/57058/'),
+('title',r'^Weapon X\b','Frank Tieri','https://uncannyxmen.net/comics/issue/weapon-x-2nd-series-1'),
+('title',r'^Warlock\s*#?\s*0?5$','Chris Claremont; Bill Sienkiewicz','https://www.marvel.com/comics/issue/10353/newmutants198318Link'),
+('title',r'^Prudence and Caution\b','Jim Shooter','https://en.wikipedia.org/wiki/Prudence_%26_Caution'),
+('title',r'^Glory\b','Rob Liefeld','https://imagecomics.com/news/going-out-in-a-blaze-of-glory'),
+('title',r'^Generation Hope\b','Kieron Gillen','https://www.marvel.com/comics/issue/30078/slug'),
+('title',r'^Mutopia X\b','David Hine; Lan Medina','https://en.wikipedia.org/wiki/David_Hine'),
+('title',r'^Mutant X\b','Howard Mackie; Tom Raney','https://www.comics.org/issue/62236/'),
+('title',r'^X-Statix\b','Peter Milligan; Michael Allred','https://www.marvel.com/articles/comics/peter-milligan-michael-allred-and-laura-allred-return-with-more-mutant-madness-in-the-x-cellent'),
+('title',r'^REBELS\b','Tony Bedard; Andy Clarke','https://www.dc.com/graphic-novels/r-e-b-e-l-s-2009/r-e-b-e-l-s-vol-1-the-coming-of-starro'),
+('title',r'^Outsiders\b','Mike W. Barr; Jim Aparo','https://www.dc.com/graphic-novels/batman-and-the-outsiders-1984/batman-and-the-outsiders-vol-1'),
+('title',r'^Justice League(?: of)? America\b','Gardner Fox; Mike Sekowsky','https://www.dc.com/talent/mike-sekowsky'),
+('title',r'^Secret Wars\b','Jim Shooter; Mike Zeck; Bob Layton','https://www.marvel.com/articles/comics/secret-wars-official-marvel-guide'),
+('title',r'^Secret War\b','Brian Michael Bendis; Gabriele Dell’Otto','https://www.marvel.com/articles/comics/an-oral-history-of-secret-invasion'),
+('title',r'^Emma Frost\b','Chris Claremont; John Byrne','https://www.marvel.com/amp/articles/comics/the-essential-emma-frost'),
+('title',r'^Starjammers\b','Chris Claremont; Dave Cockrum','https://www.marvel.com/comics/collection/77922/x-men_starjammers_by_dave_cockrum_trade_paperback'),
+('title',r'^Warlock\\?s? 0?5$','Chris Claremont; Bill Sienkiewicz','https://www.marvel.com/comics/issue/10353/newmutants198318Link'),
+('title',r'^NYX\b','Joe Quesada; Joshua Middleton','https://en.wikipedia.org/wiki/NYX_%282003_series%29'),
+('title',r'^Mystique\b','Chris Claremont; Dave Cockrum','https://en.wikipedia.org/wiki/Mystique_%28character%29'),
+('title',r'^Jubilee\b','Chris Claremont; Marc Silvestri','https://en.wikipedia.org/wiki/Jubilee_%28character%29'),
+('title',r'^(?:The Times And Life Of Lucas )?Bishop\b','Whilce Portacio; John Byrne','https://www.marvel.com/comics/issue/80137/true_believers_x-men_-_bishop_2019_1'),
+('title',r'^Colossus\b','Len Wein; Dave Cockrum','https://en.wikipedia.org/wiki/Colossus_%28character%29'),
+('title',r'^New Warriors\b','Fabian Nicieza; Mark Bagley','https://www.marvel.com/comics/issue/42854/new-warriors-1990-1'),
+('title',r'^The Mutant Misadventures Of Cloak And Dagge','Bill Mantlo; Ed Hannigan','https://en.wikipedia.org/wiki/Cloak_and_Dagger_%28characters%29'),
+('title',r'^Blaze\b','Roy Thomas; Gary Friedrich; Mike Ploog','https://en.wikipedia.org/wiki/Ghost_Rider'),
+('title',r'^Alpha Flight\b','John Byrne','https://www.marvel.com/comics/collection/107765/'),
+('title',r'^(?:Dr |Doctor )Strange\b','Stan Lee; Steve Ditko','https://www.marvel.com/comics/guides/201/doctor_strange_the_sorcerer_supreme'),
+('title',r'^Silver Surfer\b','Stan Lee; Jack Kirby','https://www.marvel.com/articles/comics/who-is-silver-surfer-the-official-marvel-guide?linkId=231447808'),
+('title',r'^Namor\b','Bill Everett','https://www.marvel.com/amp/articles/comics/namora-explainer-namor-cousin-agents-of-atlas'),
 ('path',r'/ Hush \[Batman Graphic Novel\]$','Jeph Loeb; Jim Lee','https://www.dc.com/graphic-novels/batman-hush'),
 ('title',r'^The Man Who Laughs$','Ed Brubaker; Doug Mahnke','https://www.dc.com/graphic-novels/batman-the-man-who-laughs'),
 ('title',r'^Secret Six\b','Gail Simone','https://www.dc.com/graphic-novels/secret-six-2006/secret-six-six-degrees-of-devastation'),
@@ -72,11 +130,18 @@ rules=[
 ]
 count=0
 candidates=[]
+def fold(value):return re.sub(r'[^a-z0-9]','',value.lower())
+verified_names={fold(name) for _,_,credit,_ in rules for name in credit.split('; ')}
+verified_names.update(map(fold,['Garth Ennis','Brian Azzarello','Chris Ware','Alison Bechdel','Art Spiegelman','Jeff Smith','Daniel Clowes','Craig Thompson','Steven T. Seagle']))
 for row in catalog:
-    if row.get('author','').strip() or row.get('category')!='Graphic Novel':continue
+    if row.get('category')!='Graphic Novel':continue
+    existing=row.get('author','').strip()
+    fragment=existing and fold(existing) not in verified_names and fold(existing) in fold(row.get('title','')+' '+row.get('path',''))
+    if existing and not fragment:continue
     for field,pattern,author,source in rules:
         if not re.search(pattern,row.get(field,''),re.I):continue
         payload=dict(id=row['id'],author=author)
+        if existing:payload['expectedScannedAuthor']=existing
         candidates.append(dict(creditType='series-creator',source=source,**payload))
         count+=1
         if count%50==0:print('Creator credits applied:',count,flush=True)

@@ -15,13 +15,14 @@ of scanning images. Image/OCR work was stopped; partial intermediate files remai
 Applied and verified centrally:
 
 - 566 embedded covers added without overwriting existing artwork.
-- 1,961 entries received metadata corrections (some receive both title and author).
-- 17 confirmed non-book notices hidden; original files retained.
+- 2,417 entries received metadata corrections (some receive both title and author).
+- 23 confirmed non-book notices/items hidden; original files retained.
+- 101 encoded comic titles cleaned; series-creator credits used as requested.
 - Prior title/author/hidden-ID edits preserved.
 - Live cover responses verified as JPEG with matching SHA-256 contents.
 
-Remaining missing authors in visible catalogue: EPUB 1, MOBI 0, PDF 125,
-CBR 68, CBZ 10, TXT 8, RTF 2, DOC 14, DOCX 11. These remain unresolved,
+Remaining missing authors in visible catalogue: EPUB 1, PDF 2, TXT 2.
+These remain unresolved,
 not silently assigned to a best-guess search result. Complete title and artwork
 quality review beyond automated flags is still pending.
 
@@ -44,8 +45,22 @@ are excluded. Nine catalogue regression tests pass; supported release gates and
 LAN/public checks passed. Public authenticated catalogue confirms Gatsby,
 Lincoln, Hamlet and Never Let Me Go categories. No native rebuild was needed.
 
-Latest verification: 566 local cover MIME/content checks, 1,961 metadata identities,
-zero preservation/mismatch errors. Fifteen corrected duplicate copies merge into
+Latest verification: 566 local cover MIME/content checks, 2,417 metadata identities,
+zero preservation/mismatch errors. Thirty-two corrected duplicate copies merge into
 existing work entries without removing source files. The bogus Other Worlds
 EPUB contains an HTTP 416 HTML error rather than book content; it was hidden as
 a confirmed non-book error document, not assigned an unrelated anthology's author.
+
+The user subsequently permitted inspection of only unresolved title/credit pages.
+Local first-page reading identified twelve more records, including the specific
+Alien 3 draft (Walter Hill/David Giler), Lenin's The Teachings of Karl Marx,
+Journey to the End of the Night and short stories confirmed against the originating
+Short Story website. No full-book OCR or document upload was performed. Adobe
+initialization required authentication, so local rendering/recognition was used.
+
+Cached-artwork integrity audit: 8,457 readable JPEGs, zero invalid files, 268 missing
+local images and 36 unusually small images flagged for review. Missing local
+images are not proof of missing displayed art: the app also resolves remote covers
+or uses its existing designed fallback. A separate endpoint check records those
+outcomes. This is not a claim that every edition's artwork has been visually verified.
+Reference Room, original book files and reader/playback code were not changed.

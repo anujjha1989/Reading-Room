@@ -10,6 +10,8 @@ def atomic(path,value):
         json.dump(value,f,ensure_ascii=False);f.flush();os.fsync(f.fileno())
     os.chmod(temporary,0o640);shutil.chown(temporary,group='reading-room');os.replace(temporary,path)
 def install(candidates):
+    if not candidates:
+        print('No new corrections to install');return
     lock=open(out/'apply.lock','a');fcntl.flock(lock,fcntl.LOCK_EX)
     rows={r['id']:r for r in json.load(urllib.request.urlopen('http://127.0.0.1:4311/catalog.json'))}
     for p in candidates:
@@ -26,7 +28,9 @@ def install(candidates):
         log=json.loads((out/'applied.json').read_text())
         for p in candidates:
             id=p['id'];fields={}
-            if p.get('author') and not rows[id].get('author','').strip() and id not in maps['author-fixes.json']:
+            missing_author=not rows[id].get('author','').strip()
+            reviewed_scanned_author=('expectedScannedAuthor' in p and rows[id].get('author')==p['expectedScannedAuthor'])
+            if p.get('author') and (missing_author or reviewed_scanned_author) and id not in maps['author-fixes.json']:
                 fields['author']=p['author'];maps['author-fixes.json'][id]=p['author']
             if p.get('title') and id not in maps['title-fixes.json']:
                 fields['title']=p['title'];maps['title-fixes.json'][id]=p['title']
