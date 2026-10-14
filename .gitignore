@@ -19,6 +19,8 @@
 /out/
 
 # misc
+__pycache__/
+*.pyc
 .DS_Store
 ._*
 *.pem
