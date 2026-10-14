@@ -7,6 +7,8 @@ root=Path('/mnt/seagate/ReadingRoom'); out=root/'library-repair-backups/scrub-20
 log=json.loads((out/'applied.json').read_text())
 catalog=json.load(urllib.request.urlopen('http://127.0.0.1:4311/catalog.json'))
 rules=[
+    (r'Watchmen\s+#?\s*(?:0?[1-9]|1[0-2])','Alan Moore','https://www.dc.com/graphic-novels/watchmen-1986/watchmen'),
+    (r'Batman - The Long Halloween\s+#?\s*(?:0?[1-9]|1[0-3])','Jeph Loeb','https://www.dc.com/graphic-novels/batman-the-long-halloween-1996/batman-the-long-halloween'),
     (r'100 Bullets\s+#?\s*\d+','Brian Azzarello','https://www.dc.com/graphic-novels/100-bullets-1999/100-bullets-vol-1-first-shot-last-call'),
     (r'V For Vendetta\s+#?\s*\d+','Alan Moore','https://www.dc.com/graphic-novels/v-for-vendetta-1988/v-for-vendetta-new-edition'),
     (r'Promethea(?:\s+Vol)?\s+#?\s*\d+','Alan Moore','https://www.dc.com/comics/promethea-1999/promethea-32-variant'),

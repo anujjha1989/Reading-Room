@@ -13,13 +13,13 @@ series must be reviewed issue by issue.
 Applied and verified centrally:
 
 - 566 embedded covers added without overwriting existing artwork.
-- 419 entries received metadata corrections (some receive both title and author).
+- 454 entries received metadata corrections (some receive both title and author).
 - 11 download notices hidden with explicit user approval; original files retained.
 - Prior title/author/hidden-ID edits preserved.
 - Live cover responses verified as JPEG with matching SHA-256 contents.
 
-Remaining missing authors in visible catalogue: EPUB 3, MOBI 2, PDF 286,
-CBR 1007, CBZ 430, TXT 20, RTF 5, DOC 14, DOCX 23. These remain unresolved,
+Remaining missing authors in visible catalogue: EPUB 2, MOBI 0, PDF 276,
+CBR 984, CBZ 430, TXT 20, RTF 5, DOC 14, DOCX 23. These remain unresolved,
 not silently assigned to a best-guess search result. Complete title and artwork
 quality review beyond automated flags is still pending.
 
@@ -32,3 +32,16 @@ Separate header branding release v227 restores the original red house/book SVG
 beside Books on web/iOS. Installable app artwork is unchanged. Branding-focused
 release checks passed on LAN and public HTTPS; the extra public header test passed
 for light/dark themes, scrolling, hydration and Settings. TV already has the red mark.
+
+Release v228 classifies actual screenplays imported under Books as Script at
+catalogue load, including corrected titles. Six entries now join the existing
+332 Scripts entries. Screenwriting instruction and unrelated manuscript titles
+are excluded. Nine catalogue regression tests pass; supported release gates and
+LAN/public checks passed. Public authenticated catalogue confirms Gatsby,
+Lincoln, Hamlet and Never Let Me Go categories. No native rebuild was needed.
+
+Latest verification: 566 local cover MIME/content checks, 454 metadata identities,
+zero preservation/mismatch errors. Seven corrected duplicate copies merge into
+existing work entries without removing source files. The bogus Other Worlds
+EPUB contains an HTTP 416 HTML error rather than book content; it remains flagged
+for review, not silently assigned a similarly titled anthology's author.
