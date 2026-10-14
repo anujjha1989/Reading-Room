@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 """Apply publisher-verified regular-series credits and staged local covers."""
-import hashlib,json,os,re,shutil,urllib.request
+import fcntl,hashlib,json,os,re,shutil,urllib.request
 from pathlib import Path
 from PIL import Image
 root=Path('/mnt/seagate/ReadingRoom'); out=root/'library-repair-backups/scrub-2026-10-13'
+lock=open(out/'apply.lock','a');fcntl.flock(lock,fcntl.LOCK_EX)
 log=json.loads((out/'applied.json').read_text())
 catalog=json.load(urllib.request.urlopen('http://127.0.0.1:4311/catalog.json'))
 rules=[
+    (r'(?:Batman - )?Dark Victory\s+#?\s*\d+','Jeph Loeb','https://www.dc.com/graphic-novels/batman-dark-victory-1999/batman-dark-victory-new-edition'),
+    (r'Jimmy Corrigan\s+#?\s*\d+','Chris Ware','https://www.penguinrandomhouse.com/books/185703/jimmy-corrigan-the-smartest-kid-on-earth-by-chris-ware/'),
+    (r'Identity Crisis\s+#?\s*0?[1-7]','Brad Meltzer','https://www.dc.com/graphic-novels/identity-crisis-2004/identity-crisis'),
+    (r'House Of M\s+#?\s*0?[1-8]','Brian Michael Bendis','https://www.marvel.com/comics/guides/258/house_of_m_the_complete_event'),
+    (r'Frank Miller_s Ronin\s+#?\s*0?[1-6]','Frank Miller','https://www.dc.com/graphic-novels/ronin-1983/ronin'),
+    (r'Promethea Vol1\s+#?\s*\d+','Alan Moore','https://www.dc.com/comics/promethea-1999/promethea-32-variant'),
+    (r'Saga_\d{3}_28(?:2012|2013|2014)_29_28[Dd]igital_29_28(?:Zone_Empire_2|Megan_Empire)','Brian K. Vaughan','https://imagecomics.com/creators/brian-k-vaughan'),
     (r'Watchmen\s+#?\s*(?:0?[1-9]|1[0-2])','Alan Moore','https://www.dc.com/graphic-novels/watchmen-1986/watchmen'),
     (r'Batman - The Long Halloween\s+#?\s*(?:0?[1-9]|1[0-3])','Jeph Loeb','https://www.dc.com/graphic-novels/batman-the-long-halloween-1996/batman-the-long-halloween'),
     (r'100 Bullets\s+#?\s*\d+','Brian Azzarello','https://www.dc.com/graphic-novels/100-bullets-1999/100-bullets-vol-1-first-shot-last-call'),
@@ -19,9 +27,13 @@ rules=[
     (r'American Virgin\s+#?\s*\d+','Steven T. Seagle','https://www.dc.com/talent/steven-t-seagle'),
 ]
 for row in catalog:
-    if row.get('author','').strip() or row['format'] not in ('CBR','CBZ'): continue
+    if row['format'] not in ('CBR','CBZ'): continue
     for pattern,author,source in rules:
         if not re.fullmatch(pattern,row['title'],re.I): continue
+        if row.get('author','').strip():
+            if row['author']==author and not any(item.get('id')==row['id'] and item.get('author')==author for item in log):
+                log.append(dict(kind='metadata',source=source,title=row['title'],id=row['id'],author=author))
+            break
         payload=dict(id=row['id'],author=author)
         request=urllib.request.Request('http://127.0.0.1:4311/api/meta-fix',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'},method='POST')
         with urllib.request.urlopen(request,timeout=30) as response:

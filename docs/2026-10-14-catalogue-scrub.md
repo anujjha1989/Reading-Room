@@ -8,24 +8,28 @@ not automatically applied. 349 PDFs were checked for printed ISBNs; 44 returned
 online records. Printed titles and creator names were cross-checked before repair.
 1,808 comic archives had no usable embedded ComicInfo writer credits. Publisher
 records support narrowly bounded regular-series writer corrections; variable-writer
-series must be reviewed issue by issue.
+series initially required issue review. The user subsequently approved creator-
+level credits for comics and graphic novels, and requested online records instead
+of scanning images. Image/OCR work was stopped; partial intermediate files remain.
 
 Applied and verified centrally:
 
 - 566 embedded covers added without overwriting existing artwork.
-- 454 entries received metadata corrections (some receive both title and author).
-- 11 download notices hidden with explicit user approval; original files retained.
+- 1,961 entries received metadata corrections (some receive both title and author).
+- 17 confirmed non-book notices hidden; original files retained.
 - Prior title/author/hidden-ID edits preserved.
 - Live cover responses verified as JPEG with matching SHA-256 contents.
 
-Remaining missing authors in visible catalogue: EPUB 2, MOBI 0, PDF 276,
-CBR 984, CBZ 430, TXT 20, RTF 5, DOC 14, DOCX 23. These remain unresolved,
+Remaining missing authors in visible catalogue: EPUB 1, MOBI 0, PDF 125,
+CBR 68, CBZ 10, TXT 8, RTF 2, DOC 14, DOCX 11. These remain unresolved,
 not silently assigned to a best-guess search result. Complete title and artwork
 quality review beyond automated flags is still pending.
 
 Evidence, applied change log, and backups:
 `/mnt/seagate/ReadingRoom/library-repair-backups/scrub-2026-10-13/`.
-Corrections use the existing metadata API; covers use the existing local cover
+Corrections use the existing metadata API or an atomic, backed-up batch installer;
+the batch pauses the service, preserves existing fields, restarts and verifies,
+and restores its backup if required checks fail. Covers use the existing local cover
 directory. No book contents, paths, or reading history were modified.
 
 Separate header branding release v227 restores the original red house/book SVG
@@ -40,8 +44,8 @@ are excluded. Nine catalogue regression tests pass; supported release gates and
 LAN/public checks passed. Public authenticated catalogue confirms Gatsby,
 Lincoln, Hamlet and Never Let Me Go categories. No native rebuild was needed.
 
-Latest verification: 566 local cover MIME/content checks, 454 metadata identities,
-zero preservation/mismatch errors. Seven corrected duplicate copies merge into
+Latest verification: 566 local cover MIME/content checks, 1,961 metadata identities,
+zero preservation/mismatch errors. Fifteen corrected duplicate copies merge into
 existing work entries without removing source files. The bogus Other Worlds
-EPUB contains an HTTP 416 HTML error rather than book content; it remains flagged
-for review, not silently assigned a similarly titled anthology's author.
+EPUB contains an HTTP 416 HTML error rather than book content; it was hidden as
+a confirmed non-book error document, not assigned an unrelated anthology's author.
