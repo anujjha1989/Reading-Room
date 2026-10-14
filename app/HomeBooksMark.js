@@ -3,5 +3,6 @@ import { createElement as h } from "react";
 
 export default function HomeBooksMark() {
   return h("svg", { className: "home-books-mark", viewBox: "0 0 256 256", "aria-hidden": "true" },
-    h("image", { href: "/icon-192.png?brand=golden-book-20261011", width:256, height:256 }));
+    h("path", { d: "M109 21Q128 6 147 21L217 77Q230 87 230 104V174Q230 208 196 208H59Q25 208 25 174V104Q25 87 38 77Z", fill: "#f50916" }),
+    h("path", { d: "M61 106Q61 100 68 97Q96 85 116 99Q122 102 122 109V179Q101 161 69 169Q61 171 61 164ZM134 109Q134 102 140 99Q160 85 187 97Q194 100 194 106V164Q194 171 186 169Q155 161 134 179Z", fill: "#fafafa" }));
 }

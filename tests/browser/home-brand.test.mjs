@@ -20,11 +20,15 @@ test("home Books wordmark stays compact and contrasting in both themes", { timeo
       const style = getComputedStyle(icon);
       return { text: title.textContent, size: parseFloat(getComputedStyle(title).fontSize),
         color: getComputedStyle(title).color, paper: getComputedStyle(document.body).backgroundColor, width: icon.getBoundingClientRect().width,
-        right: title.getBoundingClientRect().right, viewport: innerWidth };
+        right: title.getBoundingClientRect().right, viewport: innerWidth,
+        markFills: [...icon.querySelectorAll('path')].map(p => p.getAttribute('fill')),
+        rasterMark: !!icon.querySelector('image') };
     })()`);
     assert.equal(result.text, "Books");
     assert.ok(result.size >= 24 && result.size <= 28);
     assert.equal(result.width, 40);
+    assert.deepEqual(result.markFills, ['#f50916', '#fafafa']);
+    assert.equal(result.rasterMark, false, 'Title mark must stay separate from installable app artwork');
     assert.notEqual(result.color, result.paper);
     assert.ok(result.right <= result.viewport);
     await browser.evaluate(`window.scrollTo(0, 500)`);
