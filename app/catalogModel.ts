@@ -22,10 +22,9 @@ const TITLE_CORRECTIONS: Record<string, string> = {
 export const isReference = (id: string) => id.startsWith("ref-");
 
 export function canReadHere(format: string, id = "") {
-  // Reference Room files are private on Drive, so its documents can't use the
-  // Drive previewer the Reading Room's Word files open in; they download instead.
+  // Only formats with a local browser reader should offer Read here.
   if (isReference(id)) return ["EPUB", "MOBI", "AZW", "AZW3", "KF8", "PDF", "CBR", "CBZ"].includes(format.toUpperCase());
-  return ["EPUB", "MOBI", "AZW", "AZW3", "KF8", "PDF", "CBR", "CBZ", "DOC", "DOCX", "RTF", "TXT"].includes(format.toUpperCase());
+  return ["EPUB", "MOBI", "AZW", "AZW3", "KF8", "PDF", "CBR", "CBZ", "TXT"].includes(format.toUpperCase());
 }
 
 export function cleanTitle(value: string) {

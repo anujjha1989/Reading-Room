@@ -1,5 +1,5 @@
 // The Reading Room — local library server.
-// Serves the catalogue UI, proxies book downloads from Google Drive, syncs
+// Serves the catalogue UI and local book files, syncs
 // reading state across devices, and enriches covers from Open Library.
 // Dependency-free: only Node built-ins.
 
@@ -11,8 +11,6 @@ import { basename, extname, join, normalize, resolve, dirname } from "node:path"
 import { homedir, networkInterfaces } from "node:os";
 import { gzipSync } from "node:zlib";
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { pipeline } from "node:stream/promises";
-import { Readable } from "node:stream";
 import { settingsRoute } from "./rr-settings.mjs";
 import { ttsRoute } from "./rr-tts.mjs";
 import { mutationProblem, cleanReadingState } from "./request-guard.mjs";
@@ -806,7 +804,6 @@ async function resolveFromOpenLibrary(title, author) {
 }
 
 const OL_FORMATS = new Set(["EPUB", "MOBI", "AZW", "AZW3", "KF8", "CBR", "CBZ", "FB2"]);
-const DRIVE_THUMB_FORMATS = new Set(["PDF", "DOC", "DOCX", "RTF", "TXT", "FDX"]);
 
 const isFreshMiss = (entry) => entry?.none === true &&
   (!entry.at || Date.now() - entry.at < NEGATIVE_COVER_TTL);
@@ -871,14 +868,6 @@ async function cover(response, url) {
 
   // Local art wins over every remote source, including the Drive thumbnail.
   if (id && await sendLocalCover(response, id)) return;
-
-  if (DRIVE_THUMB_FORMATS.has(format) && driveIdPattern.test(id)) {
-    response.writeHead(302, {
-      location: `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w500`,
-      "cache-control": "public, max-age=86400",
-    }).end();
-    return;
-  }
 
   const key = `${normalized(title)}|${normalized(author)}`;
   const cached = coverCache.get(key);
@@ -1303,54 +1292,11 @@ const bookMimeTypes = {
   AZW: "application/vnd.amazon.ebook", AZW3: "application/vnd.amazon.ebook",
   KF8: "application/vnd.amazon.ebook", PDF: "application/pdf",
   CBR: "application/x-cbr", CBZ: "application/vnd.comicbook+zip",
+  TXT: "text/plain; charset=utf-8", DOC: "application/msword",
+  DOCX: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", RTF: "application/rtf",
 };
 
-function driveDownloadUrl(id, extra) {
-  const u = new URL("https://drive.usercontent.google.com/download");
-  u.searchParams.set("id", id);
-  u.searchParams.set("export", "download");
-  for (const [k, v] of Object.entries(extra || {})) u.searchParams.set(k, v);
-  return u.toString();
-}
-
-// Parse Google Drive's "can't scan for viruses" interstitial form so we can
-// re-request the real bytes with the confirm token + uuid it embeds.
-export function parseDriveConfirm(html, id) {
-  const params = {};
-  const inputRe = /<input\b[^>]*>/gi;
-  let m;
-  while ((m = inputRe.exec(html))) {
-    const tag = m[0];
-    if (!/type=["']?hidden/i.test(tag)) continue;
-    const name = (tag.match(/name=["']([^"']+)["']/i) || [])[1];
-    if (!name) continue;
-    params[name] = (tag.match(/value=["']([^"']*)["']/i) || [])[1] || "";
-  }
-  if (!params.confirm) {
-    const c = (html.match(/[?&]confirm=([0-9A-Za-z_-]+)/) || [])[1];
-    if (c) params.confirm = c;
-  }
-  params.id = params.id || id;
-  params.export = "download";
-  return params;
-}
-
-async function fetchDriveFile(id, range, signal) {
-  const headers = { Accept: "application/octet-stream" };
-  if (range) headers.Range = range;
-  let resp = await fetch(driveDownloadUrl(id, { confirm: "t" }), { redirect: "follow", headers, signal });
-  let ctype = resp.headers.get("content-type") || "";
-  if (resp.ok && ctype.includes("text/html")) {
-    const html = await resp.text();
-    resp = await fetch(driveDownloadUrl(id, parseDriveConfirm(html, id)), { redirect: "follow", headers, signal });
-    ctype = resp.headers.get("content-type") || "";
-  }
-  return { resp, ctype };
-}
-
-// Books that live on this Pi rather than in Drive. The scan writes this map;
-// ids are "L" + sha1(path), which satisfies driveIdPattern, so only this one
-// lookup has to know the difference.
+// The scanner maps stable book identifiers to local files.
 const LOCAL_FILE_MAP = process.env.READING_ROOM_LOCAL_MAP
   || "/mnt/seagate/ReadingRoom/local-files.json";
 let localMapCache = { at: 0, map: {} };
@@ -1474,42 +1420,7 @@ async function proxyBook(request, response, url) {
     catch { if (!response.headersSent) { response.writeHead(404).end("Book file missing"); return; } }
   }
 
-  // Abort the upstream transfer if the reader navigates away mid-download.
-  const controller = new AbortController();
-  const abort = () => controller.abort();
-  request.on("aborted", abort);
-  response.on("close", () => { if (!response.writableFinished) abort(); });
-
-  let upstream;
-  let contentType;
-  try {
-    ({ resp: upstream, ctype: contentType } = await fetchDriveFile(id.replace(/^ref-/, ""), request.headers.range, controller.signal));
-  } catch (error) {
-    if (!response.headersSent) response.writeHead(502).end("The book could not be retrieved from Drive");
-    return;
-  }
-  if (!upstream.ok || !upstream.body || contentType.includes("text/html")) {
-    response.writeHead(upstream.status >= 400 ? upstream.status : 502)
-      .end("The book could not be retrieved from Drive");
-    return;
-  }
-  const headers = {
-    "content-type": mimeType,
-    "cache-control": "private, max-age=300",
-    "x-content-type-options": "nosniff",
-  };
-  for (const name of ["accept-ranges", "content-length", "content-range"]) {
-    const value = upstream.headers.get(name);
-    if (value) headers[name] = value;
-  }
-  response.writeHead(upstream.status, headers);
-  if (request.method === "HEAD") { response.end(); abort(); return; }
-  try {
-    // pipeline honours backpressure, so a 900 MB comic doesn't buffer in memory.
-    await pipeline(Readable.fromWeb(upstream.body), response);
-  } catch (error) {
-    if (error?.name !== "AbortError" && !response.writableFinished) response.destroy();
-  }
+  if (!response.headersSent) response.writeHead(404).end("This book is not available in the local library. Refresh the library or scan for new additions in Settings.");
 }
 
 // ---------------------------------------------------------------------------

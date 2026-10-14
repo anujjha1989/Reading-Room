@@ -1,6 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { canReadHere } from "../app/catalogModel.ts";
 import { reliabilityPreview } from "./browser/reliability-preview.mjs";
+test("local library never redirects missing books, covers or document previews to Drive", async () => {
+  const server = await readFile(new URL("../server/standalone-server.mjs", import.meta.url), "utf8");
+  const reader = await readFile(new URL("../app/BookReader.tsx", import.meta.url), "utf8");
+  const settings = await readFile(new URL("../app/SettingsPanel.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(server, /drive\.google\.com|drive\.usercontent\.google\.com|fetchDriveFile/);
+  assert.doesNotMatch(reader, /drive\.google\.com|docs\.google\.com/);
+  assert.doesNotMatch(settings, /in Drive|your Drive|Drive source|Drive path/);
+  assert.match(server, /404\)\.end\("This book is not available in the local library/);
+  for (const format of ["DOC", "DOCX", "RTF"]) assert.equal(canReadHere(format), false);
+  for (const format of ["EPUB", "MOBI", "PDF", "CBR", "CBZ", "TXT"]) assert.equal(canReadHere(format), true);
+});
 test("a preview upstream body failure produces one controlled 502", async t => {
   const original = globalThis.fetch;
   t.after(()=>{globalThis.fetch=original;});

@@ -15,13 +15,13 @@ of scanning images. Image/OCR work was stopped; partial intermediate files remai
 Applied and verified centrally:
 
 - 566 embedded covers added without overwriting existing artwork.
-- 2,417 entries received metadata corrections (some receive both title and author).
-- 23 confirmed non-book notices/items hidden; original files retained.
+- 2,418 entries received metadata corrections (some receive both title and author).
+- 25 confirmed non-book or unreadable items hidden; original files retained.
 - 101 encoded comic titles cleaned; series-creator credits used as requested.
 - Prior title/author/hidden-ID edits preserved.
 - Live cover responses verified as JPEG with matching SHA-256 contents.
 
-Remaining missing authors in visible catalogue: EPUB 1, PDF 2, TXT 2.
+Remaining missing authors in visible catalogue: TXT 2 (uncredited internet humour).
 These remain unresolved,
 not silently assigned to a best-guess search result. Complete title and artwork
 quality review beyond automated flags is still pending.
@@ -45,7 +45,7 @@ are excluded. Nine catalogue regression tests pass; supported release gates and
 LAN/public checks passed. Public authenticated catalogue confirms Gatsby,
 Lincoln, Hamlet and Never Let Me Go categories. No native rebuild was needed.
 
-Latest verification: 566 local cover MIME/content checks, 2,417 metadata identities,
+Latest verification: 566 local cover MIME/content checks, 2,418 metadata identities,
 zero preservation/mismatch errors. Thirty-two corrected duplicate copies merge into
 existing work entries without removing source files. The bogus Other Worlds
 EPUB contains an HTTP 416 HTML error rather than book content; it was hidden as
@@ -64,3 +64,18 @@ images are not proof of missing displayed art: the app also resolves remote cove
 or uses its existing designed fallback. A separate endpoint check records those
 outcomes. This is not a claim that every edition's artwork has been visually verified.
 Reference Room, original book files and reader/playback code were not changed.
+
+Final artwork pass cached 154 additional usable covers through the existing app
+resolver. The remaining 148 attempts use the established title/author fallback;
+36 unusably small images were moved into reversible artwork backups. No full-size
+existing cover was overwritten. Outcomes and SHA-256 hashes are recorded in
+artwork-final-results.json. Two damaged/blank PDF imports were hidden under the
+user's explicit instruction to hide unreadable books, never deleted.
+
+Follow-up requested by Anuj: remove obsolete Drive UI and serving fallbacks.
+Book requests now serve only the Pi's mapped local files, missing files return a
+local-library 404, covers never redirect to Drive, and Settings describes Pi
+folders. Unsupported Word/RTF previews offer local downloads rather than broken
+external previews. TXT uses a local text/plain preview. The focused preview
+regression prevents reintroducing external Drive links or upstream downloads.
+The shared web release updates Safari and iOS; no native source was changed.

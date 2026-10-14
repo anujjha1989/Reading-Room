@@ -89,12 +89,6 @@ function readerUrl(id: string, format: string) {
   return `/api/book/${encodeURIComponent(id)}?format=${encodeURIComponent(format)}`;
 }
 
-function previewUrl(rawId: string, sourceUrl: string) {
-  const id = rawId.replace(/^ref-/, "");   // Reference Room ids are prefixed Drive ids
-  if (sourceUrl.includes("docs.google.com/document")) return `https://docs.google.com/document/d/${id}/preview`;
-  return `https://drive.google.com/file/d/${id}/preview`;
-}
-
 type ReaderTheme = "light" | "sepia" | "dark";
 
 function isMobileViewport() {
@@ -1602,7 +1596,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
       {isBookReader ? <>
         <div className="epub-stage" onTouchStart={(event) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={endSwipe}>{isReflowable && <div className="epub-viewer" ref={viewerRef}></div>}{isPdf && readingMode && <PdfReader key={epubRevision} ref={pdfReaderRef} fileId={file.id} format={file.format} mode={readingMode} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{isComic && readingMode && <ComicReader key={epubRevision} ref={comicReaderRef} fileId={file.id} format={file.format} mode={readingMode} direction={mangaMode ? "rtl" : "ltr"} initialPosition={initialPosition} onStatus={setStatus} onProgress={setProgress} onLocationChange={reportLocation} />}{status && <div className="reader-message" role="status"><p>{status}</p>{status.includes("could not") && <><button type="button" onClick={() => setEpubRevision(value => value + 1)}>Retry opening</button><a href={`${readerUrl(file.id, file.format)}&download=1`} download>Download {format}</a></>}</div>}</div>
         <footer className="reader-footer"><button onClick={previous}>{readingMode === "scroll" ? "↑ Up" : "← Previous"}</button><span>{footerLabel || (readingMode === "scroll" ? "Continuous scroll" : "Use the arrow keys to turn pages")}</span><button onClick={next}>{readingMode === "scroll" ? "Down ↓" : "Next →"}</button></footer>
-      </> : <iframe className="document-reader" src={previewUrl(file.id, file.url)} title={`Reader for ${title}`} allow="fullscreen" />}
+      </> : <iframe className="document-reader" src={readerUrl(file.id, file.format)} title={`Reader for ${title}`} allow="fullscreen" />}
 
       {readingSheetHost ? createPortal(<>
         <div className="rr-title-chip" title={displayTitle}>{displayTitle}</div>

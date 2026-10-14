@@ -10,7 +10,7 @@ def check(row):
     result = {'id': row['id'], 'title': row['title']}
     url = 'http://127.0.0.1:4311/api/cover?' + urllib.parse.urlencode({k: row.get(k, '') for k in ('id', 'title', 'author', 'format')})
     try:
-        with urllib.request.urlopen(url, timeout=25) as response:
+        with urllib.request.urlopen(url, timeout=8) as response:
             data = response.read(5000000)
             result['mime'] = response.headers.get_content_type()
         with Image.open(io.BytesIO(data)) as im:
@@ -23,7 +23,13 @@ def check(row):
     except Exception as e:
         result.update(status='error', error=str(e))
     return result
-with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
-    results = list(pool.map(check, [r for r in rows if r['id'] in missing]))
+results = []
+with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+    futures = [pool.submit(check, r) for r in rows if r['id'] in missing]
+    for future in concurrent.futures.as_completed(futures):
+        results.append(future.result())
+        if len(results) % 20 == 0:
+            (root/'uncached-artwork-check.json').write_text(json.dumps(results, ensure_ascii=False, indent=2))
+            print('Artwork checked:', len(results), flush=True)
 (root/'uncached-artwork-check.json').write_text(json.dumps(results, ensure_ascii=False, indent=2))
 print(json.dumps({status: sum(r['status'] == status for r in results) for status in ('available', 'fallback', 'error')}))

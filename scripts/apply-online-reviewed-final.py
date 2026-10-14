@@ -4,6 +4,7 @@ import importlib.util,json,urllib.request
 from pathlib import Path
 rows=json.load(urllib.request.urlopen('http://127.0.0.1:4311/catalog.json'))
 rules=[
+('L61f5a632cbc15efff253e118de5e2ba5259c3b9c','Birth of the New Republic (The Essential Chronology excerpt)','Kevin J. Anderson; Daniel Wallace','https://1library.net/article/birth-new-republic-star-wars-essential-chronology.yndl7olz; https://books.google.com/books?id=P6AqAAAAYAAJ'),
 ('L488cb651599c402afbfdaf662765cf1a43548ef0','India: Travel Guide','Lonely Planet','Local opening pages: © Lonely Planet Publications Pty Ltd; individual edition writers not identified'),
 ('L8ea094779b7783ccabd272a6f9ae6ac4cb77365f','Alien 3 (1991.01.11 final draft)','Walter Hill; David Giler','Local title page: FINAL DRAFT January 11, 1991; by Walter Hill/David Giler'),
 ('Lf9ec28c26a6ed47982c754692a823f1b57c8a626','The Teachings of Karl Marx','V. I. Lenin','Local title and copyright pages: Little Lenin Library, volume 1'),

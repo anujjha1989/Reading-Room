@@ -135,7 +135,7 @@ export async function settingsRoute(request, response, url) {
       const isLocal = String(payload.path || "").trim().startsWith("/");
       if (!isLocal && (!p || !/^(Books|Scripts)(\/|$)/.test(p))) {
         json(response, 400, {
-          error: "A Drive source must be inside Books/ or Scripts/. For a folder on the Pi, give a full path starting with /.",
+          error: "Use Books/ or Scripts/, or a full folder path on the Pi starting with /.",
         });
         return true;
       }

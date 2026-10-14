@@ -7,6 +7,8 @@ lock=open(out/'apply.lock','a');fcntl.flock(lock,fcntl.LOCK_EX)
 rows={r['id']:r for r in json.load(urllib.request.urlopen('http://127.0.0.1:4311/catalog.json'))}
 log=json.loads((out/'applied.json').read_text())
 notices={
+'L30fd179fe7e5d603b0823e1e6bbac34aa92a66bf':'Blank Memories of Murder part-2 print: 144 pages, no extracted text, fonts or images, opening renders blank; hidden at user request',
+'Lc8733307ebd2d9bf430d5c6dedae3e13f8bb2f7c':'Unreadable damaged PDF import: missing PDF header, null-filled beginning, rejected by PDF renderer; hidden at user request',
 'Lc46ee67dabafc09cd11c486b8892e5e5dc51206b':'Novelty Xavier Institute graduation diploma, not a comic or book',
 'Led4f5b8123d8eb7c233c99d907d5ec2f2dad5f15':'List of Kindle ebook filenames, not book content',
 'L51abb56b7feb70f5b8e6b36c730835700f88722f':'Identifier-only text file (87-01), no book content',
