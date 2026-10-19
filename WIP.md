@@ -15,8 +15,9 @@ Completed: clean build/typecheck; focused transparent asset and proportional
 title/layout tests passed. Candidate installed as complete v230 release from
 fd090c2 with34verified file hashes and rollback directory on Pi. Actual LAN
 Chrome/WebKit light/dark Library/Settings and title tests passed; screenshots
-visually inspected. Public SVG MIME and exact contents passed; public browser
-checks finishing. Native installable artwork unchanged; shared web/iOS title
+visually inspected. Public SVG MIME and exact contents passed; public Chrome
+and WebKit light/dark route, hydration, Library and Settings checks passed.
+Native installable artwork unchanged; shared web/iOS title
 receives this release. Native TV title/bookmark surface was not changed by this
 web-specific request; no TV rebuild or installation claimed.
 
