@@ -16,19 +16,18 @@ test("home Books wordmark stays compact and contrasting in both themes", { timeo
       document.documentElement.dataset.rrTheme = '${theme}';
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
       const title = document.querySelector('.hero h1');
-      const icon = title.querySelector('svg');
+      const icon = title.querySelector('.home-books-mark');
       const style = getComputedStyle(icon);
       return { text: title.textContent, size: parseFloat(getComputedStyle(title).fontSize),
         color: getComputedStyle(title).color, paper: getComputedStyle(document.body).backgroundColor, width: icon.getBoundingClientRect().width,
         right: title.getBoundingClientRect().right, viewport: innerWidth,
-        markFills: [...icon.querySelectorAll('path')].map(p => p.getAttribute('fill')),
-        rasterMark: !!icon.querySelector('image') };
+        source: icon.getAttribute('src'), fit: style.objectFit };
     })()`);
     assert.equal(result.text, "Books");
     assert.ok(result.size >= 24 && result.size <= 28);
     assert.equal(result.width, 40);
-    assert.deepEqual(result.markFills, ['#f50916', '#fafafa']);
-    assert.equal(result.rasterMark, false, 'Title mark must stay separate from installable app artwork');
+    assert.match(result.source, /home-books-icon\.svg\?v=230/);
+    assert.equal(result.fit, 'contain', 'Book must not be stretched');
     assert.notEqual(result.color, result.paper);
     assert.ok(result.right <= result.viewport);
     await browser.evaluate(`window.scrollTo(0, 500)`);

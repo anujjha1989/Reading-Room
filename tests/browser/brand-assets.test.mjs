@@ -31,6 +31,8 @@ test("brand icons use supplied green/gold open-book artwork at every release siz
     const svg = await readFile(new URL(`../../public/${file}`, import.meta.url), "utf8");
     assert.ok(svg.includes('href="data:image/png;base64,'),file);
     const embedded=svg.match(/base64,([^" ]+)/)[1];
-    assert.equal(embedded,(await readFile(new URL("../../public/icon-512.png",import.meta.url))).toString("base64"),file);
+    assert.ok(svg.includes('preserveAspectRatio="xMidYMid meet"'),file);
+    const alpha = await browser.evaluate(`(async()=>{const im=new Image();im.src='data:image/png;base64,${embedded}';await im.decode();const c=document.createElement('canvas');c.width=im.width;c.height=im.height;const x=c.getContext('2d');x.drawImage(im,0,0);return [...x.getImageData(0,0,1,1).data];})()`);
+    assert.equal(alpha[3], 0, file + ': genuine transparent background');
   }
 });

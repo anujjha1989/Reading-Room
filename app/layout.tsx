@@ -10,7 +10,7 @@ import "./reader-controls.css";
 export const metadata: Metadata = {
   title: "Home Books",
   description: "A searchable private catalogue of ebooks, graphic novels, and scripts.",
-  icons: { icon: [{ url: "/favicon.svg", type: "image/svg+xml" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }, { url: "/icon-512.png", sizes: "512x512", type: "image/png" }], apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }] },
+  icons: { icon: [{ url: "/favicon.svg?v=230", type: "image/svg+xml" }], apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }] },
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "Home Books", statusBarStyle: "black-translucent" },
   openGraph: {
