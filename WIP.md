@@ -1,4 +1,13 @@
-# Transparent title/bookmark mark
+# Current checkpoint: design refinements v231
+
+Completed and deployed 20 October 2026. See docs/design-refinements-v231.md
+for scope, dependency/override review, tested candidate provenance, authorized
+installer-only resume and validation. Web/iOS shared UI v231 is live on LAN and
+public HTTPS. Both Apple TVs have 1.1 build22 installed; Living Room launch passed,
+Bedroom awake-device launch remains unverified. Physical TV remote/audio not
+tested. Prior web v230 and signed TV build21 retained for rollback.
+
+# Previous checkpoint: transparent title/bookmark mark
 
 Baseline: exact v229 source commit804613f, recovered editable clone on Mac.
 User requested the iOS open-book icon without its green background in title and
