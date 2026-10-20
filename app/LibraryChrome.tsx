@@ -10,11 +10,13 @@ export type LibrarySortMode = "title" | "author" | "series" | "added" | "opened"
 type Props = {
   view: LibraryChromeView;
   displayMode: LibraryDisplayMode;
+  density: "comfortable" | "compact";
   sort: LibrarySortMode;
   filtersOpen: boolean;
   hidden: boolean;
   onViewChange: (view: LibraryChromeView) => void;
   onDisplayModeChange: (mode: LibraryDisplayMode) => void;
+  onDensityChange: (density: "comfortable" | "compact") => void;
   onSortChange: (sort: LibrarySortMode) => void;
   onFiltersOpenChange: (open: boolean) => void;
 };
@@ -109,6 +111,8 @@ export default function LibraryChrome(props: Props) {
     <button id="rr-settings-link" type="button" aria-label="Library settings" onClick={openSettings}><Icon name="gear" /></button>
     <div id="rr-sort-menu" role="menu">
       {(["thumbnails", "list"] as const).map((mode) => <button type="button" role="menuitemradio" aria-checked={props.displayMode === mode} key={mode} onClick={() => { props.onDisplayModeChange(mode); closePopovers(); }}><Tick /><span>{mode === "thumbnails" ? "▦ Thumbnails" : "☷ List"}</span></button>)}
+      <hr /><div className="rr-menu-label">Cover size</div>
+      {(["comfortable", "compact"] as const).map(density => <button type="button" role="menuitemradio" aria-checked={props.density === density} key={density} onClick={() => { props.onDensityChange(density); closePopovers(); }}><Tick /><span>{density === "comfortable" ? "Comfortable" : "Compact"}</span></button>)}
       <hr /><div className="rr-menu-label">Sort by</div>
       {sortOptions.map((option) => <button type="button" role="menuitemradio" aria-checked={props.sort === option.value} key={option.value} onClick={() => { props.onSortChange(option.value); closePopovers(); }}><Tick /><span>{option.label}</span></button>)}
     </div>

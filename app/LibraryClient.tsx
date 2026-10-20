@@ -190,6 +190,7 @@ export default function LibraryClient() {
   const [catalogRevision, setCatalogRevision] = useState(0);
   const gridRef = useRef<HTMLDivElement>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>("thumbnails");
+  const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const [selected, setSelected] = useState<Book | null>(null);
   const [seriesFocus, setSeriesFocus] = useState<string | null>(null);
   const [reader, setReader] = useState<{ title: string; file: ReaderFile; bookId: string; initialPosition?: string } | null>(null);
@@ -273,6 +274,7 @@ export default function LibraryClient() {
     try {
       const savedDisplay = localStorage.getItem("reading-room-display-mode");
       if (savedDisplay === "thumbnails" || savedDisplay === "list") setDisplayMode(savedDisplay);
+      if (localStorage.getItem("reading-room-library-density") === "compact") setDensity("compact");
     } catch { /* Saves must still reach the server when device storage is unavailable. */ }
     outbox.start();
     let alive = true;
@@ -580,13 +582,18 @@ export default function LibraryClient() {
   const shelfCovers = (book: Book) => coverOptions(book as ShelfBook);
 
   const chooseDisplayMode = (mode: DisplayMode) => { setDisplayMode(mode); localStorage.setItem("reading-room-display-mode", mode); };
+  const chooseDensity = (next: "comfortable" | "compact") => {
+    setDensity(next);
+    try { localStorage.setItem("reading-room-library-density", next); } catch { /* Available without storage too. */ }
+  };
   const activeFilters = [
     library === "reference" ? "Reference Room" : "",
     shelfFilter?.title || "",
     collection !== "All collections" ? collection : "", author !== "All authors" ? author : "", category !== "All categories" ? category : "",
     series !== "All series" ? series : "", format !== "All formats" ? format : "", readingStatus !== "All reading statuses" ? ({ unread: "Unread", want: "Want to Read", reading: "In progress", finished: "Finished" } as Record<string, string>)[readingStatus] || readingStatus : "", readableOnly ? "Readable here" : "",
   ].filter(Boolean);
-  const myShelfTitle = myShelf === "favorites" ? "Favorites" : myShelf === "want" ? "Want to Read" : myShelf === "finished" ? "Finished" : myShelf.slice(5);
+  // Hide controls only for a genuinely empty saved library, not filtered-out books.
+  const emptyMyBooks = view === "favorites" && !query && !activeFilters.length && !allBooks.some(book => favorites.includes(book.id) || savedStates[book.id]?.wantToRead || savedStates[book.id]?.status === "finished" || savedStates[book.id]?.lists?.length);
   const currentReaderBook = reader ? bookById.get(reader.bookId) : undefined;
   const readerSeries = currentReaderBook?.series ? seriesGroups.get(currentReaderBook.series) || [] : [];
   const readerSeriesIndex = currentReaderBook ? readerSeries.findIndex((book) => book.id === currentReaderBook.id) : -1;
@@ -740,7 +747,7 @@ export default function LibraryClient() {
     </header>
 
     <section className="hero compact-hero">
-      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{chromeView === "home" && <HomeBooksMark />}{chromeView === "home" ? "Books" : chromeView === "favorites" || view === "favorites" ? myShelfTitle : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Library"}</h1></div>
+      <div><p className="eyebrow">CURATED FROM YOUR COLLECTION</p><h1>{chromeView === "home" && <HomeBooksMark />}{chromeView === "home" ? "Books" : chromeView === "favorites" || view === "favorites" ? "My Books" : view === "recent" ? "Recently opened" : view === "continue" ? "Continue reading" : "Library"}</h1></div>
       <label className="search"><span>⌕</span><input value={query} onChange={(event) => { setQuery(event.target.value); setVisible(20); }} placeholder="Search title, author, series or collection…" /><kbd>{shortcutKey}</kbd></label>
       {view === "favorites" && <div className="category-chips rr-my-shelves" role="tablist" aria-label="My Books">
         {([["favorites", "Favorites", favorites.length], ["want", "Want to Read", wantToRead.length], ["finished", "Finished", finishedBooks.length]] as const)
@@ -772,7 +779,7 @@ export default function LibraryClient() {
 
     {chromeView === "home" && catalogStatus === "error" && <div className="empty rr-home-notice"><b>The catalogue could not be loaded</b><p>Check your connection to Home Books, then try again.</p><button type="button" onClick={() => setCatalogRevision(value => value + 1)}>Retry</button></div>}
 
-    <section className="catalog">
+    <section className={`catalog${emptyMyBooks ? " rr-empty-my-books" : ""}`} data-density={density}>
       <div className="catalog-toolbar"><button className="mobile-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>Filters {activeFilters.length ? `(${activeFilters.length})` : ""}</button><label className="sort-control"><span>Sort</span><select value={sort} onChange={(event) => chooseSort(event.target.value as SortMode)}><option value="title">Title</option><option value="author">Author</option><option value="series">Series</option><option value="added">Recently added</option><option value="opened">Recently opened</option></select></label></div>
       <div className={`filters expanded-filters ${filtersOpen ? "open" : ""}`}>
         <label><span>Library</span><select value={library} onChange={(event) => chooseLibrary(event.target.value === "reference" ? "reference" : "reading")}><option value="reading">Reading Room</option><option value="reference">Reference Room</option></select></label>
@@ -807,7 +814,7 @@ export default function LibraryClient() {
         </article>;
       })}</div> : (view === "favorites" && !query && activeFilters.length === 0
         // An empty shelf of your own is not a failed search.
-        ? <div className="empty"><b>{myShelf === "favorites" ? "No favorites yet" : myShelf === "want" ? "Nothing on Want to Read yet" : myShelf === "finished" ? "No finished books yet" : "This collection is empty"}</b><p>Use the ⋯ on any book to add it here.</p></div>
+        ? <div className="empty"><b>{myShelf === "favorites" ? "No favorites yet" : myShelf === "want" ? "Nothing on Want to Read yet" : myShelf === "finished" ? "No finished books yet" : "This collection is empty"}</b><p>Use the ⋯ on any book to add it here.</p><button type="button" onClick={() => chooseChromeView("library")}>Browse Library</button></div>
         : <div className="empty"><b>No books found</b><p>Try clearing one or more filters.</p><button onClick={() => { setQuery(""); clearFilters(); }}>Reset search</button></div>)}
       {/* More books arrive as the end of the list comes into view; the button
           stays for keyboards and for browsers without the observer. */}
@@ -821,7 +828,7 @@ export default function LibraryClient() {
             : <a href={`/api/book/${encodeURIComponent(copy.id)}?format=${encodeURIComponent(copy.format)}&download=1`} download>Download ↓</a>}</div></div>)}</div><p className="note">This title combines {selected.copies.length} file{selected.copies.length === 1 ? "" : "s"} into one catalogue entry.</p></ModalDialog></div>}
 
     {reader && <BookReader title={reader.title} file={reader.file} author={currentReaderBook?.author || undefined} coverUrl={currentReaderBook ? coverUrl(currentReaderBook) : undefined} highlights={savedStates[reader.bookId]?.highlights || []} onHighlightsChange={handleHighlightsChange} initialPosition={reader.initialPosition} bookmarks={savedStates[reader.bookId]?.bookmarks || []} onBookmarksChange={handleBookmarksChange} onLocationChange={handleReaderLocation} seriesNavigation={{ previous: readerSeriesIndex > 0 ? readerSeries[readerSeriesIndex - 1]?.title : undefined, next: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? readerSeries[readerSeriesIndex + 1]?.title : undefined, onPrevious: readerSeriesIndex > 0 ? () => openBook(readerSeries[readerSeriesIndex - 1]) : undefined, onNext: readerSeriesIndex >= 0 && readerSeriesIndex < readerSeries.length - 1 ? () => openBook(readerSeries[readerSeriesIndex + 1]) : undefined }} onClose={() => setReader(null)} />}
-    <LibraryChrome view={chromeView} displayMode={displayMode} sort={sort} filtersOpen={filtersOpen} hidden={Boolean(reader || selected || seriesFocus || editionsFor)} onViewChange={chooseChromeView} onDisplayModeChange={chooseDisplayMode} onSortChange={chooseSort} onFiltersOpenChange={setFiltersOpen} />
+    <LibraryChrome view={chromeView} displayMode={displayMode} density={density} sort={sort} filtersOpen={filtersOpen} hidden={Boolean(reader || selected || seriesFocus || editionsFor)} onViewChange={chooseChromeView} onDisplayModeChange={chooseDisplayMode} onDensityChange={chooseDensity} onSortChange={chooseSort} onFiltersOpenChange={setFiltersOpen} />
     <footer><span>Home Books</span><p>One calm home for your digital shelves. Covers enriched by <a href="https://openlibrary.org" target="_blank" rel="noreferrer">Open Library</a>.</p></footer>
   </main>;
 }

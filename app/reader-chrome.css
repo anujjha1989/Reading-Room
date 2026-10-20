@@ -399,7 +399,9 @@ html[data-rr-library-view="home"] main > .catalog,
 html:not([data-rr-library-view="home"]) main > .discovery { display:none; }
 html:not([data-rr-library-view="library"]) .hero .search { display:none; }
 html[data-rr-library-view="home"] .hero .category-chips,
-html[data-rr-library-view="favorites"] .hero .category-chips { display:none; }
+html[data-rr-library-view="favorites"] .hero .category-chips:not(.rr-my-shelves) { display:none; }
+html .catalog.rr-empty-my-books > :is(.catalog-toolbar, .results) { display:none; }
+html .catalog.rr-empty-my-books ~ footer { display:none; }
 html .catalog::before { display:none; }
 html main > .hero { display:flex; flex-direction:column; align-items:stretch; }
 html[data-rr-library-view="home"] main > .hero { padding-bottom:12px; }
@@ -999,6 +1001,11 @@ html[data-rr-library-view="home"] main > .discovery,
 html[data-rr-library-view="favorites"] main > .catalog {
   padding-top: calc(84px + env(safe-area-inset-top));
 }
+html[data-rr-library-view="favorites"] main > .catalog { padding-top: calc(140px + env(safe-area-inset-top)); }
+html[data-rr-library-view="favorites"] .hero .rr-my-shelves {
+  display: flex; flex-wrap: nowrap; overflow-x: auto; margin: 8px 0 0;
+}
+html[data-rr-library-view="favorites"] .hero .rr-my-shelves button { flex: none; }
 html[data-rr-library-view="search"] main > .catalog {
   padding-top: calc(150px + env(safe-area-inset-top));
 }
@@ -1013,16 +1020,17 @@ html[data-rr-library-view="library"].rr-filters-open .catalog .filters {
 html[data-rr-library-view="library"] .catalog .thumbnail-view,
 html[data-rr-library-view="search"] .catalog .thumbnail-view,
 html[data-rr-library-view="favorites"] .catalog .thumbnail-view {
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--rr-grid-min, 160px), 1fr));
   gap: 22px 14px;
 }
-/* Mobile: the earlier repeat(2,...) is more specific by media query, so it has
-   to be restated rather than relying on the rule above. */
+/* Density belongs to the catalogue, not an extra stylesheet or view mode. */
+.catalog[data-density="compact"] { --rr-grid-min: 104px; --rr-grid-columns: 3; }
+.catalog[data-density="comfortable"] { --rr-grid-min: 160px; --rr-grid-columns: 2; }
 @media (width <= 780px) {
   html[data-rr-library-view="library"] .catalog .thumbnail-view,
   html[data-rr-library-view="search"] .catalog .thumbnail-view,
   html[data-rr-library-view="favorites"] .catalog .thumbnail-view {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--rr-grid-columns, 2), minmax(0, 1fr));
     gap: 20px 12px;
   }
 }
@@ -1263,6 +1271,8 @@ html .rr-byline > small {
    9px of clear space either side of the visible pill: let that overhang the
    card so the pill lines up with the cover edge and the name gets the room. */
 html .catalog .book-caption .rr-byline > small { padding-right: 0; }
+html .catalog[data-density="comfortable"] .book-caption > strong { font-size: 14px; }
+html .catalog[data-density="comfortable"] .rr-byline > small { font-size: 13px; }
 html .rr-byline { gap: 2px; }
 html .rr-byline .rr-card-more { margin-right: -9px; }
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { createPortal } from "react-dom";
+import { prepareBookPresentation } from "./readerPresentation";
 import ReadingSheet, { type SheetTocItem } from "./ReadingSheet";
 import { useReadAloud } from "./useReadAloud";
 import "./readAloudEngine";
@@ -152,6 +153,7 @@ function epubStyles(
     // instead, which is why pages mode rendered blank. Scrolled flow does need
     // it, so the value follows the flow rather than being fixed.
     ":root": {
+      "--rr-reader-margin": `${margin}%`,
       color: `${colors.ink} !important`,
       background: `${colors.paper} !important`,
       overflow: paginated ? "hidden !important" : "hidden auto !important",
@@ -630,6 +632,7 @@ export default function BookReader({ title, author, coverUrl, file, initialPosit
         };
         const rendition = book.renderTo(viewerRef.current, renditionOptions);
         renditionRef.current = rendition;
+        rendition.hooks.content.register((contents: { document: Document }) => prepareBookPresentation(contents.document, mode));
         rendition.spread(mode === "scroll" || mobile ? "none" : "auto", 980);
         rendition.themes.default(epubStyles(themeRef.current, lineHeightRef.current, marginRef.current, mode !== "scroll", typographyRef.current));
         // The saved size, not a hardcoded 100%: this runs after the size has
