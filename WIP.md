@@ -1,4 +1,17 @@
-# Current checkpoint: design refinements v231
+# Current checkpoint: seamless shelves v232
+
+Approved 20 October 2026: deploy the Mac mockup without its separator line.
+Baseline b867ffa / live v231; native f23cf95 / build22. Scope: flat shared shelf
+surface (white light / black dark), no divider, existing vertical breathing room,
+roomier Mac Home cards and reduced sidebar gutter. Phone controls, book artwork,
+reader, playback, saved state and dependencies remain unchanged. Native TV shelf
+gradient/divider assessed and removed for parity, build23. Selected coverage:
+Chrome/WebKit shelf geometry/menus at phone/tablet/Mac sizes and both themes,
+live origins; native build and focused remote library test. Canonical release
+script retains mandatory full gates; do not skip them. Rollback v231/build22.
+Status: implementing; not deployed yet.
+
+# Previous checkpoint: design refinements v231
 
 Completed and deployed 20 October 2026. See docs/design-refinements-v231.md
 for scope, dependency/override review, tested candidate provenance, authorized

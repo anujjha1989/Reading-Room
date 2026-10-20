@@ -12,7 +12,7 @@ for (const engine of ["chromium", "webkit"]) test(`${engine}: shelf menus never 
   const preview = await reliabilityPreview(); t.after(() => preview.close());
   const browser = await pw[engine].launch(engine === "chromium" && process.env.READING_ROOM_CHROME ? { executablePath: process.env.READING_ROOM_CHROME } : {});
   t.after(() => browser.close());
-  for (const width of [320, 393, 768]) {
+  for (const width of [320, 393, 768, 1717]) {
     const page = await browser.newPage({ viewport: { width, height: 852 }, serviceWorkers: "block" });
     const errors = []; page.on("pageerror", error => errors.push(error.message));
     await page.route("**/catalog.json", route => route.fulfill({ json: rows }));
@@ -21,12 +21,12 @@ for (const engine of ["chromium", "webkit"]) test(`${engine}: shelf menus never 
     await page.waitForFunction(() => [...document.querySelectorAll('.smart-shelf h2')].some(heading => heading.textContent === 'Continue'));
     for (const theme of ["light", "dark"]) {
       await page.evaluate(theme => document.documentElement.dataset.rrTheme = theme, theme);
-      const expectedGradient = theme === "dark"
-        ? "linear-gradient(rgb(30, 30, 30) 0%, rgb(0, 0, 0) 50%, rgb(30, 30, 30) 100%)"
-        : "linear-gradient(rgb(237, 237, 240) 0%, rgb(255, 255, 255) 50%, rgb(237, 237, 240) 100%)";
-      const gradients = await page.locator('.smart-shelf').evaluateAll(shelves => shelves.map(shelf => getComputedStyle(shelf).backgroundImage));
-      assert.ok(gradients.length > 0);
-      for (const gradient of gradients) assert.equal(gradient, expectedGradient, 'every shelf fades from grey to the theme background and back to grey');
+      const surfaces = await page.locator('.smart-shelf').evaluateAll(shelves => shelves.map(shelf => {
+        const style = getComputedStyle(shelf);
+        return { image: style.backgroundImage, color: style.backgroundColor, shadow: style.boxShadow, top: style.borderTopWidth, bottom: style.borderBottomWidth };
+      }));
+      assert.ok(surfaces.length > 0);
+      for (const surface of surfaces) assert.deepEqual(surface, { image: 'none', color: theme === 'dark' ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)', shadow: 'none', top: '0px', bottom: '0px' }, 'shelves share a flat theme surface with no separating rule');
       const spacing = await page.locator('.smart-shelf').first().evaluate(shelf => {
         const heading = shelf.querySelector('.shelf-heading').getBoundingClientRect();
         const cover = shelf.querySelector('.shelf-strip').getBoundingClientRect();

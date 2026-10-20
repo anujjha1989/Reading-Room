@@ -248,8 +248,8 @@ html .hero .category-chips { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:
 html .hero .category-chips button { flex-shrink:0; border:0; background:var(--paper-2); padding:10px 16px; font-size:13px; color:var(--ink); min-height:40px; }
 html main > .discovery { order:2; max-width:1248px; padding:0 24px 32px; border:0; }
 html .discovery .smart-shelf {
-  margin:0 -24px; padding:24px 24px 20px; border-bottom:1px solid var(--line);
-  background:linear-gradient(180deg,var(--shelf-top) 0%,var(--shelf-bottom) 50%,var(--shelf-top) 100%);
+  margin:0 -24px; padding:24px 24px 20px; border:0;
+  background:var(--paper);
   overflow:hidden;
 }
 html .shelf-heading { align-items:center; margin-bottom:16px; gap:0; }
@@ -493,12 +493,7 @@ html[data-rr-theme="dark"] .rr-library-dock::before { background:rgba(48,48,50,.
 html[data-rr-theme="dark"] .rr-library-dock button[data-view="Search"] { background:#184c41; color:#c4ffea; }
 html[data-rr-theme="dark"] .rr-library-dock button[data-view="Search"][aria-current="page"] { background:#286957; color:#fff; }
 
-/* One neutral band for every horizontal shelf, including Continue. */
-html .discovery { --shelf-top:#ededf0; --shelf-bottom:#fff; --shelf-divider:#d1d1d6; }
-@media (prefers-color-scheme:dark) {
-  html:not([data-rr-theme="light"]) .discovery { --shelf-top:#1e1e1e; --shelf-bottom:#000; --shelf-divider:#454548; }
-}
-html[data-rr-theme="dark"] .discovery { --shelf-top:#1e1e1e; --shelf-bottom:#000; --shelf-divider:#454548; }
+/* Shelves share the page surface; whitespace, not bands or rules, groups books. */
 
 /* ---- Settings entry point -------------------------------------------- */
 html #rr-settings-link {
@@ -1083,11 +1078,10 @@ html.rr-library-visible #rr-settings-link {
 }
 /* Match the h1's optical centre: the title box is 42px tall, the gear 42px. */
 
-/* --- full-width shelf bands -------------------------------------------- */
+/* --- seamless shelves -------------------------------------------------- */
 html[data-rr-library-view="home"] .discovery .smart-shelf {
-  border-bottom: 0;
-  /* A crisp hairline separates matching gradient ends without changing layout. */
-  box-shadow: inset 0 -1px 0 var(--shelf-divider);
+  border: 0;
+  box-shadow: none;
   margin: 0 -20px;
   padding: 28px 20px 30px;
   overflow: visible;
@@ -1291,6 +1285,22 @@ html[data-rr-library-view="home"] .rr-continue-shelf .rr-continue-meta::before {
 html[data-rr-library-view="home"] .rr-continue-shelf .rr-continue-meta {
   margin-top: 4px !important;
   padding-right: 34px;
+}
+
+/* Mac Home uses its available width; phone/touch card geometry stays intact. */
+@media (min-width:1200px) {
+  html.rr-library-visible[data-rr-library-view="home"] {
+    --rr-library-header-inset:40px;
+  }
+  html[data-rr-library-view="home"] main > .discovery {
+    max-width:none; padding-left:40px; padding-right:40px;
+  }
+  html[data-rr-library-view="home"] .shelf-strip,
+  html[data-rr-library-view="home"] .rr-continue-shelf .shelf-strip {
+    grid-auto-columns:164px; gap:24px;
+  }
+  html[data-rr-library-view="home"] .shelf-book > strong { font-size:14px; }
+  html[data-rr-library-view="home"] .rr-shelf-author { font-size:13px; }
 }
 
 /* --- scrim: one tap closes, and cannot reach another ⋯ ------------------- */
