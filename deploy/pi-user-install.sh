@@ -47,7 +47,7 @@ restart_and_wait() {
   return 1
 }
 
-version_of() { grep -o 'name="rr-app-version" content="[0-9]*"' "$1/site/index.html" | head -1 | grep -o '[0-9]*$'; }
+version_of() { grep -o 'name="rr-app-version" content="[0-9]*"' "$1/site/index.html" | head -1 | sed -E 's/.*content="([0-9]+)"/\1/'; }
 
 # The same candidate checks the old root helper made, so a client is never
 # installed alongside a server that is missing a module it depends on.
