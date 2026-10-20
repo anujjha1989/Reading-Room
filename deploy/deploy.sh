@@ -38,7 +38,11 @@ export READING_ROOM_BASE_URL="${READING_ROOM_BASE_URL:-$LAN_ORIGIN}"
 export READING_ROOM_BOOK_ORIGIN="${READING_ROOM_BOOK_ORIGIN:-$LAN_ORIGIN}"
 PI=anujjha1989@$PI_HOST
 SSH=(ssh -i "$HOME/.ssh/id_ed25519_anujrpi_codex" -o BatchMode=yes -o IdentitiesOnly=yes -o HostKeyAlias=anujrpi.local)
-DEPLOY_HISTORY_DIR=${READING_ROOM_DEPLOY_HISTORY:-/Volumes/Seagate/ReadingRoom/deployment-history}
+# Since the October 2026 restore the Seagate is attached to the Pi, not this Mac.
+# Records are written here first, then copied to the Pi's Seagate history.
+DEPLOY_HISTORY_DIR=${READING_ROOM_DEPLOY_HISTORY:-$HOME/.home-books/deployment-history}
+PI_HISTORY_DIR=/mnt/seagate/ReadingRoom/deployment-history
+PI_INSTALLER='~/rr-deploy/pi-user-install.sh'
 PUBLIC_ORIGIN=${READING_ROOM_PUBLIC_ORIGIN:-https://anujrpi.tail549492.ts.net}
 if [ -z "${READING_ROOM_CURL_COOKIE_FILE:-}" ] || [ ! -f "$READING_ROOM_CURL_COOKIE_FILE" ] || [ -z "${READING_ROOM_COOKIE_FILE:-}" ] || [ ! -f "$READING_ROOM_COOKIE_FILE" ]; then
   echo "FAILED: an authenticated public release check needs private curl and browser session files." >&2
@@ -75,33 +79,22 @@ echo "==> verification scope: $TEST_SCOPE"
 # so a new name is the only way a change reaches a phone that has been there.
 VERSION=$(( (SOURCE_VERSION > PREVIOUS_VERSION ? SOURCE_VERSION : PREVIOUS_VERSION) + 1 ))
 
-# Refuse to publish a client that expects new server behaviour through an old
-# helper that silently ignores the staged server modules. This preflight turns
-# the split-brain v135 failure into an explicit error before build/install.
-if ! "${SSH[@]}" "$PI" "grep -q 'SERVER_FILES=' /usr/local/sbin/reading-room-deploy"; then
-  echo "FAILED: the Pi deployment helper cannot install server modules." >&2
-  echo "        Install deploy/reading-room-deploy on the Pi first." >&2
+# Since the October 2026 restore there is no sudo on the Pi. The release is
+# installed by deploy/pi-user-install.sh as the normal user into its own folder
+# under ~/app-restore/releases. Confirm that layout before building anything.
+LIVE_DIR=$("${SSH[@]}" "$PI" "systemctl --user show -p WorkingDirectory --value home-books")
+case "$LIVE_DIR" in
+  /home/anujjha1989/app-restore/releases/home-books-v*) ;;
+  *) echo "FAILED: the live Home Books release is not in the restored layout ($LIVE_DIR)" >&2; exit 1 ;;
+esac
+NEW_DIR=/home/anujjha1989/app-restore/releases/home-books-v$VERSION
+if "${SSH[@]}" "$PI" "test -e '$NEW_DIR'"; then
+  echo "FAILED: $NEW_DIR already exists on the Pi" >&2
   exit 1
 fi
-if ! "${SSH[@]}" "$PI" "grep -q 'PUBLIC_FILES=' /usr/local/sbin/reading-room-deploy"; then
-  echo "FAILED: the Pi deployment helper cannot install public branding assets." >&2
-  echo "        Install deploy/reading-room-deploy on the Pi first." >&2
-  exit 1
-fi
-if ! "${SSH[@]}" "$PI" "grep -q 'SERVER_FILES=.*piper-pool.mjs.*wav-cache.mjs.*request-guard.mjs' /usr/local/sbin/reading-room-deploy"; then
-  echo "FAILED: install the current helper before releasing the narration scheduler." >&2
-  exit 1
-fi
-if ! "${SSH[@]}" "$PI" "grep -q 'SERVER_FILES=.*voice-worker-pool.mjs.*kokoro.mjs' /usr/local/sbin/reading-room-deploy"; then
-  echo "FAILED: install the current helper before releasing additional voice engines." >&2
-  exit 1
-fi
-
-# Build and stage on the Mac SSD. The repo lives on an SMB mount, where many
-if ! "${SSH[@]}" "$PI" "grep -q 'STAGE/rr-catalog-rebuild.sh' /usr/local/sbin/reading-room-deploy"; then
-  echo "FAILED: install the current deployment helper before releasing scanner changes." >&2
-  exit 1
-fi
+"${SSH[@]}" "$PI" "test -w /mnt/seagate/ReadingRoom/deployment-history" \
+  || { echo "FAILED: the Pi's Seagate deployment history is not writable" >&2; exit 1; }
+echo "==> live release: $LIVE_DIR; candidate: $NEW_DIR"
 
 # Build and stage on the Mac SSD. The repo lives on an SMB mount, where many
 # small generated-file writes dominate release time. Only source is synced;
@@ -194,51 +187,28 @@ COPYFILE_DISABLE=1 tar czf - -C "$BUILD_DIR/dist/stage" . | "${SSH[@]}" "$PI" "t
 # macOS tar can still emit AppleDouble sidecars, and ._foo.js matches the
 # installer's *.js glob. Belt and braces: never let one reach the site tree.
 "${SSH[@]}" "$PI" "find ~/rr-deploy/stage -name '._*' -delete"
+"${SSH[@]}" "$PI" "cat > $PI_INSTALLER && chmod 0755 $PI_INSTALLER" < deploy/pi-user-install.sh
 
-echo "==> capturing rollback"
-# Preserve the complete current release without dereferencing linked library
-# artwork. Also create the flat installer input used for automatic rollback.
-#
-# Backups live beside the existing before-v64/before-v65 ones, outside the repo:
-# they are deployment history, not source, and a repo-relative path would split
-# that history across two directories.
-ROLLBACK=/Volumes/Seagate/ReadingRoom/deployment-backups/$(date +%Y%m%d-%H%M%S)-before-v$VERSION
-mkdir -p "$ROLLBACK"
-"${SSH[@]}" "$PI" "tar czf - -C /opt/reading-room/current ." > "$ROLLBACK/complete-release.tar.gz"
-gzip -t "$ROLLBACK/complete-release.tar.gz"
-"${SSH[@]}" "$PI" "tar czf - -C /opt/reading-room/current \
-  standalone-server.mjs rr-settings.mjs rr-tts.mjs \
-  \$([ -f /opt/reading-room/current/synthesis-queue.mjs ] && echo synthesis-queue.mjs) \$([ -f /opt/reading-room/current/piper-pool.mjs ] && echo piper-pool.mjs) \$([ -f /opt/reading-room/current/wav-cache.mjs ] && echo wav-cache.mjs) \$([ -f /opt/reading-room/current/request-guard.mjs ] && echo request-guard.mjs) \
-  \$(for name in voice-worker-pool.mjs kokoro.mjs kokoro-worker.py; do [ -f /opt/reading-room/current/\$name ] && echo \$name; done) -C site index.html \
-  \$([ -f /opt/reading-room/current/site/sw.js ] && echo sw.js) \
-  \$([ -f /opt/reading-room/current/site/settings.html ] && echo settings.html) \
-  \$(for name in favicon.svg home-books-icon.svg icon-192.png icon-512.png apple-touch-icon.png manifest.webmanifest; do \
-      [ -f /opt/reading-room/current/site/\$name ] && echo \$name; \
-    done) -C /usr/local/lib/reading-room rr-catalog-rebuild.sh -C /opt/reading-room/tools rr-cover-extract.py" \
-  > "$ROLLBACK/site-html.tar.gz"
-# cat, not cp: cp on this SMB mount leaves an ._ AppleDouble sidecar behind.
-cat deploy/reading-room-deploy > "$ROLLBACK/reading-room-deploy"
+echo "==> rollback point"
+# The live release folder is never modified by an install; it stays on the Pi
+# and rollback simply points the service back at it.
+ROLLBACK="$PI:$LIVE_DIR"
 echo "    $ROLLBACK"
 
 rollback() {
   echo "==> ROLLING BACK to the previous release" >&2
-  # Restore through the same staging channel the installer already reads, so no
-  # new privileged path is introduced. Assets are left alone: they are additive
-  # and the old hashed files were never removed.
-  "${SSH[@]}" "$PI" "rm -rf ~/rr-deploy/stage && mkdir -p ~/rr-deploy/stage/assets"
-  "${SSH[@]}" "$PI" "tar xzf - -C ~/rr-deploy/stage" < "$ROLLBACK/site-html.tar.gz"
-  "${SSH[@]}" "$PI" "sudo -n /usr/local/sbin/reading-room-deploy" >&2
+  "${SSH[@]}" "$PI" "$PI_INSTALLER rollback '$LIVE_DIR'" >&2
   echo "$PREVIOUS_VERSION" > overrides/VERSION
   echo "$PREVIOUS_VERSION" > "$BUILD_DIR/overrides/VERSION"
   curl -fsS --max-time 15 "$LAN_ORIGIN/api/health" | grep -q '"ok":true'
   for origin in "$LAN_ORIGIN" "$PUBLIC_ORIGIN"; do
     (cd "$BUILD_DIR" && READING_ROOM_BASE_URL="$origin" READING_ROOM_EXPECT_VERSION="$PREVIOUS_VERSION" node deploy/release-smoke.mjs)
   done
-  echo "==> rollback verified on both origins; candidate hashed assets remain unreferenced" >&2
+  echo "==> rollback verified on both origins; the candidate folder remains on the Pi for inspection" >&2
 }
 
 # Everything past this point can change the live server, so a failure must
-# restore the previous release files rather than only abort.
+# restore the previous release rather than only abort.
 fail() {
   trap - ERR
   echo "FAILED: $1" >&2
@@ -246,12 +216,16 @@ fail() {
   rollback
   exit 1
 }
-trap 'fail "unexpected post-install release failure at line $LINENO"' ERR
 
 echo "==> installing"
-if ! "${SSH[@]}" "$PI" "sudo -n /usr/local/sbin/reading-room-deploy"; then
-  fail "installer failed"
+# The installer restores the previous release itself if the candidate does not
+# start, so a failure here is not followed by a second rollback.
+if ! "${SSH[@]}" "$PI" "$PI_INSTALLER install $VERSION"; then
+  echo "$PREVIOUS_VERSION" > overrides/VERSION
+  echo "FAILED: installer failed; the previous release was restored on the Pi" >&2
+  exit 1
 fi
+trap 'fail "unexpected post-install release failure at line $LINENO"' ERR
 
 # Prove the restarted process received the server sources from this checkout.
 # Asset/version checks alone cannot catch a stale rr-tts.mjs or settings route.
@@ -260,22 +234,22 @@ for asset in "$BUILD_DIR"/dist/stage/assets/*; do
   name=$(basename "$asset")
   case "$name" in *[!A-Za-z0-9_.-]*) fail "unexpected candidate asset name" ;; esac
   local_hash=$(shasum -a 256 "$asset" | awk '{print $1}')
-  remote_hash=$("${SSH[@]}" "$PI" "sha256sum /opt/reading-room/current/site/assets/$name | cut -d' ' -f1")
+  remote_hash=$("${SSH[@]}" "$PI" "sha256sum $NEW_DIR/site/assets/$name | cut -d' ' -f1")
   [ "$local_hash" = "$remote_hash" ] || fail "$name did not reach the complete live candidate"
 done
 for document in index.html sw.js; do
   local_hash=$(shasum -a 256 "$BUILD_DIR/dist/stage/$document" | awk '{print $1}')
-  remote_hash=$("${SSH[@]}" "$PI" "sha256sum /opt/reading-room/current/site/$document | cut -d' ' -f1")
+  remote_hash=$("${SSH[@]}" "$PI" "sha256sum $NEW_DIR/site/$document | cut -d' ' -f1")
   [ "$local_hash" = "$remote_hash" ] || fail "$document did not reach the live candidate"
 done
 for server_file in standalone-server.mjs rr-settings.mjs rr-tts.mjs synthesis-queue.mjs piper-pool.mjs wav-cache.mjs request-guard.mjs voice-worker-pool.mjs kokoro.mjs kokoro-worker.py; do
   local_hash=$(shasum -a 256 "server/$server_file" | awk '{print $1}')
-  remote_hash=$("${SSH[@]}" "$PI" "sha256sum /opt/reading-room/current/$server_file | cut -d' ' -f1")
+  remote_hash=$("${SSH[@]}" "$PI" "sha256sum $NEW_DIR/$server_file | cut -d' ' -f1")
   [ "$local_hash" = "$remote_hash" ] || fail "$server_file did not reach the live release"
 done
 
 local_hash=$(shasum -a 256 ops/pi/lib/rr-catalog-rebuild.sh | awk '{print $1}')
-remote_hash=$("${SSH[@]}" "$PI" "sha256sum /usr/local/lib/reading-room/rr-catalog-rebuild.sh | cut -d' ' -f1")
+remote_hash=$("${SSH[@]}" "$PI" "sha256sum $NEW_DIR/ops/rr-catalog-rebuild.sh | cut -d' ' -f1")
 [ "$local_hash" = "$remote_hash" ] || fail "catalogue scanner did not reach the live release"
 
 echo "==> verifying"
@@ -395,7 +369,7 @@ for origin in "$LAN_ORIGIN" "$PUBLIC_ORIGIN"; do
   fi
 done
 
-served=$("${SSH[@]}" "$PI" "grep -o 'name=\"rr-app-version\" content=\"[0-9]*\"' /opt/reading-room/current/site/index.html | head -1")
+served=$("${SSH[@]}" "$PI" "grep -o 'name=\"rr-app-version\" content=\"[0-9]*\"' $NEW_DIR/site/index.html | head -1")
 [ "$served" = "name=\"rr-app-version\" content=\"$VERSION\"" ] \
   || fail "live HTML references $served, expected version $VERSION"
 
@@ -441,4 +415,7 @@ if ! node deploy/record-deployment.mjs \
   --output-dir "$DEPLOY_HISTORY_DIR"; then
   fail "required release provenance could not be written"
 fi
+"${SSH[@]}" "$PI" "cat > $PI_HISTORY_DIR/v$VERSION.json" < "$DEPLOY_HISTORY_DIR/v$VERSION.json" \
+  || fail "deployment record could not be copied to the Pi's Seagate history"
+echo "    copied to $PI_HISTORY_DIR/v$VERSION.json on the Pi"
 trap - ERR
