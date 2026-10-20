@@ -9,7 +9,14 @@ gradient/divider assessed and removed for parity, build23. Selected coverage:
 Chrome/WebKit shelf geometry/menus at phone/tablet/Mac sizes and both themes,
 live origins; native build and focused remote library test. Canonical release
 script retains mandatory full gates; do not skip them. Rollback v231/build22.
-Status: implementing; not deployed yet.
+Completed: v232 live on LAN and public HTTPS, full canonical candidate/post-install
+gates passed and provenance recorded on Mac/Pi. Additional live Chrome/WebKit
+surface/menu/Library/Settings checks passed at phone/Mac sizes in both themes;
+screenshots inspected. Both TVs independently confirmed build23, Living Room
+launch passed; Bedroom asleep, foreground launch unverified. Three focused TV
+remote tests passed. Prior v231/signed build22 retained. No native iOS reinstall
+needed; shared web UI updated. See docs/seamless-shelves-v232.md and native
+tvos/RELEASE-1.1-build23.md for details.
 
 # Previous checkpoint: design refinements v231
 
