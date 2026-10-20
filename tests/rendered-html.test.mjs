@@ -16,7 +16,7 @@ test("server-renders the ebook library", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /<title>Home Books<\/title>/i);
-  assert.match(html, /<h1><svg\b[^>]*class="home-books-mark"[\s\S]*?<\/svg>Books<\/h1>/);
+  assert.match(html, /<h1><img\b[^>]*class="home-books-mark"[^>]*src="\/home-books-icon\.svg\?v=230"[^>]*style="object-fit:contain"[^>]*\/>Books<\/h1>/);
   assert.match(html, /name="rr-react-library-chrome" content="1"/);
   const viewports = html.match(/<meta\b[^>]*name="viewport"[^>]*>/g) ?? [];
   assert.equal(viewports.length, 1, "One source-owned viewport declaration");

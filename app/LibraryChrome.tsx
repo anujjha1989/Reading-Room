@@ -46,18 +46,27 @@ export default function LibraryChrome(props: Props) {
   const [sortOpen, setSortOpen] = useState(false);
   const [settingsMounted, setSettingsMounted] = useState(false);
   const [settingsClosing, setSettingsClosing] = useState(false);
+  const settingsWasMounted = useRef(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closePopovers = useCallback(() => { setSortOpen(false); onFiltersOpenChange(false); }, [onFiltersOpenChange]);
   const closeSettings = useCallback(() => {
     if (!settingsMounted || settingsClosing) return;
     setSettingsClosing(true);
     document.documentElement.classList.remove("rr-settings-open");
-    closeTimer.current = setTimeout(() => { setSettingsMounted(false); setSettingsClosing(false); closeTimer.current = null; document.getElementById("rr-settings-link")?.focus(); }, 430);
+    closeTimer.current = setTimeout(() => { setSettingsMounted(false); setSettingsClosing(false); closeTimer.current = null; }, 430);
   }, [settingsClosing, settingsMounted]);
   const openSettings = () => {
     closePopovers(); setSettingsClosing(false); setSettingsMounted(true);
     document.documentElement.classList.add("rr-settings-open");
   };
+  useEffect(() => {
+    if (settingsMounted) { settingsWasMounted.current = true; return; }
+    if (!settingsWasMounted.current) return;
+    settingsWasMounted.current = false;
+    // Restore only after the modal cleanup has removed outside inertness.
+    const frame = requestAnimationFrame(() => document.getElementById("rr-settings-link")?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [settingsMounted]);
 
   useEffect(() => {
     const root = document.documentElement;

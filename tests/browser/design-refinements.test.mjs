@@ -27,7 +27,7 @@ for(const engine of ['chromium','webkit']) test(`${engine}: comfortable/compact 
   const rect=await p.locator('#rr-settings-overlay').boundingBox();assert.equal(rect.width,660);assert.ok(rect.x>0&&rect.y>0);
   await p.getByRole('button',{name:'Appearance',exact:false}).click();await p.getByRole('button',{name:'Back',exact:true}).click();
   await p.locator('#close').click();await p.locator('#rr-settings-overlay').waitFor({state:'detached'});
-  assert.equal(await p.locator('#rr-settings-link').evaluate(e=>e===document.activeElement),true);
+  await p.waitForFunction(()=>document.activeElement===document.getElementById('rr-settings-link'));
  }
  await p.locator('.rr-library-dock button[data-view="Favorites"]').click();await p.getByRole('heading',{name:'My Books',exact:true}).waitFor();
  assert.equal(await p.locator('.catalog .results').isVisible(),false);
